@@ -2,18 +2,14 @@
 // networking stay in the main client; this module only turns that state into a 3D scene each frame.
 // World units match the 2D game: x -> X, y -> Z, height is Y.
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
-// Guns (Quaternius, CC0). len: length in world units; flip: turn round if the model's muzzle faces backwards.
-const GUNS = { pistol: { len: 14, flip: true }, smg: { len: 21, flip: true }, shotgun: { len: 30, flip: true }, rifle: { len: 31, flip: true } };
 const H = { wall: 68, pwall: 78, block: 64, fence: 30, door: 68, aim: 34 };
 const PITCH = THREE.MathUtils.degToRad(60), FOV = 34;
 const coarse = matchMedia('(pointer: coarse)').matches;
 const LIGHTS = coarse ? 6 : 10;
 
 let renderer = null, scene, camera, world = null, fogCv, fogCtx;
-const gunSrc = {};           // gun type -> model, barrel along +Z with the grip at the origin
 const players = new Map();   // id -> view of one player
 const itemViews = new Map(); // item id -> mesh
 const dummy = new THREE.Object3D(), tmpC = new THREE.Color(), tmpV = new THREE.Vector3(), tmpM = new THREE.Matrix4();
@@ -69,8 +65,6 @@ function init(canvas) {
   api.pool = Array.from({ length: LIGHTS }, () => { const l = new THREE.PointLight('#ffd28c', 0, 200, 0); scene.add(l); return l; });
   fogCv = document.createElement('canvas'); fogCv.width = fogCv.height = FOG_PX; fogCtx = fogCv.getContext('2d');
   fogU.tex.value = new THREE.CanvasTexture(fogCv);
-  const loader = new GLTFLoader();
-  for (const t of Object.keys(GUNS)) loader.load(`/assets/${t}.glb`, g => { gunSrc[t] = normalizeGun(g.scene, GUNS[t]); }, undefined, e => console.warn('DUBG: gun model failed to load', t, e));
   return true;
 }
 
@@ -167,6 +161,7 @@ function addCars(g, cars) {
 function disposeWorld() {
   if (!world) return;
   scene.remove(world.group);
+  for (const g of itemViews.values()) world.group.remove(g); // their parts are shared, keep them
   world.group.traverse(o => { if (o.isMesh || o.isSprite || o.isLine) { if (o.geometry && o.geometry !== boxGeo) o.geometry.dispose(); const ms = Array.isArray(o.material) ? o.material : [o.material]; for (const m of ms) { if (m.map && m.map !== flameTex) m.map.dispose(); m.dispose(); } } });
   for (const v of players.values()) scene.remove(v.holder);
   players.clear(); itemViews.clear();
@@ -264,22 +259,6 @@ function setWorld(W, ground, scale) {
 }
 
 // ---------- players ----------
-// turn a gun model so its barrel runs along +Z, scaled to `len`, grip at the origin
-function normalizeGun(src, o) {
-  src.updateMatrixWorld(true);
-  const box = new THREE.Box3().setFromObject(src, true), size = box.getSize(new THREE.Vector3()), c = box.getCenter(new THREE.Vector3());
-  const inner = new THREE.Group(); inner.add(src); inner.position.copy(c).negate();
-  const axis = new THREE.Group(); axis.add(inner);
-  const long = Math.max(size.x, size.y, size.z);
-  if (long === size.x) axis.rotation.y = -Math.PI / 2; else if (long === size.y) axis.rotation.x = Math.PI / 2;
-  const out = new THREE.Group(); out.add(axis);
-  axis.scale.setScalar(o.len / long);
-  if (o.flip) out.rotation.y = Math.PI;
-  const wrap = new THREE.Group(); wrap.add(out);
-  out.position.z = o.len * 0.3; // grip sits a third of the way back
-  wrap.traverse(m => { if (m.isMesh) { m.material = fogify(m.material.clone()); m.frustumCulled = false; } });
-  return wrap;
-}
 // Block characters, built from boxes so every outfit from the 2D game carries over.
 // Sizes in world units; the figure is about 58 tall and faces +Z. Limbs hang from their joints.
 const PANTS = ['#1f2a3a', '#232323', '#3b3326', '#1d2b26', '#2e2a33'];
@@ -346,7 +325,7 @@ function makePlayer(P, isMe) {
   box(head, unitBox, shade(skin, 0.75), 5, 1.2, 1, 0, 3, 6.6);
   addHat(head, L, crew);
   // the gun sits in the right hand; it points along the arm, and the arm points where you aim
-  const gun = new THREE.Group(); gun.position.set(0, -17, 2); gun.rotation.x = Math.PI / 2; arms[0].add(gun);
+  const gun = new THREE.Group(); gun.position.set(0, -18, 0); gun.rotation.x = Math.PI / 2; gun.scale.setScalar(1.2); arms[0].add(gun);
   // crew ring under the feet (white for you)
   const ring = new THREE.Mesh(new THREE.RingGeometry(15, 19, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: isMe ? '#ffffff' : crew, transparent: true, opacity: isMe ? 0.8 : 0.65, depthWrite: false }));
   ring.position.y = 0.8; holder.add(ring);
@@ -356,6 +335,50 @@ function makePlayer(P, isMe) {
   return { holder, rig, hips, legs, chest, arms, head, vest, gun, ring, mats, lx: P.x, ly: P.y, mvx: 0, mvy: 0, speed: 0, phase: 0, punch: 0, fall: 0, gunType: null, hurt: false };
 }
 const TWO_HANDED = { smg: true, shotgun: true, rifle: true };
+// Block guns: barrel along +Z, up is +Y, the grip at the origin where the hand holds it.
+const METAL = '#1c1e21', STEEL = '#3a3f46', WOOD = '#6b4426', BRASS = '#c9a24a';
+function tilt(m, rx) { m.rotation.x = rx; return m; }
+const GUN_BUILD = {
+  pistol(g) {
+    box(g, unitBox, STEEL, 3, 3.4, 13, 0, 4.2, 4.5);             // slide
+    box(g, unitBox, METAL, 2.8, 2, 10, 0, 1.8, 4);               // frame
+    tilt(box(g, unitBox, METAL, 2.6, 7, 3.6, 0, -1.5, -0.6), 0.28); // grip
+    box(g, unitBox, METAL, 1, 1, 1, 0, 6.2, 10.5);               // front sight
+  },
+  smg(g) {
+    box(g, unitBox, METAL, 3.6, 5, 13, 0, 3.2, 4);               // body
+    box(g, unitBox, STEEL, 1.8, 1.8, 6, 0, 4, 13);               // barrel
+    tilt(box(g, unitBox, METAL, 2.4, 9, 3, 0, -2.5, 7), 0.12);   // long magazine
+    tilt(box(g, unitBox, METAL, 2.6, 6, 3, 0, -1, -0.5), 0.25);  // grip
+    box(g, unitBox, STEEL, 1.2, 1.2, 8, 0, 4.2, -6);             // folding stock
+    box(g, unitBox, STEEL, 1.6, 5, 1.4, 0, 2.6, -10);
+  },
+  shotgun(g) {
+    box(g, unitBox, METAL, 2.2, 2.2, 22, 0, 4.8, 12);            // barrel
+    box(g, unitBox, STEEL, 2, 2, 15, 0, 2.6, 11);                // magazine tube
+    box(g, unitBox, WOOD, 3.2, 3.2, 7, 0, 2.6, 13);              // pump
+    box(g, unitBox, METAL, 3.2, 5, 8, 0, 3.4, 0.5);              // receiver
+    tilt(box(g, unitBox, METAL, 2.6, 5.5, 3, 0, -0.5, -1.5), 0.3);
+    tilt(box(g, unitBox, WOOD, 3, 5, 11, 0, 1.8, -8.5), -0.12);  // stock
+  },
+  rifle(g) {
+    box(g, unitBox, METAL, 3.2, 5, 13, 0, 3.4, 3);               // receiver
+    box(g, unitBox, STEEL, 3, 3.6, 9, 0, 3.8, 13);               // handguard
+    box(g, unitBox, METAL, 1.5, 1.5, 7, 0, 4.2, 20.5);           // barrel
+    tilt(box(g, unitBox, METAL, 2.6, 9, 3.4, 0, -2, 6.5), 0.32); // curved magazine
+    tilt(box(g, unitBox, METAL, 2.6, 6, 3, 0, -1, -0.8), 0.28);  // grip
+    box(g, unitBox, METAL, 3, 5.5, 9, 0, 3, -8);                 // stock
+    box(g, unitBox, STEEL, 2.2, 2.2, 8, 0, 7.4, 3);              // scope
+    box(g, unitBox, '#7fb6ff', 1.6, 1.6, 0.4, 0, 7.4, 7.1);      // lens
+    box(g, unitBox, METAL, 1, 1.6, 1, 0, 5.8, 0.5); box(g, unitBox, METAL, 1, 1.6, 1, 0, 5.8, 5.5);
+  },
+};
+const gunProto = {};
+function gunModel(type) {
+  if (!GUN_BUILD[type]) return new THREE.Group();
+  if (!gunProto[type]) { const g = new THREE.Group(); GUN_BUILD[type](g); gunProto[type] = g; }
+  return gunProto[type].clone();
+}
 function updatePlayer(P, v, dt, visible) {
   const x = P.x, y = P.y, k = Math.min(1, dt * 10);
   v.mvx += ((x - v.lx) / Math.max(dt, 1e-3) - v.mvx) * k; v.mvy += ((y - v.ly) / Math.max(dt, 1e-3) - v.mvy) * k;
@@ -366,9 +389,9 @@ function updatePlayer(P, v, dt, visible) {
   v.holder.visible = visible;
   v.vest.visible = P.armor > 0;
   // swap the gun model when they change weapons
-  if (v.gunType !== P.gun || (P.gun && !v.gun.children.length && gunSrc[P.gun])) {
+  if (v.gunType !== P.gun) {
     v.gunType = P.gun; v.gun.clear();
-    if (P.gun && gunSrc[P.gun]) v.gun.add(gunSrc[P.gun].clone());
+    if (P.gun) v.gun.add(gunModel(P.gun));
   }
   v.gun.visible = !!P.gun && P.alive;
   if (!P.alive) {
@@ -418,22 +441,56 @@ const hurtMat = fogify(new THREE.MeshLambertMaterial({ color: '#ff5a4a', emissiv
 // muzzle position of a player's gun, for the muzzle flash light
 function muzzle(P) { return { x: P.x + Math.cos(P.ang) * 30, y: P.y + Math.sin(P.ang) * 30 }; }
 
-// ---------- items ----------
-const itemGeo = {
-  ring: new THREE.RingGeometry(10, 13, 24).rotateX(-Math.PI / 2),
-  gun: new THREE.BoxGeometry(22, 5, 6), ammo: new THREE.CylinderGeometry(2, 2, 10, 6), heal: new THREE.BoxGeometry(12, 6, 10), armor: new THREE.BoxGeometry(14, 16, 6),
+// ---------- items: 3D pickups that float and turn above a glowing ring ----------
+const ringGeo = new THREE.RingGeometry(10, 13, 24).rotateX(-Math.PI / 2);
+const cylGeo = new THREE.CylinderGeometry(1, 1, 1, 10);
+function cyl(parent, c, r, h, x, y, z) { const m = new THREE.Mesh(cylGeo, mat(c)); m.scale.set(r, h, r); m.position.set(x, y, z); parent.add(m); return m; }
+const ITEM_BUILD = {
+  med(g) {
+    box(g, unitBox, '#f1ede4', 14, 9, 10, 0, 0, 0);
+    box(g, unitBox, '#d9d3c6', 14.2, 1.2, 10.2, 0, 1.5, 0);          // lid seam
+    box(g, unitBox, '#e23a2e', 6.5, 0.6, 2, 0, 4.8, 0); box(g, unitBox, '#e23a2e', 2, 0.6, 6.5, 0, 4.8, 0); // cross on the lid
+    box(g, unitBox, '#e23a2e', 5, 1.6, 0.6, 0, -0.5, 5.1); box(g, unitBox, '#e23a2e', 1.6, 5, 0.6, 0, -0.5, 5.1); // and the front
+    box(g, unitBox, '#5a5a5a', 6, 1.2, 1.4, 0, 5.4, 0);              // handle
+  },
+  band(g) {
+    const roll = cyl(g, '#f1ede4', 4.2, 7, 0, 0, 0); roll.rotation.z = Math.PI / 2;
+    const core = cyl(g, '#c9c0ad', 1.6, 7.2, 0, 0, 0); core.rotation.z = Math.PI / 2;
+    tilt(box(g, unitBox, '#e8e3d8', 5.5, 0.5, 9, 0, -3.8, 5), 0.25);   // loose end
+  },
+  ammo(g) {
+    box(g, unitBox, '#4f5a32', 13, 7, 8, 0, 0, 0);
+    box(g, unitBox, '#3d4626', 13.2, 1.4, 8.2, 0, 3, 0);             // lid
+    box(g, unitBox, '#d8c27c', 5, 2.4, 0.4, 0, 0, 4.1);              // label
+    for (let i = -1; i <= 1; i++) { cyl(g, BRASS, 1.1, 5, i * 3.2, 6, 0); cyl(g, '#8a5a2a', 0.8, 1.6, i * 3.2, 9.2, 0); }
+  },
+  vest1(g) { vest(g, '#5aa7ff', 1); },
+  vest2(g) { vest(g, '#2f5fbf', 1.15); },
 };
-const itemMats = new Map();
-function itemMat(c) { if (!itemMats.has(c)) itemMats.set(c, fogify(new THREE.MeshBasicMaterial({ color: c }))); return itemMats.get(c); }
+function vest(g, c, k) {
+  box(g, unitBox, c, 13 * k, 15 * k, 4, 0, 0, 1.5);                  // front plate
+  box(g, unitBox, shade(c, 0.75), 13 * k, 15 * k, 3, 0, 0, -2.5);     // back plate
+  box(g, unitBox, shade(c, 0.6), 3, 4, 7, -4.5 * k, 8 * k, -0.5); box(g, unitBox, shade(c, 0.6), 3, 4, 7, 4.5 * k, 8 * k, -0.5); // shoulder straps
+  if (k > 1) for (const x of [-4, 0, 4]) box(g, unitBox, shade(c, 0.55), 3.4, 4.5, 2, x, -3, 4.2); // pouches on the heavy one
+}
+const itemProto = {};
+function itemModel(type, d) {
+  if (!itemProto[type]) {
+    const g = new THREE.Group();
+    if (d.kind === 'gun') { const gm = gunModel(type); gm.rotation.y = Math.PI / 2; gm.scale.setScalar(1.25); g.add(gm); }
+    else if (ITEM_BUILD[type]) ITEM_BUILD[type](g);
+    else box(g, unitBox, d.color, 10, 8, 10, 0, 0, 0);
+    itemProto[type] = g;
+  }
+  return itemProto[type].clone();
+}
+const ringMats = new Map();
+function ringMat(c) { if (!ringMats.has(c)) ringMats.set(c, fogify(new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.85, depthWrite: false }))); return ringMats.get(c); }
 function makeItem(it, ITEMS) {
   const d = ITEMS[it.type], g = new THREE.Group();
-  const ring = new THREE.Mesh(itemGeo.ring, fogify(new THREE.MeshBasicMaterial({ color: d.color, transparent: true, opacity: 0.8, depthWrite: false })));
+  const ring = new THREE.Mesh(ringGeo, ringMat(d.color));
   ring.position.y = 0.9; g.add(ring);
-  const icon = new THREE.Group(); icon.position.y = 12; g.add(icon);
-  if (d.kind === 'gun') { if (gunSrc[it.type]) { const m = gunSrc[it.type].clone(); m.rotation.z = Math.PI / 2; icon.add(m); } else icon.add(new THREE.Mesh(itemGeo.gun, itemMat(d.color))); }
-  else if (d.kind === 'ammo') for (let i = -1; i <= 1; i++) { const m = new THREE.Mesh(itemGeo.ammo, itemMat(d.color)); m.position.x = i * 5; icon.add(m); }
-  else if (d.kind === 'armor') icon.add(new THREE.Mesh(itemGeo.armor, itemMat(d.color)));
-  else { icon.add(new THREE.Mesh(itemGeo.heal, itemMat(it.type === 'med' ? '#f1ede4' : d.color))); }
+  const icon = new THREE.Group(); icon.position.y = 12; icon.add(itemModel(it.type, d)); g.add(icon);
   g.position.set(it.x, 0, it.y);
   g.userData = { ring, icon };
   world.group.add(g);
@@ -501,7 +558,7 @@ function frame(F) {
   Z.zn.visible = F.fogOn && !!z.next; if (z.next) { Z.zn.position.set(z.next.x, 2, z.next.y); Z.zn.scale.set(Math.max(1, z.next.r), 1, Math.max(1, z.next.r)); }
   // items: only the ones in sight are drawn
   const seenItem = it => !F.fogOn || F.canSeePt(it.x, it.y);
-  for (const [id, g] of itemViews) if (!M.items.has(id)) { world.group.remove(g); g.userData.ring.material.dispose(); itemViews.delete(id); }
+  for (const [id, g] of itemViews) if (!M.items.has(id)) { world.group.remove(g); itemViews.delete(id); }
   for (const it of M.items.values()) {
     if (Math.abs(it.x - cx) > 1300 || Math.abs(it.y - cy) > 1100) { const g = itemViews.get(it.id); if (g) g.visible = false; continue; }
     let g = itemViews.get(it.id); if (!g) { g = makeItem(it, F.ITEMS); itemViews.set(it.id, g); }

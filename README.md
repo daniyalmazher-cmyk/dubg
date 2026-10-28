@@ -43,6 +43,6 @@ To add another server (for example a Gulf one), add it to the `SERVERS` list in 
 - `shared/game.js`: map generation, collision and all game rules. Used by the server and the browser.
 - `public/index.html`: the game client. Draws the game, predicts your own movement, smooths everyone else.
 - `public/r3d.js`: the 3D view (three.js, tilted camera). The 2D drawing in `index.html` is only a fallback for devices without WebGL.
-- `public/assets/`: gun models (`pistol.glb`, `smg.glb`, `shotgun.glb`, `rifle.glb`), CC0 by Quaternius (quaternius.com), from poly.pizza.
-  Players and cars are built from boxes in `r3d.js`, so every outfit (hoodie, skin, hat, crew colour) carries over from the game data.
+  Players, guns, pickups and cars are all built from blocks in `r3d.js` (no model files to download), so every outfit
+  (hoodie, skin, hat, crew colour) carries over from the game data.
 - `preview.html`: the old single-player version with bots only.

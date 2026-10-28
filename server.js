@@ -25,9 +25,7 @@ const FILES = {
 const server = http.createServer((req, res) => {
   const url = req.url.split('?')[0];
   if (url === '/health') { res.writeHead(200, { 'content-type': 'text/plain' }); res.end('ok'); return; }
-  // 3D models: /assets/<name>.glb
-  const asset = /^\/assets\/([a-z0-9_-]+)\.glb$/.exec(url);
-  const f = FILES[url] || (asset && [`public/assets/${asset[1]}.glb`, 'model/gltf-binary']);
+  const f = FILES[url];
   if (!f) { res.writeHead(404, { 'content-type': 'text/plain' }); res.end('Not found'); return; }
   fs.readFile(path.join(__dirname, f[0]), (err, data) => {
     if (err) { res.writeHead(500); res.end('Server error'); return; }
