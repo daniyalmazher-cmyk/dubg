@@ -3,16 +3,8 @@
 // World units match the 2D game: x -> X, y -> Z, height is Y.
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
-// Character: Quaternius casual hoodie guy (CC0). Clip names are the model's, minus the "CharacterArmature|" prefix.
-const CHAR = {
-  url: '/assets/hoodie.glb', height: 58, yaw: 0, hand: 'Wrist.R',
-  clips: { idle: 'Idle', aim: 'Idle_Gun_Pointing', shoot: 'Idle_Gun_Shoot', walk: 'Walk', run: 'Run', runGun: 'Run_Shoot', back: 'Run_Back', left: 'Run_Left', right: 'Run_Right', punch: 'Punch_Right', death: 'Death' },
-  // material name -> which colour of the player it takes
-  paint: { White: 'hoodie', Skin: 'skin', Purple: 'crew' },
-};
 // Guns (Quaternius, CC0). len: length in world units; flip: turn round if the model's muzzle faces backwards.
 const GUNS = { pistol: { len: 14, flip: true }, smg: { len: 21, flip: true }, shotgun: { len: 30, flip: true }, rifle: { len: 31, flip: true } };
 const H = { wall: 68, pwall: 78, block: 64, fence: 30, door: 68, aim: 34 };
@@ -20,11 +12,11 @@ const PITCH = THREE.MathUtils.degToRad(60), FOV = 34;
 const coarse = matchMedia('(pointer: coarse)').matches;
 const LIGHTS = coarse ? 6 : 10;
 
-let renderer = null, scene, camera, world = null, charSrc = null, fogCv, fogCtx;
+let renderer = null, scene, camera, world = null, fogCv, fogCtx;
 const gunSrc = {};           // gun type -> model, barrel along +Z with the grip at the origin
 const players = new Map();   // id -> view of one player
 const itemViews = new Map(); // item id -> mesh
-const dummy = new THREE.Object3D(), tmpC = new THREE.Color(), tmpV = new THREE.Vector3();
+const dummy = new THREE.Object3D(), tmpC = new THREE.Color(), tmpV = new THREE.Vector3(), tmpM = new THREE.Matrix4();
 const ray = new THREE.Raycaster(), aimPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -H.aim);
 
 // ---------- fog of war: every world material is darkened outside what the viewer can see ----------
@@ -78,7 +70,6 @@ function init(canvas) {
   fogCv = document.createElement('canvas'); fogCv.width = fogCv.height = FOG_PX; fogCtx = fogCv.getContext('2d');
   fogU.tex.value = new THREE.CanvasTexture(fogCv);
   const loader = new GLTFLoader();
-  loader.load(CHAR.url, g => { charSrc = g; }, undefined, e => console.warn('DUBG: character model failed to load', e));
   for (const t of Object.keys(GUNS)) loader.load(`/assets/${t}.glb`, g => { gunSrc[t] = normalizeGun(g.scene, GUNS[t]); }, undefined, e => console.warn('DUBG: gun model failed to load', t, e));
   return true;
 }
@@ -121,6 +112,57 @@ const flameTex = (() => {
   const g = x.createRadialGradient(32, 32, 0, 32, 32, 32); g.addColorStop(0, 'rgba(255,230,150,1)'); g.addColorStop(0.35, 'rgba(255,140,40,.8)'); g.addColorStop(1, 'rgba(255,80,20,0)');
   x.fillStyle = g; x.fillRect(0, 0, 64, 64); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
 })();
+
+// ---------- cars: low-poly sedans built from a side profile, with wheels and lights ----------
+const CAR_L = 58, CAR_W = 22;
+function carGeos() {
+  const L = CAR_L, h = L / 2;
+  // side profile, nose at +x: bumper, hood, windscreen, roof, rear window, trunk
+  const body = new THREE.Shape([[-h, 5], [-h, 15], [-h * 0.62, 16.5], [-h * 0.38, 25], [h * 0.18, 25.5], [h * 0.45, 17], [h, 15], [h, 5]].map(([x, y]) => new THREE.Vector2(x, y)));
+  const glass = new THREE.Shape([[-h * 0.56, 17.5], [-h * 0.36, 24], [h * 0.16, 24.4], [h * 0.4, 17.6]].map(([x, y]) => new THREE.Vector2(x, y)));
+  const bodyG = new THREE.ExtrudeGeometry(body, { depth: CAR_W - 2, bevelEnabled: true, bevelThickness: 1, bevelSize: 1, bevelSegments: 1 }).translate(0, 0, -(CAR_W - 2) / 2);
+  const glassG = new THREE.ExtrudeGeometry(glass, { depth: CAR_W + 0.6, bevelEnabled: false }).translate(0, 0, -(CAR_W + 0.6) / 2);
+  // windscreen and rear window: the cabin outline pushed out a little, narrower than the body
+  const screen = new THREE.Shape([[-h * 0.68, 16], [-h * 0.395, 27], [h * 0.19, 27.5], [h * 0.5, 16.5]].map(([x, y]) => new THREE.Vector2(x, y)));
+  const screenG = new THREE.ExtrudeGeometry(screen, { depth: CAR_W - 5, bevelEnabled: false }).translate(0, 0, -(CAR_W - 5) / 2);
+  const roofG = new THREE.BoxGeometry(h * 0.44, 1.2, CAR_W - 3).translate(-h * 0.1, 27.8, 0);
+  const wheelG = new THREE.CylinderGeometry(5.2, 5.2, 4, 12).rotateX(Math.PI / 2);
+  return { bodyG, glassG, screenG, roofG, wheelG, lightG: new THREE.BoxGeometry(1.5, 3, 5) };
+}
+function addCars(g, cars) {
+  const G = carGeos(), n = Math.max(1, cars.length);
+  const body = new THREE.InstancedMesh(G.bodyG, solid({ color: '#ffffff' }), n);
+  const glass = new THREE.InstancedMesh(G.glassG, solid({ color: '#0d1116' }), n);
+  const screen = new THREE.InstancedMesh(G.screenG, solid({ color: '#1a2633' }), n);
+  const roof = new THREE.InstancedMesh(G.roofG, solid({ color: '#ffffff' }), n);
+  const wheels = new THREE.InstancedMesh(G.wheelG, lambert({ color: '#141414' }), n * 4);
+  const lights = new THREE.InstancedMesh(G.lightG, new THREE.MeshBasicMaterial({ color: '#ffffff' }), n * 4);
+  for (const m of [body, glass, screen, roof, wheels, lights]) { m.frustumCulled = false; m.count = 0; }
+  const car = new THREE.Object3D(), part = new THREE.Object3D();
+  cars.forEach((c, i) => {
+    const hz = c.w > c.h, len = hz ? c.w : c.h, wid = hz ? c.h : c.w;
+    // which way it faces is fixed per car so it doesn't change between clients
+    const flip = (Math.floor(c.x * 7 + c.y * 13) & 1) ? Math.PI : 0;
+    car.position.set(c.x + c.w / 2, 0, c.y + c.h / 2); car.rotation.set(0, (hz ? 0 : -Math.PI / 2) + flip, c.burned ? 0.04 : 0); car.scale.set(len / CAR_L, c.burned ? 0.9 : 1, wid / CAR_W);
+    car.updateMatrix();
+    body.setMatrixAt(i, car.matrix); body.setColorAt(i, tmpC.set(c.burned ? '#2a2522' : c.color));
+    glass.setMatrixAt(i, car.matrix); glass.setColorAt(i, tmpC.set(c.burned ? '#050505' : '#ffffff'));
+    screen.setMatrixAt(i, car.matrix); screen.setColorAt(i, tmpC.set(c.burned ? '#050505' : '#ffffff'));
+    roof.setMatrixAt(i, car.matrix); roof.setColorAt(i, tmpC.set(c.burned ? '#231f1c' : c.color).multiplyScalar(1.12));
+    let k = 0;
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      part.position.set(sx * CAR_L * 0.31, 5.2, sz * (CAR_W / 2 - 1)); part.rotation.set(0, 0, 0); part.scale.set(1, 1, 1); part.updateMatrix();
+      wheels.setMatrixAt(i * 4 + k, tmpM.multiplyMatrices(car.matrix, part.matrix));
+      // headlights at the nose, tail lights at the back; burned cars have none
+      part.position.set(sx * (CAR_L / 2 + 0.6), 12, sz * (CAR_W / 2 - 4)); part.updateMatrix();
+      lights.setMatrixAt(i * 4 + k, tmpM.multiplyMatrices(car.matrix, part.matrix));
+      lights.setColorAt(i * 4 + k, tmpC.set(c.burned ? '#120d0a' : sx > 0 ? '#fff2c4' : '#ff3324'));
+      k++;
+    }
+  });
+  body.count = glass.count = screen.count = roof.count = cars.length; wheels.count = lights.count = cars.length * 4;
+  g.add(body, glass, screen, roof, wheels, lights);
+}
 
 function disposeWorld() {
   if (!world) return;
@@ -178,8 +220,7 @@ function setWorld(W, ground, scale) {
   bm.count = barrels.length; bm.frustumCulled = false;
   barrels.forEach((w, i) => { dummy.position.set(w.x + 9, 0, w.y + 9); dummy.rotation.set(0, 0, 0); dummy.scale.set(1, 1, 1); dummy.updateMatrix(); bm.setMatrixAt(i, dummy.matrix); });
   g.add(bm);
-  g.add(boxes(W.cars, lambert({ color: '#ffffff' }), rectBox(18), c => c.burned ? '#262321' : c.color));
-  g.add(boxes(W.cars, lambert({ color: '#0f1317' }), (c, o) => { const hz = c.w > c.h; o.position.set(c.x + c.w / 2, 18, c.y + c.h / 2); o.rotation.set(0, 0, 0); o.scale.set(hz ? c.w * 0.5 : c.w - 6, 13, hz ? c.h - 6 : c.h * 0.5); }));
+  addCars(g, W.cars);
   const tg = treeGeo(), tm = new THREE.InstancedMesh(tg, solid({ color: '#46392d' }), Math.max(1, W.trees.length));
   tm.count = W.trees.length; tm.frustumCulled = false;
   W.trees.forEach((t, i) => { dummy.position.set(t.x, 0, t.y); dummy.rotation.set(0, t.a, 0); dummy.scale.setScalar(t.r / 26); dummy.updateMatrix(); tm.setMatrixAt(i, dummy.matrix); });
@@ -239,89 +280,141 @@ function normalizeGun(src, o) {
   wrap.traverse(m => { if (m.isMesh) { m.material = fogify(m.material.clone()); m.frustumCulled = false; } });
   return wrap;
 }
-const clipOf = name => charSrc.animations.find(a => a.name === name || a.name.endsWith('|' + name));
+// Block characters, built from boxes so every outfit from the 2D game carries over.
+// Sizes in world units; the figure is about 58 tall and faces +Z. Limbs hang from their joints.
+const PANTS = ['#1f2a3a', '#232323', '#3b3326', '#1d2b26', '#2e2a33'];
+const unitBox = new THREE.BoxGeometry(1, 1, 1);
+const limbBox = new THREE.BoxGeometry(1, 1, 1).translate(0, -0.5, 0); // pivot at the top
+const matCache = new Map();
+function mat(c) { if (!matCache.has(c)) matCache.set(c, fogify(new THREE.MeshLambertMaterial({ color: c }))); return matCache.get(c); }
+function box(parent, geo, c, w, h, d, x, y, z) {
+  const m = new THREE.Mesh(geo, mat(c)); m.scale.set(w, h, d); m.position.set(x, y, z); m.frustumCulled = false; parent.add(m); return m;
+}
+const hex = c => '#' + tmpC.set(c).getHexString();
+const shade = (c, k) => hex(tmpC.set(c).multiplyScalar(k));
+function addHat(head, L, crew) {
+  const hat = L.hat, top = 13;
+  if (hat === 'cap' || hat === 'capBack') {
+    box(head, unitBox, crew, 14, 4, 14, 0, top - 1, 0);
+    box(head, unitBox, shade(crew, 0.6), 12, 1.5, 7, 0, top - 2.5, hat === 'cap' ? 9 : -9);
+  } else if (hat === 'beanie') {
+    box(head, unitBox, L.beanie, 14, 6, 14, 0, top, 0);
+    box(head, unitBox, shade(L.beanie, 0.75), 14.4, 2, 14.4, 0, top - 3, 0);
+  } else if (hat === 'durag') {
+    box(head, unitBox, crew, 14, 3.5, 14, 0, top - 1, 0);
+    box(head, unitBox, crew, 4, 2, 9, 0, top - 4, -10);
+  } else if (hat === 'dreads') {
+    box(head, unitBox, '#1a120c', 14, 3, 14, 0, top - 1, 0);
+    for (let i = 0; i < 7; i++) { const a = Math.PI * (0.15 + i * 0.12); box(head, unitBox, '#1a120c', 2.6, 10, 2.6, Math.cos(a) * 7, top - 7, -Math.sin(a) * 6.5); }
+  } else if (hat === 'buzz') {
+    box(head, unitBox, '#1a120c', 13.4, 1.5, 13.4, 0, top - 0.6, 0);
+  } else if (hat === 'bandana') {
+    box(head, unitBox, '#1a120c', 13.6, 2, 13.6, 0, top - 0.5, 0);
+    box(head, unitBox, crew, 14, 3, 14, 0, top - 3, 0);
+    box(head, unitBox, crew, 3, 2, 6, 3, top - 4, -9);
+  }
+}
 function makePlayer(P, isMe) {
-  const holder = new THREE.Group();
-  const model = cloneSkinned(charSrc.scene);
-  if (!charSrc.height) { charSrc.scene.updateMatrixWorld(true); const box = new THREE.Box3().setFromObject(charSrc.scene, true); charSrc.height = box.max.y - box.min.y || 1.8; }
-  model.scale.setScalar(CHAR.height / charSrc.height);
-  model.rotation.y = CHAR.yaw;
-  const colors = { hoodie: P.look.hoodie, skin: P.look.skin, crew: P.crew.c };
-  const mats = [];
-  model.traverse(o => {
-    if (!o.isMesh) return;
-    o.frustumCulled = false;
-    const list = Array.isArray(o.material) ? o.material : [o.material];
-    const out = list.map(m0 => {
-      const m = m0.clone(), k = CHAR.paint[m0.name];
-      if (k) m.color.set(colors[k]);
-      if (m.emissive) m.emissive.setRGB(0, 0, 0);
-      fogify(m); mats.push(m); return m;
-    });
-    o.material = Array.isArray(o.material) ? out : out[0];
+  const L = P.look, crew = P.crew.c, hoodie = L.hoodie, skin = L.skin;
+  const pants = PANTS[P.id % PANTS.length], shoe = P.id % 3 === 0 ? crew : '#e9e6df';
+  const holder = new THREE.Group(), rig = new THREE.Group(); holder.add(rig);
+  // legs swing from the hips; the hips turn toward where you walk while the chest faces your aim
+  const hips = new THREE.Group(); hips.position.y = 22; rig.add(hips);
+  const legs = [-1, 1].map(s => {
+    const leg = new THREE.Group(); leg.position.x = s * 4.2; hips.add(leg);
+    box(leg, limbBox, pants, 7.5, 18, 8, 0, 0, 0);
+    box(leg, unitBox, shoe, 8, 4.5, 11, 0, -19.5, 1.5);
+    box(leg, unitBox, shade(shoe, 0.8), 8.2, 1.2, 11.2, 0, -21.4, 1.5);
+    return leg;
   });
-  holder.add(model);
+  const chest = new THREE.Group(); chest.position.y = 22; rig.add(chest);
+  box(chest, unitBox, hoodie, 18, 19, 10, 0, 9.5, 0);
+  box(chest, unitBox, shade(hoodie, 0.8), 10, 5, 1, 0, 5, 5.2);                 // pouch pocket
+  box(chest, unitBox, shade(hoodie, 0.7), 14, 6, 4, 0, 17.5, -6);               // hood resting on the back
+  box(chest, unitBox, crew, 18.4, 2.5, 10.4, 0, 1.2, 0);                        // crew colour at the waistband
+  const vest = box(chest, unitBox, '#2c3340', 19, 14, 11, 0, 10, 0); vest.visible = false;
+  const arms = [-1, 1].map(s => {
+    const arm = new THREE.Group(); arm.position.set(s * 11.5, 18, 0); chest.add(arm);
+    box(arm, limbBox, hoodie, 6, 15, 7, 0, 0, 0);
+    box(arm, unitBox, skin, 5.5, 4.5, 5.5, 0, -17, 0);
+    return arm;
+  });
+  const head = new THREE.Group(); head.position.y = 19; chest.add(head);
+  box(head, unitBox, skin, 13, 13, 13, 0, 6.5, 0);
+  box(head, unitBox, '#141414', 2.4, 2.4, 1, -3, 7.5, 6.6);
+  box(head, unitBox, '#141414', 2.4, 2.4, 1, 3, 7.5, 6.6);
+  box(head, unitBox, shade(skin, 0.75), 5, 1.2, 1, 0, 3, 6.6);
+  addHat(head, L, crew);
+  // the gun sits in the right hand; it points along the arm, and the arm points where you aim
+  const gun = new THREE.Group(); gun.position.set(0, -17, 2); gun.rotation.x = Math.PI / 2; arms[0].add(gun);
   // crew ring under the feet (white for you)
-  const ring = new THREE.Mesh(new THREE.RingGeometry(15, 19, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: isMe ? '#ffffff' : P.crew.c, transparent: true, opacity: isMe ? 0.8 : 0.65, depthWrite: false }));
+  const ring = new THREE.Mesh(new THREE.RingGeometry(15, 19, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: isMe ? '#ffffff' : crew, transparent: true, opacity: isMe ? 0.8 : 0.65, depthWrite: false }));
   ring.position.y = 0.8; holder.add(ring);
-  // the gun follows the right hand but always points where the player aims (local +Z)
-  const gun = new THREE.Group(); holder.add(gun);
-  const mixer = new THREE.AnimationMixer(model), actions = {};
-  for (const [k, n] of Object.entries(CHAR.clips)) { const c = clipOf(n); if (c) actions[k] = mixer.clipAction(c); }
-  if (actions.death) { actions.death.setLoop(THREE.LoopOnce, 1); actions.death.clampWhenFinished = true; }
-  if (actions.idle) actions.idle.play();
+  const mats = [];
+  rig.traverse(o => { if (o.isMesh) o.userData.base = o.material; });
   scene.add(holder);
-  return { holder, model, mats, ring, gun, hand: model.getObjectByName(CHAR.hand) || model.getObjectByName(CHAR.hand.replace('.', '')), mixer, actions, cur: 'idle', lx: P.x, ly: P.y, speed: 0, mvx: 0, mvy: 0, gunType: null, dead: false };
+  return { holder, rig, hips, legs, chest, arms, head, vest, gun, ring, mats, lx: P.x, ly: P.y, mvx: 0, mvy: 0, speed: 0, phase: 0, punch: 0, fall: 0, gunType: null, hurt: false };
 }
-function setAnim(v, name, scale) {
-  const a = v.actions[name] || v.actions.idle; if (!a) return;
-  a.timeScale = scale;
-  if (v.cur === name) return;
-  const prev = v.actions[v.cur];
-  a.reset().play(); if (prev) a.crossFadeFrom(prev, name === 'death' ? 0.1 : 0.18, false);
-  v.cur = name;
-}
+const TWO_HANDED = { smg: true, shotgun: true, rifle: true };
 function updatePlayer(P, v, dt, visible) {
-  const x = P.x, y = P.y;
-  const k = Math.min(1, dt * 10);
+  const x = P.x, y = P.y, k = Math.min(1, dt * 10);
   v.mvx += ((x - v.lx) / Math.max(dt, 1e-3) - v.mvx) * k; v.mvy += ((y - v.ly) / Math.max(dt, 1e-3) - v.mvy) * k;
   v.speed = Math.min(400, Math.hypot(v.mvx, v.mvy));
   v.lx = x; v.ly = y;
   v.holder.position.set(x, 0, y);
   v.holder.rotation.y = Math.PI / 2 - P.ang;
   v.holder.visible = visible;
-  const armed = !!P.gun;
-  if (!P.alive) {
-    if (!v.dead) { v.dead = true; setAnim(v, 'death', 1); }
-    v.ring.visible = false; v.gun.visible = false;
-  } else {
-    v.dead = false; v.ring.visible = true;
-    if (P.punch > 0 || (P.flags & 4)) setAnim(v, 'punch', 1.6);
-    else if (v.speed > 25) {
-      // pick the run that matches the direction of travel relative to where they aim
-      const fx = Math.cos(P.ang), fy = Math.sin(P.ang), fwd = (v.mvx * fx + v.mvy * fy) / v.speed, side = (v.mvx * -fy + v.mvy * fx) / v.speed;
-      const rate = THREE.MathUtils.clamp(v.speed / 205, 0.6, 1.3);
-      if (fwd > 0.55) setAnim(v, armed ? 'runGun' : 'run', rate);
-      else if (fwd < -0.55) setAnim(v, 'back', rate);
-      else setAnim(v, side > 0 ? 'right' : 'left', rate);
-    } else if (armed) setAnim(v, P.flash > 0 ? 'shoot' : 'aim', 1);
-    else setAnim(v, 'idle', 1);
-  }
-  v.mixer.update(dt);
+  v.vest.visible = P.armor > 0;
   // swap the gun model when they change weapons
   if (v.gunType !== P.gun || (P.gun && !v.gun.children.length && gunSrc[P.gun])) {
-    v.gunType = P.gun;
-    v.gun.clear();
+    v.gunType = P.gun; v.gun.clear();
     if (P.gun && gunSrc[P.gun]) v.gun.add(gunSrc[P.gun].clone());
   }
-  if (P.alive && armed) {
-    v.gun.visible = true;
-    if (v.hand) { v.holder.updateMatrixWorld(true); v.hand.getWorldPosition(tmpV); v.holder.worldToLocal(tmpV); v.gun.position.set(tmpV.x, Math.max(20, tmpV.y), Math.max(2, tmpV.z)); }
-    else v.gun.position.set(-6, 30, 10);
-  } else v.gun.visible = false;
-  const hurt = Math.max(0, Math.min(0.8, P.hurt * 3));
-  for (const m of v.mats) if (m.emissive) m.emissive.setRGB(hurt, hurt * 0.1, hurt * 0.1);
+  v.gun.visible = !!P.gun && P.alive;
+  if (!P.alive) {
+    // fall flat on the back
+    v.fall = Math.min(1, v.fall + dt * 3.5);
+    const e = 1 - Math.pow(1 - v.fall, 3);
+    v.rig.rotation.x = -Math.PI / 2 * e; v.rig.position.y = 4 * e; v.rig.position.z = -14 * e;
+    v.arms[0].rotation.set(-2.6 * e, 0, 0.3 * e); v.arms[1].rotation.set(-2.6 * e, 0, -0.3 * e);
+    v.ring.visible = false;
+    return;
+  }
+  v.fall = 0; v.rig.rotation.x = 0; v.rig.position.set(0, 0, 0); v.ring.visible = true;
+  // walk cycle: legs face the direction of travel, swing faster the quicker you go
+  const moving = v.speed > 20;
+  let legYaw = 0, dir = 1;
+  if (moving) {
+    const rel = Math.atan2(v.mvy, v.mvx) - P.ang;
+    let r = Math.atan2(Math.sin(rel), Math.cos(rel));
+    if (Math.abs(r) > Math.PI / 2) { r = Math.atan2(Math.sin(r + Math.PI), Math.cos(r + Math.PI)); dir = -1; } // backpedal
+    legYaw = -r;
+    v.phase += dt * v.speed * 0.055 * dir;
+  }
+  const amt = moving ? Math.min(1, v.speed / 180) : 0;
+  v.hips.rotation.y += (legYaw - v.hips.rotation.y) * k;
+  const sw = Math.sin(v.phase) * 0.85 * amt;
+  v.legs[0].rotation.x = sw; v.legs[1].rotation.x = -sw;
+  v.rig.position.y = moving ? Math.abs(Math.cos(v.phase)) * 2 * amt : Math.sin(performance.now() / 600 + P.id) * 0.4;
+  v.chest.rotation.y = -v.hips.rotation.y * 0.25;
+  // arms: aim the gun, punch, or swing
+  if (P.punch > 0 || (P.flags & 4)) v.punch = 0.22;
+  v.punch -= dt;
+  const [R, Lf] = v.arms;
+  if (P.gun) {
+    const kick = P.flash > 0 ? 0.12 : 0;
+    R.rotation.set(-Math.PI / 2 + kick, 0, 0);
+    if (TWO_HANDED[P.gun]) Lf.rotation.set(-Math.PI / 2 + 0.15 + kick, 0, -0.55); else Lf.rotation.set(sw * 0.6 - 0.1, 0, 0.08);
+  } else if (v.punch > 0) {
+    R.rotation.set(-Math.PI / 2, 0, 0.15); Lf.rotation.set(-0.9, 0, -0.2);
+  } else {
+    R.rotation.set(-sw * 0.9 - 0.25, 0, 0.06); Lf.rotation.set(sw * 0.9 - 0.25, 0, -0.06);
+  }
+  // hit flash
+  const hurt = P.hurt > 0;
+  if (hurt !== v.hurt) { v.hurt = hurt; v.rig.traverse(o => { if (o.isMesh) o.material = hurt ? hurtMat : o.userData.base; }); }
 }
+const hurtMat = fogify(new THREE.MeshLambertMaterial({ color: '#ff5a4a', emissive: '#a01810' }));
 // muzzle position of a player's gun, for the muzzle flash light
 function muzzle(P) { return { x: P.x + Math.cos(P.ang) * 30, y: P.y + Math.sin(P.ang) * 30 }; }
 
@@ -417,7 +510,7 @@ function frame(F) {
   }
   // players
   let flash = null;
-  if (charSrc) for (const P of M.list) {
+  for (const P of M.list) {
     if (!P.init) continue;
     let v = players.get(P.id); if (!v) { v = makePlayer(P, P.id === M.me); players.set(P.id, v); }
     const visible = P.alive ? !!P.seen : (!F.fogOn || F.canSeePt(P.x, P.y));
