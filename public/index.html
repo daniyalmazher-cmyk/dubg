@@ -4,6 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>DUBG</title>
+<meta name="theme-color" content="#0e0f10">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="DUBG">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Ops+One&family=Permanent+Marker&family=Barlow+Condensed:wght@500;600;700&display=swap">
@@ -29,7 +34,7 @@
 html,body{height:100%;margin:0}
 body{background:var(--ink);color:var(--text);font-family:var(--body);font-size:14px;overflow:hidden;user-select:none;-webkit-user-select:none}
 [hidden]{display:none!important}
-#game{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:crosshair;background:var(--ink)}
+#game{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:crosshair;background:var(--ink);touch-action:none}
 #hud{position:fixed;inset:0;pointer-events:none;font-size:16px}
 .tl{position:absolute;top:calc(14px + env(safe-area-inset-top,0px));left:calc(16px + env(safe-area-inset-left,0px));display:flex;gap:8px}
 .stat{background:var(--panel);border:1px solid var(--line);padding:4px 12px 6px;display:flex;align-items:baseline;gap:6px}
@@ -185,6 +190,38 @@ body.mini-small #mini{width:140px;height:140px}
 .res div{display:flex;flex-direction:column}
 .res b{font-family:var(--display);font-weight:400;font-size:38px;font-variant-numeric:tabular-nums}
 .res span{color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-size:13px;font-weight:600}
+/* touch controls: only shown when body.touch is set (phone or tablet) */
+body{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
+#hud{touch-action:none}
+.stick,#touchBtns,#menuBtn,.touchHelp,.touchOnly,#rotate{display:none}
+body.touch .keys,body.touch .mouseOnly{display:none}
+body.touch .touchHelp,body.touch .touchOnly{display:block}
+body.touch .stick{display:block;position:absolute;width:124px;height:124px;margin:-62px 0 0 -62px;border-radius:50%;border:2px solid rgba(237,231,218,.25);background:rgba(0,0,0,.25);pointer-events:none;opacity:.5}
+body.touch .stick.live{opacity:1}
+body.touch .stick.mv{left:calc(104px + env(safe-area-inset-left,0px));top:calc(100% - 104px - env(safe-area-inset-bottom,0px))}
+body.touch .stick.am{left:calc(100% - 104px - env(safe-area-inset-right,0px));top:calc(100% - 104px - env(safe-area-inset-bottom,0px))}
+.stick i{position:absolute;left:50%;top:50%;width:54px;height:54px;margin:-27px 0 0 -27px;border-radius:50%;background:rgba(237,231,218,.6)}
+.stick b{position:absolute;left:0;right:0;top:calc(100% + 4px);text-align:center;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:rgba(237,231,218,.6)}
+body.touch .stick.live b{display:none}
+.stick.fire{border-color:var(--danger);box-shadow:0 0 0 4px rgba(255,77,61,.25)}
+.stick.fire i{background:var(--danger)}
+body.touch #touchBtns{display:flex;gap:10px;position:absolute;right:calc(14px + env(safe-area-inset-right,0px));top:calc(136px + env(safe-area-inset-top,0px));pointer-events:auto}
+#touchBtns button{width:58px;height:58px;border-radius:50%;padding:0;font-family:var(--body);font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.06em;background:rgba(14,15,16,.72);color:var(--text);border:1px solid var(--line)}
+#touchBtns button:active{background:var(--orange);color:#111}
+body.touch #menuBtn{display:block;position:absolute;top:calc(14px + env(safe-area-inset-top,0px));right:calc(136px + env(safe-area-inset-right,0px));pointer-events:auto;font-family:var(--body);font-weight:700;font-size:14px;letter-spacing:.08em;text-transform:uppercase;padding:8px 12px;background:rgba(14,15,16,.72);color:var(--text);border:1px solid var(--line)}
+body.touch #mini,body.touch.mini-small #mini{top:calc(14px + env(safe-area-inset-top,0px));bottom:auto;width:110px;height:110px}
+body.touch .tr{display:none}
+body.touch .tl{gap:6px}
+body.touch .stat{padding:2px 8px 4px}
+body.touch .stat b{font-size:20px}
+body.touch #aliveStat{pointer-events:auto}
+body.touch .bc{width:min(360px,calc(100vw - 340px));min-width:240px}
+body.touch .slot{pointer-events:auto}
+body.touch #prompt{pointer-events:auto;font-size:18px;padding:10px 18px;border-color:var(--orange)}
+body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
+#rotate{position:fixed;inset:0;z-index:30;background:var(--ink);place-items:center;text-align:center;padding:24px;font-family:var(--display);font-size:30px;line-height:1.1}
+#rotate span{display:block;font-family:var(--body);font-size:17px;color:var(--muted);margin-top:10px;font-weight:600}
+@media (orientation:portrait){body.touch.playing #rotate{display:grid}}
 @media (max-width:620px){
   .flow{grid-template-columns:1fr 1fr}
   .cols{grid-template-columns:1fr}
@@ -201,7 +238,7 @@ body.mini-small #mini{width:140px;height:140px}
 
 <div id="hud" hidden>
   <div class="tl">
-    <div class="stat"><b id="alive">30</b><span>alive</span></div>
+    <div class="stat" id="aliveStat"><b id="alive">30</b><span>alive</span></div>
     <div class="stat"><b id="kills">0</b><span>kills</span></div>
     <div class="stat" id="pingStat"><b id="ping">--</b><span>ms</span></div>
     <div class="stat" id="fpsStat" hidden><b id="fps">0</b><span>fps</span></div>
@@ -226,6 +263,10 @@ body.mini-small #mini{width:140px;height:140px}
   </div>
   <canvas id="mini" width="210" height="210"></canvas>
   <div id="board" hidden></div>
+  <div id="moveStick" class="stick mv"><i></i><b>Move</b></div>
+  <div id="aimStick" class="stick am"><i></i><b>Aim · push to shoot</b></div>
+  <div id="touchBtns"><button type="button" data-a="cycle">Swap</button><button type="button" data-a="heal">Heal</button><button type="button" data-a="reload">Reload</button></div>
+  <button id="menuBtn" type="button">Menu</button>
 </div>
 
 <div class="overlay" id="homeScreen">
@@ -271,6 +312,7 @@ body.mini-small #mini{width:140px;height:140px}
         <div>Hit the shops<span>Neon sign means open. Boarded means sealed.</span></div>
         <div>Survive<span>Stay inside the circle</span></div>
       </div>
+      <div class="note touchHelp">Left thumb moves. Right thumb aims, and pushing it all the way out shoots. Tap the pick-up prompt to grab a gun. Tap the alive counter to see every player.</div>
       <div class="keys">
         <kbd>WASD</kbd><span>Move</span>
         <kbd>Mouse</kbd><span>Aim and shoot</span>
@@ -362,6 +404,8 @@ body.mini-small #mini{width:140px;height:140px}
     </div>
   </div>
 </div>
+
+<div id="rotate"><div>Turn your phone sideways<span>DUBG plays in landscape</span></div></div>
 
 <div id="conn" hidden>Lost connection to the server. <button id="reloadBtn" type="button">Rejoin</button></div>
 
@@ -543,11 +587,19 @@ function update(dt) {
     const md = M.meData;
     let mx = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
     let my = (keys.KeyS || keys.ArrowDown ? 1 : 0) - (keys.KeyW || keys.ArrowUp ? 1 : 0);
-    const m = Math.hypot(mx, my);
-    if (m) { const sp = SPEED * (md && md.h ? 0.5 : 1); M.local.x += mx / m * sp * dt; M.local.y += my / m * sp * dt; }
+    let m = Math.hypot(mx, my), push = 1;
+    if (touch.move) { const tm = Math.hypot(touch.move.x, touch.move.y); if (tm > 0.15) { mx = touch.move.x; my = touch.move.y; m = tm; push = Math.min(1, tm / 0.6); } }
+    if (m) { const sp = SPEED * push * (md && md.h ? 0.5 : 1); M.local.x += mx / m * sp * dt; M.local.y += my / m * sp * dt; }
     D.pushOut(M.local);
     me.x = M.local.x; me.y = M.local.y;
-    const mw = mouseWorld(); me.ang = Math.atan2(mw.y - me.y, mw.x - me.x);
+    if (touch.on) {
+      // twin-stick: aim with the right stick, otherwise face where you walk; right stick at the edge fires
+      const a = touch.aim, am = a ? Math.hypot(a.x, a.y) : 0;
+      if (am > 0.25) me.ang = Math.atan2(a.y, a.x); else if (m) me.ang = Math.atan2(my, mx);
+      mouse.down = am >= 0.9;
+      const slot = myGun(), W = slot ? WEAPONS[slot[0]] : WEAPONS.fists;
+      if (mouse.down && !W.auto && M.localCd <= 0) { clicks++; mouse.clicked = true; }
+    } else { const mw = mouseWorld(); me.ang = Math.atan2(mw.y - me.y, mw.x - me.x); }
     M.localCd -= dt;
     localFire(me);
     M.sendT -= dt;
@@ -1050,7 +1102,7 @@ function updateHud() {
   let it = null;
   if (me && me.alive && M.local) { let bd = 40; for (const i of M.items.values()) { if (ITEMS[i.type].kind !== 'gun') continue; const d = Math.hypot(i.x - me.x, i.y - me.y); if (d < bd) { bd = d; it = i; } } }
   $('prompt').hidden = !it;
-  if (it) setHtml($('prompt'), `<kbd>E</kbd>Pick up ${ITEMS[it.type].label}`);
+  if (it) setHtml($('prompt'), touch.on ? `Tap to pick up ${ITEMS[it.type].label}` : `<kbd>E</kbd>Pick up ${ITEMS[it.type].label}`);
   setHtml($('feed'), M.feed.map(f => `<div class="${f.me ? 'me' : ''}">${esc(f.k)}<i>${esc(f.w)}</i>${esc(f.v)}</div>`).join(''));
 }
 
@@ -1131,7 +1183,7 @@ function showErr(msg) {
 }
 // out of a match and back to the room or home screen
 function exitMatch() {
-  showBoard(false);
+  showBoard(false); resetSticks();
   if (M && M.state !== 'menu') { menuState(); $('hud').hidden = true; }
   if (net.where === 'match') { net.where = net.room ? 'room' : 'home'; showScreen(net.room ? 'roomScreen' : 'homeScreen'); }
 }
@@ -1234,7 +1286,7 @@ function playerName() {
   const n = $('nameInput').value.trim();
   if (!n) { showErr('Pick a street name first.'); $('nameInput').focus(); return null; }
   try { localStorage.setItem('dubg-name', n); } catch (e) {}
-  initAudio(); showErr('');
+  initAudio(); showErr(''); goFull();
   return n;
 }
 $('findBtn').addEventListener('click', () => { const name = playerName(); if (name) send({ t: 'queue', name }); });
@@ -1247,7 +1299,7 @@ $('joinForm').addEventListener('submit', e => {
 });
 $('codeInput').addEventListener('input', () => { $('codeInput').value = $('codeInput').value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
 $('cancelBtn').addEventListener('click', () => { send({ t: 'unqueue' }); goHome(); });
-$('startBtn').addEventListener('click', () => { initAudio(); showErr(''); send({ t: 'start' }); });
+$('startBtn').addEventListener('click', () => { initAudio(); showErr(''); goFull(); send({ t: 'start' }); });
 $('leaveRoomBtn').addEventListener('click', () => { send({ t: 'leaveRoom' }); goHome(); });
 $('specBtn').addEventListener('click', () => { showScreen(null); cv.focus(); });
 function leaveMatch() { send({ t: 'leave' }); exitMatch(); }
@@ -1329,24 +1381,73 @@ addEventListener('keydown', e => {
 addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Tab') showBoard(false); });
 addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouse.down = false; showBoard(false); });
 addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
-cv.addEventListener('mousedown', e => { if (e.button === 0) { mouse.down = true; mouse.clicked = true; clicks++; } initAudio(); });
+cv.addEventListener('mousedown', e => { if (touch.on) return; if (e.button === 0) { mouse.down = true; mouse.clicked = true; clicks++; } initAudio(); });
 addEventListener('mouseup', e => { if (e.button === 0) mouse.down = false; });
 cv.addEventListener('contextmenu', e => e.preventDefault());
 cv.addEventListener('wheel', () => { if (inMatch()) onKey('KeyQ'); }, { passive: true });
 addEventListener('resize', resize);
+
+// ---------- touch controls ----------
+const touch = { on: matchMedia('(pointer: coarse)').matches, move: null, aim: null };
+const STICK_R = 56;
+function setTouch(on) { touch.on = on; document.body.classList.toggle('touch', on); }
+setTouch(touch.on);
+function stickEl(side) { return $(side === 'move' ? 'moveStick' : 'aimStick'); }
+function releaseStick(side) {
+  touch[side] = null;
+  const el = stickEl(side); el.classList.remove('live', 'fire'); el.style.left = el.style.top = ''; el.firstChild.style.transform = '';
+  if (side === 'aim') mouse.down = false;
+}
+function resetSticks() { releaseStick('move'); releaseStick('aim'); }
+cv.addEventListener('pointerdown', e => {
+  if (e.pointerType !== 'touch') { if (touch.on) setTouch(false); return; }
+  if (!touch.on) setTouch(true);
+  e.preventDefault(); initAudio();
+  if (!inMatch()) return;
+  const side = e.clientX < VW / 2 ? 'move' : 'aim';
+  if (touch[side]) return;
+  touch[side] = { id: e.pointerId, ox: e.clientX, oy: e.clientY, x: 0, y: 0 };
+  const el = stickEl(side); el.classList.add('live'); el.style.left = e.clientX + 'px'; el.style.top = e.clientY + 'px';
+});
+addEventListener('pointermove', e => {
+  if (e.pointerType === 'mouse') { if (touch.on && (e.movementX || e.movementY)) setTouch(false); return; }
+  for (const side of ['move', 'aim']) {
+    const st = touch[side]; if (!st || st.id !== e.pointerId) continue;
+    let dx = e.clientX - st.ox, dy = e.clientY - st.oy;
+    const d = Math.hypot(dx, dy); if (d > STICK_R) { dx *= STICK_R / d; dy *= STICK_R / d; }
+    st.x = dx / STICK_R; st.y = dy / STICK_R;
+    const el = stickEl(side); el.firstChild.style.transform = `translate(${dx}px,${dy}px)`;
+    if (side === 'aim') el.classList.toggle('fire', Math.hypot(st.x, st.y) >= 0.9);
+  }
+});
+for (const ev of ['pointerup', 'pointercancel']) addEventListener(ev, e => { for (const side of ['move', 'aim']) if (touch[side] && touch[side].id === e.pointerId) releaseStick(side); });
+$('touchBtns').addEventListener('pointerdown', e => { const a = e.target.dataset && e.target.dataset.a; if (a) { e.preventDefault(); const me = meP(); if (me && me.alive) send({ t: 'act', a }); } });
+['s0', 's1', 's2'].forEach((id, i) => $(id).addEventListener('pointerdown', e => {
+  if (!touch.on) return; e.preventDefault(); const me = meP(); if (me && me.alive) send({ t: 'act', a: 'slot', v: i < 2 ? i : -1 });
+}));
+$('prompt').addEventListener('pointerdown', e => { e.preventDefault(); const me = meP(); if (me && me.alive) send({ t: 'act', a: 'pickup' }); });
+$('aliveStat').addEventListener('pointerdown', e => { if (!touch.on) return; e.preventDefault(); showBoard($('board').hidden); });
+$('menuBtn').addEventListener('click', () => { resetSticks(); openSettings(); });
+// phones: go fullscreen and landscape when the player starts something
+function goFull() {
+  if (!touch.on || document.fullscreenElement) return;
+  const d = document.documentElement;
+  if (d.requestFullscreen) d.requestFullscreen().then(() => { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {}); }, () => {});
+}
 
 // ---------- loop ----------
 menuState();
 applySettings();
 { let id = null; try { id = localStorage.getItem('dubg-server'); } catch (e) {} connect(SERVERS.find(s => s.id === id) || SERVERS[0]); }
 mouse.x = VW / 2; mouse.y = VH / 2;
-let last = performance.now(), fps = 60;
+let last = performance.now(), fps = 60, playing = false;
 function frame(now) {
   const raw = (now - last) / 1000, dt = Math.min(0.05, raw); last = now;
   if (raw > 0) fps += (1 / raw - fps) * 0.05;
   update(dt);
   render(dt);
   if (inMatch()) { updateHud(); drawMini(); if (!$('board').hidden) renderBoard(dt); }
+  if (inMatch() !== playing) { playing = inMatch(); document.body.classList.toggle('playing', playing); if (!playing) resetSticks(); }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
