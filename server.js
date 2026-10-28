@@ -20,11 +20,14 @@ const FILES = {
   '/': ['public/index.html', 'text/html; charset=utf-8'],
   '/index.html': ['public/index.html', 'text/html; charset=utf-8'],
   '/shared/game.js': ['shared/game.js', 'text/javascript; charset=utf-8'],
+  '/r3d.js': ['public/r3d.js', 'text/javascript; charset=utf-8'],
 };
 const server = http.createServer((req, res) => {
   const url = req.url.split('?')[0];
   if (url === '/health') { res.writeHead(200, { 'content-type': 'text/plain' }); res.end('ok'); return; }
-  const f = FILES[url];
+  // 3D models: /assets/<name>.glb
+  const asset = /^\/assets\/([a-z0-9_-]+)\.glb$/.exec(url);
+  const f = FILES[url] || (asset && [`public/assets/${asset[1]}.glb`, 'model/gltf-binary']);
   if (!f) { res.writeHead(404, { 'content-type': 'text/plain' }); res.end('Not found'); return; }
   fs.readFile(path.join(__dirname, f[0]), (err, data) => {
     if (err) { res.writeHead(500); res.end('Server error'); return; }

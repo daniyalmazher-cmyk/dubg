@@ -35,6 +35,9 @@ html,body{height:100%;margin:0}
 body{background:var(--ink);color:var(--text);font-family:var(--body);font-size:14px;overflow:hidden;user-select:none;-webkit-user-select:none}
 [hidden]{display:none!important}
 #game{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:crosshair;background:var(--ink);touch-action:none}
+#game3d{position:fixed;inset:0;width:100%;height:100%;display:none}
+body.v3d #game3d{display:block}
+body.v3d #game{background:transparent}
 #hud{position:fixed;inset:0;pointer-events:none;font-size:16px}
 .tl{position:absolute;top:calc(14px + env(safe-area-inset-top,0px));left:calc(16px + env(safe-area-inset-left,0px));display:flex;gap:8px}
 .stat{background:var(--panel);border:1px solid var(--line);padding:4px 12px 6px;display:flex;align-items:baseline;gap:6px}
@@ -232,8 +235,11 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
   .tr{display:none}
 }
 </style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module" src="/r3d.js"></script>
 </head>
 <body>
+<canvas id="game3d"></canvas>
 <canvas id="game"></canvas>
 
 <div id="hud" hidden>
@@ -416,7 +422,8 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
 'use strict';
 const D = window.DUBG;
 const { TAU, WEAPONS, ITEMS, SHOPS, CREWS, WORLD, PRISON, CITY, PX, PY, CORR_Y, GATE_L, GATE_R, CX, CY, YN, SPEED, clamp, dist, angDiff, darken, inRect } = D;
-const cv = document.getElementById('game'), ctx = cv.getContext('2d');
+const cv = document.getElementById('game');
+let ctx = cv.getContext('2d');
 const mini = document.getElementById('mini'), mctx = mini.getContext('2d');
 const $ = id => document.getElementById(id);
 const fmtTime = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
@@ -437,6 +444,7 @@ function resize() {
   const ms = mini.clientWidth || 210;
   mini.width = Math.round(ms * DPR); mini.height = Math.round(ms * DPR);
   if (M) buildMiniBase();
+  if (window.R3D && R3D.ok) R3D.resize(VW, VH);
 }
 
 // ---------- client match state ----------
@@ -455,6 +463,7 @@ function newState(state, seed) {
   };
   D.setDoors(state !== 'lockdown');
   buildMiniBase();
+  build3D();
 }
 function menuState() { newState('menu', 4242); }
 
@@ -552,7 +561,7 @@ function interp(P, rt) {
   P.x = b[0].x; P.y = b[0].y; P.ang = b[0].ang;
 }
 const meP = () => M && M.me != null ? M.players.get(M.me) : null;
-function mouseWorld() { return { x: M.cam.x + (mouse.x - VW / 2) / ZOOM, y: M.cam.y + (mouse.y - VH / 2) / ZOOM }; }
+function mouseWorld() { const w = use3D() && R3D.toWorld(mouse.x, mouse.y); return w || { x: M.cam.x + (mouse.x - VW / 2) / ZOOM, y: M.cam.y + (mouse.y - VH / 2) / ZOOM }; }
 function myGun() { const md = M.meData; if (!md || md.c < 0) return null; return md.s[md.c]; }
 
 function localFire(me) {
@@ -930,7 +939,8 @@ function drawLights(t) {
   }
 }
 
-function drawSigns(t) {
+// place(sx, sy): optional; moves the context to the sign (3D view) and returns false to skip it
+function drawSigns(t, place) {
   ctx.save();
   ctx.font = '700 15px "Barlow Condensed", "Arial Narrow", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for (const b of buildings) {
@@ -940,15 +950,17 @@ function drawSigns(t) {
     else if (b.side === 'bottom') { sx = d.x + d.w / 2; sy = b.y + b.h + 15; }
     else if (b.side === 'left') { sx = b.x + tw / 2 + 4; sy = d.y - 16; }
     else { sx = b.x + b.w - tw / 2 - 4; sy = d.y - 16; }
-    if (!inView(sx - tw / 2 - 20, sy - 30, tw + 40, 60)) continue;
+    if (place) { if (!place(sx, sy)) continue; }
+    else { if (!inView(sx - tw / 2 - 20, sy - 30, tw + 40, 60)) continue; ctx.save(); ctx.translate(sx, sy); }
     let on = 1;
     if (b.flicker && Math.sin(t * 9 + b.x) + Math.sin(t * 23 + b.y) < -1.2) on = 0.2;
-    ctx.fillStyle = 'rgba(8,8,10,.94)'; ctx.fillRect(sx - tw / 2, sy - th / 2, tw, th);
+    ctx.fillStyle = 'rgba(8,8,10,.94)'; ctx.fillRect(-tw / 2, -th / 2, tw, th);
     ctx.globalAlpha = 0.35 + 0.65 * on;
     ctx.shadowColor = S.color; ctx.shadowBlur = 16 * on;
-    ctx.strokeStyle = S.color; ctx.lineWidth = 2; ctx.strokeRect(sx - tw / 2 + 2.5, sy - th / 2 + 2.5, tw - 5, th - 5);
-    ctx.fillStyle = S.color; ctx.fillText(S.sign, sx, sy + 1);
+    ctx.strokeStyle = S.color; ctx.lineWidth = 2; ctx.strokeRect(-tw / 2 + 2.5, -th / 2 + 2.5, tw - 5, th - 5);
+    ctx.fillStyle = S.color; ctx.fillText(S.sign, 0, 1);
     ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+    ctx.restore();
   }
   ctx.restore();
 }
@@ -957,6 +969,7 @@ const rain = Array.from({ length: 170 }, () => ({ x: Math.random(), y: Math.rand
 const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function render(dt) {
+  if (use3D()) { render3D(dt); return; }
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
   ctx.fillStyle = '#0b0c0d'; ctx.fillRect(0, 0, VW, VH);
   const z = ZOOM, cam = M.cam, t = M.time;
@@ -1013,6 +1026,12 @@ function render(dt) {
     ctx.restore();
   }
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const me = meP();
+  drawScreenFx(dt, me ? VW / 2 + (me.x - cam.x) * z : 0, me ? VH / 2 + (me.y - cam.y) * z : 0, 26 * z);
+}
+
+// tint, rain, vignette and the reload/heal ring around you (sx, sy: your screen position)
+function drawScreenFx(dt, sx, sy, rr) {
   ctx.fillStyle = 'rgba(16,24,48,.16)'; ctx.fillRect(0, 0, VW, VH);
   if (!calm) {
     ctx.strokeStyle = 'rgba(170,190,225,.2)'; ctx.lineWidth = 1; ctx.beginPath();
@@ -1028,12 +1047,79 @@ function render(dt) {
   ctx.fillStyle = vg; ctx.fillRect(0, 0, VW, VH);
   const me = meP(), md = M.meData;
   if (me && me.alive && md && (md.r > 0 || md.h)) {
-    const sx = VW / 2 + (me.x - cam.x) * z, sy = VH / 2 + (me.y - cam.y) * z;
     const g = myGun();
     const k = md.h ? md.h[1] / md.h[2] : g ? 1 - md.r / WEAPONS[g[0]].reload : 0;
     ctx.strokeStyle = md.h ? '#7fe08a' : '#ede7da'; ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(sx, sy, 26 * z, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(k, 0, 1)); ctx.stroke();
+    ctx.beginPath(); ctx.arc(sx, sy, rr, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(k, 0, 1)); ctx.stroke();
   }
+}
+
+// ---------- 3D view (r3d.js draws the scene, this canvas draws text and effects on top) ----------
+// The game is 3D; the 2D renderer only remains as a fallback for devices without WebGL.
+const use3D = () => !!window.R3D && R3D.ok && R3D.hasWorld;
+// the 2D ground (streets, cracks, graffiti, floors) baked into one texture for the 3D ground
+function bakeGround(s) {
+  const c = document.createElement('canvas'); c.width = Math.ceil(WORLD.w * s); c.height = Math.ceil(WORLD.h * s);
+  const saved = ctx, view = M.view, corpses = M.corpses;
+  ctx = c.getContext('2d'); ctx.setTransform(s, 0, 0, s, 0, 0);
+  M.view = { x0: -1e5, x1: 1e5, y0: -1e5, y1: 1e5 }; M.corpses = [];
+  try { drawWorld(); } finally { ctx = saved; M.view = view; M.corpses = corpses; }
+  return c;
+}
+function build3D() {
+  if (!window.R3D || !R3D.ok || !M) return;
+  const s = touch.on ? 0.5 : 0.75;
+  R3D.setWorld({ walls, buildings, boarded, trees, doors, cars, lights, WORLD, SHOPS }, bakeGround(s), s);
+  document.body.classList.add('v3d');
+}
+function setup3D() {
+  if (!window.R3D || R3D.ok) return;
+  if (!R3D.init($('game3d'))) { console.warn('DUBG: WebGL not available, using the 2D view'); return; }
+  R3D.resize(VW, VH);
+  build3D();
+}
+addEventListener('r3d-ready', setup3D);
+// rebake the menu city once the graffiti fonts have loaded
+if (document.fonts) document.fonts.ready.then(() => { if (M && M.state === 'menu') build3D(); });
+
+function render3D(dt) {
+  const vw = viewer(), fogOn = M.state !== 'menu', t = M.time;
+  M.view = { x0: M.cam.x - 1400, x1: M.cam.x + 1400, y0: M.cam.y - 1200, y1: M.cam.y + 1200 };
+  for (const p of M.list) p.seen = p.alive && p.init && inView(p.x - 40, p.y - 40, 80, 80) && (!fogOn || p === vw || canSee(vw, p));
+  const vis = fogOn ? visPoly(vw) : null;
+  // cheap line-of-sight test against the visibility polygon (one ray per degree)
+  const inVis = (x, y) => {
+    if (!vis) return true;
+    const dx = x - vw.x, dy = y - vw.y, i = ((Math.round(Math.atan2(dy, dx) / TAU * VIS_RAYS) % VIS_RAYS) + VIS_RAYS) % VIS_RAYS;
+    return dx * dx + dy * dy <= (vis[i * 2] - vw.x) ** 2 + (vis[i * 2 + 1] - vw.y) ** 2;
+  };
+  R3D.frame({ M, ITEMS, viewer: vw, fogOn, vis, visOrigin: vw, visR: VIS_R, zoom: ZOOM, dt, canSeePt: inVis });
+  const P3 = R3D.project, AH = R3D.AIM_H;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, VW, VH);
+  // tracers and blood
+  ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(255,236,170,.9)'; ctx.lineWidth = 2.2; ctx.beginPath();
+  for (const b of M.tracers) { if (!inVis(b.x, b.y)) continue; const a = P3(b.x - b.vx * 0.018, b.y - b.vy * 0.018, AH), c = P3(b.x, b.y, AH); ctx.moveTo(a.x, a.y); ctx.lineTo(c.x, c.y); }
+  ctx.stroke();
+  for (const p of M.particles) { if (!inVis(p.x, p.y)) continue; const q = P3(p.x, p.y, 16); ctx.globalAlpha = clamp(p.life / p.max, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(q.x - p.s, q.y - p.s, p.s * 2, p.s * 2); }
+  ctx.globalAlpha = 1;
+  // neon signs float above the doors
+  drawSigns(t, (sx, sy) => {
+    const q = P3(sx, sy, 92); if (q.z > 1 || q.x < -120 || q.x > VW + 120 || q.y < -60 || q.y > VH + 60) return false;
+    const k = R3D.pxScale(sx, sy, 92); ctx.save(); ctx.translate(q.x, q.y); ctx.scale(k, k); return true;
+  });
+  // name tags
+  ctx.textAlign = 'center';
+  for (const p of M.list) {
+    if (!p.seen || p.id === M.me || dist(p, vw) > 360) continue;
+    const q = P3(p.x, p.y, 74);
+    ctx.font = p.bot ? '600 12px "Barlow Condensed", "Arial Narrow", sans-serif' : '700 13px "Barlow Condensed", "Arial Narrow", sans-serif';
+    const tw = ctx.measureText(p.name).width + 14;
+    ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(q.x - tw / 2, q.y - 15, tw, 15);
+    ctx.fillStyle = p.crew.c; ctx.fillRect(q.x - tw / 2, q.y - 15, 3, 15);
+    ctx.fillStyle = p.bot ? '#c9c2b4' : '#ffffff'; ctx.fillText(p.name, q.x + 2, q.y - 3.5);
+  }
+  const me = meP(), mq = me ? P3(me.x, me.y, 0) : { x: 0, y: 0 };
+  drawScreenFx(dt, mq.x, mq.y, 30 * R3D.pxScale(me ? me.x : 0, me ? me.y : 0, 0));
 }
 
 // ---------- minimap ----------
@@ -1442,6 +1528,7 @@ function goFull() {
 // ---------- loop ----------
 menuState();
 applySettings();
+setup3D();
 { let id = null; try { id = localStorage.getItem('dubg-server'); } catch (e) {} connect(SERVERS.find(s => s.id === id) || SERVERS[0]); }
 mouse.x = VW / 2; mouse.y = VH / 2;
 let last = performance.now(), fps = 60, playing = false;

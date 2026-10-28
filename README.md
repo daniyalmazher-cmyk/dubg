@@ -42,4 +42,7 @@ To add another server (for example a Gulf one), add it to the `SERVERS` list in 
 - `server.js`: serves the page, runs matchmaking, private rooms and every match (30 ticks per second, 15 updates per second to players).
 - `shared/game.js`: map generation, collision and all game rules. Used by the server and the browser.
 - `public/index.html`: the game client. Draws the game, predicts your own movement, smooths everyone else.
+- `public/r3d.js`: the 3D view (three.js, tilted camera). The 2D drawing in `index.html` is only a fallback for devices without WebGL.
+- `public/assets/`: 3D models, all CC0 by Quaternius (quaternius.com), from poly.pizza:
+  `hoodie.glb` (the player character, with gun/run/strafe/punch/death animations), and `pistol.glb`, `smg.glb`, `shotgun.glb`, `rifle.glb`.
 - `preview.html`: the old single-player version with bots only.
