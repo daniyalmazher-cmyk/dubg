@@ -23,16 +23,23 @@ Open http://localhost:3000. Friends on the same Wi-Fi can join at `http://<your-
 On the free plan the server sleeps after 15 minutes with nobody connected. The first person
 to open the link waits about a minute while it wakes up.
 
-## How a match works
+## How to play
 
-- Everyone who opens the link types a name and lands in the lobby.
-- The first person in is the host and presses **Start match**.
-- Bots fill the remaining spots up to 30.
-- People who join during a match watch it and play in the next one.
+- **Find match**: joins the public queue. A match starts as soon as 5 players are queued,
+  or after 20 seconds with whoever is waiting. Bots fill the rest of the 30 spots.
+- **Create private room**: gives you a 5-letter code and an invite link. Only people with the
+  code can join. The room boss starts the match, and everyone returns to the room afterwards.
+- **Join private room**: type the code (or open an invite link, which fills it in).
+- A match is deleted as soon as every real player has left it, and a room is deleted when it is empty.
+
+Server settings (environment variables): `QUEUE_SIZE` (default 5), `QUEUE_WAIT` in seconds
+(default 20), `MAX_MATCHES` running at once (default 12).
+
+To add another server (for example a Gulf one), add it to the `SERVERS` list in `public/index.html`.
 
 ## Files
 
-- `server.js`: serves the page, runs the lobby and the match (30 ticks per second, 15 updates per second to players).
+- `server.js`: serves the page, runs matchmaking, private rooms and every match (30 ticks per second, 15 updates per second to players).
 - `shared/game.js`: map generation, collision and all game rules. Used by the server and the browser.
 - `public/index.html`: the game client. Draws the game, predicts your own movement, smooths everyone else.
 - `preview.html`: the old single-player version with bots only.

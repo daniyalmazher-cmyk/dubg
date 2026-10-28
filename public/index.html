@@ -100,10 +100,60 @@ button:focus-visible{outline:3px solid var(--hazard);outline-offset:3px}
 .status{font-weight:700;letter-spacing:.06em;text-transform:uppercase;font-size:13px}
 .status.on{color:var(--good)} .status.off{color:var(--danger)}
 .h2{font-family:var(--display);font-size:34px;line-height:1}
+.panel.wide{width:min(780px,100%)}
+.homeTop{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
+.col{display:flex;flex-direction:column;gap:12px}
+.col>button{width:100%}
+button.play{font-size:34px;padding:18px 26px;box-shadow:0 5px 0 #8a3c06;margin-bottom:4px}
+button.play:active:not(:disabled){transform:translateY(3px);box-shadow:0 2px 0 #8a3c06}
+.or{display:flex;align-items:center;gap:10px;color:var(--muted);font-weight:700;letter-spacing:.14em;text-transform:uppercase;font-size:12px}
+.or::before,.or::after{content:'';flex:1;border-top:1px solid var(--line)}
+.joinRow{display:flex;gap:8px}
+.joinRow input[type=text]{flex:1;min-width:0;width:auto;text-transform:uppercase;letter-spacing:.3em;font-size:20px}
+.joinRow input::placeholder{letter-spacing:.06em;text-transform:none}
+.servers{display:flex;flex-direction:column;gap:6px}
+.srv{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:#0c0d0e;border:1px solid var(--line);padding:10px 12px;font-family:var(--body);color:var(--text);text-transform:none;letter-spacing:0}
+.srv.on{border-color:var(--orange);box-shadow:inset 3px 0 0 var(--orange)}
+.srv b{display:block;font-size:19px;font-weight:700}
+.srv small{display:block;color:var(--muted);font-size:13px;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+.srv .pg{margin-left:auto;display:flex;align-items:flex-end;gap:2px;height:16px}
+.srv .pg i{width:4px;background:#3a3d41}
+.srv .pg i:nth-child(1){height:5px} .srv .pg i:nth-child(2){height:9px} .srv .pg i:nth-child(3){height:13px} .srv .pg i:nth-child(4){height:16px}
+.srv .ms{min-width:62px;text-align:right;font-weight:700;font-size:16px;font-variant-numeric:tabular-nums}
+.srv.good .pg i.lit{background:var(--good)} .srv.good .ms{color:var(--good)}
+.srv.ok .pg i.lit{background:var(--hazard)} .srv.ok .ms{color:var(--hazard)}
+.srv.bad .pg i.lit{background:var(--danger)} .srv.bad .ms{color:var(--danger)}
+.srv.off .ms{color:var(--muted)}
+.err{color:var(--danger);font-weight:700;font-size:15px}
+.inner.center{align-items:center;text-align:center}
+.qcount{font-family:var(--display);font-size:84px;line-height:.9;font-variant-numeric:tabular-nums}
+.qcount span{font-size:40px;color:var(--muted)} .qcount i{font-style:normal}
+.qdots{display:flex;gap:8px;justify-content:center}
+.qdots i{width:34px;height:42px;border:1px solid var(--line);background:#0c0d0e;position:relative}
+.qdots i.in{background:var(--orange);border-color:var(--orange)}
+.qdots i.in::after{content:'';position:absolute;left:50%;top:7px;width:14px;height:14px;margin-left:-7px;border-radius:50%;background:#111}
+.spin{width:28px;height:28px;border:3px solid var(--line);border-top-color:var(--hazard);border-radius:50%;animation:sp 0.9s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spin{animation:none}}
+.roomHead{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.code{font-family:var(--display);font-size:56px;line-height:1;color:var(--hazard);letter-spacing:.14em;user-select:all;-webkit-user-select:all}
+.roomHead button{font-size:14px;padding:8px 12px}
+.set{display:flex;align-items:center;justify-content:space-between;gap:16px;font-size:19px;font-weight:700;padding:10px 0;border-bottom:1px solid var(--line)}
+.set b{color:var(--orange);font-variant-numeric:tabular-nums;margin-left:6px}
+.set input[type=range]{width:min(260px,55%);accent-color:var(--orange)}
+.set input[type=checkbox]{width:22px;height:22px;accent-color:var(--orange)}
+.set.chk{cursor:pointer}
+.seg{display:flex}
+.seg button{font-family:var(--body);font-weight:700;font-size:15px;text-transform:uppercase;letter-spacing:.08em;padding:7px 14px;background:transparent;color:var(--muted);border:1px solid var(--line)}
+.seg button+button{border-left:0}
+.seg button.on{background:var(--orange);color:#111;border-color:var(--orange)}
+body.mini-small #mini{width:140px;height:140px}
 .plist{display:flex;flex-direction:column;border-top:1px solid var(--line)}
 .plist div{display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid var(--line);font-size:19px;font-weight:700}
 .plist .tagx{margin-left:auto;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700}
 .plist .host{color:var(--hazard)}
+.plist .live{color:var(--good)}
 .plist .you{color:var(--orange)}
 .share{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .share code{font-family:ui-monospace,Menlo,monospace;background:#0c0d0e;border:1px solid var(--line);padding:6px 10px;font-size:14px;user-select:all;-webkit-user-select:all;word-break:break-all}
@@ -117,6 +167,8 @@ button:focus-visible{outline:3px solid var(--hazard);outline-offset:3px}
 .res span{color:var(--muted);text-transform:uppercase;letter-spacing:.1em;font-size:13px;font-weight:600}
 @media (max-width:620px){
   .flow{grid-template-columns:1fr 1fr}
+  .cols{grid-template-columns:1fr}
+  .code{font-size:44px}
   .keys{grid-template-columns:auto 1fr}
   #mini{width:110px;height:110px}
   .bc{width:calc(100vw - 150px);left:calc(16px + env(safe-area-inset-left,0px));transform:none}
@@ -131,13 +183,14 @@ button:focus-visible{outline:3px solid var(--hazard);outline-offset:3px}
   <div class="tl">
     <div class="stat"><b id="alive">30</b><span>alive</span></div>
     <div class="stat"><b id="kills">0</b><span>kills</span></div>
-    <div class="stat"><b id="ping">--</b><span>ms</span></div>
+    <div class="stat" id="pingStat"><b id="ping">--</b><span>ms</span></div>
+    <div class="stat" id="fpsStat" hidden><b id="fps">0</b><span>fps</span></div>
   </div>
   <div class="tc"><div id="zoneMsg">Lockdown</div><div id="outMsg" hidden>Outside the zone. Move!</div></div>
   <div class="tr" id="feed"></div>
   <div id="center"></div>
   <div id="prompt" hidden></div>
-  <button id="leaveHud" class="ghost" type="button" hidden>Back to lobby</button>
+  <button id="leaveHud" class="ghost" type="button" hidden>Leave match</button>
   <div class="bc" id="meHud">
     <div id="healBar" hidden><div id="healFill"></div></div>
     <div class="slots">
@@ -154,30 +207,49 @@ button:focus-visible{outline:3px solid var(--hazard);outline-offset:3px}
   <canvas id="mini" width="210" height="210"></canvas>
 </div>
 
-<div class="overlay" id="joinScreen">
-  <div class="panel">
+<div class="overlay" id="homeScreen">
+  <div class="panel wide">
     <div class="hazard"></div>
-    <form class="inner" id="joinForm">
-      <div>
-        <div class="logo">DUBG</div>
-        <div class="sub">Dawg Unknown Battle Ground</div>
-        <div class="spray">this city got no cops</div>
+    <div class="inner">
+      <div class="homeTop">
+        <div>
+          <div class="logo">DUBG</div>
+          <div class="sub">Dawg Unknown Battle Ground</div>
+          <div class="spray">this city got no cops</div>
+        </div>
+        <button id="settingsBtn" class="ghost" type="button">Settings</button>
       </div>
       <div class="pitch">30 dawgs locked up in county. The power cuts out. Last dawg standing runs the city.</div>
+      <div class="cols">
+        <div class="col">
+          <div>
+            <label class="lbl" for="nameInput">Your street name</label>
+            <input type="text" id="nameInput" maxlength="14" autocomplete="nickname" placeholder="e.g. BigDawg" spellcheck="false">
+          </div>
+          <div>
+            <label class="lbl">Server</label>
+            <div class="servers" id="serverList"></div>
+          </div>
+          <div class="note" id="srvStats">&nbsp;</div>
+        </div>
+        <div class="col">
+          <label class="lbl">Play</label>
+          <button id="findBtn" class="play" type="button" disabled>Find match</button>
+          <div class="or">or play with your crew</div>
+          <button id="createBtn" class="ghost" type="button" disabled>Create private room</button>
+          <form id="joinForm" class="joinRow">
+            <input type="text" id="codeInput" maxlength="5" placeholder="Room code" autocomplete="off" spellcheck="false" aria-label="Room code">
+            <button id="joinBtn" class="ghost" type="submit" disabled>Join</button>
+          </form>
+          <div class="err" id="homeErr" role="alert" hidden></div>
+        </div>
+      </div>
       <div class="flow">
         <div>Locked up<span>Everyone starts in a cell</span></div>
         <div>Break out<span>Doors open, hit the streets</span></div>
         <div>Hit the shops<span>Neon sign means open. Boarded means sealed.</span></div>
         <div>Survive<span>Stay inside the circle</span></div>
       </div>
-      <div>
-        <label class="lbl" for="nameInput">Your street name</label>
-        <div class="row">
-          <input type="text" id="nameInput" maxlength="14" autocomplete="nickname" placeholder="e.g. BigDawg" required>
-          <button id="joinBtn" type="submit" disabled>Join</button>
-        </div>
-      </div>
-      <div class="row"><span class="status" id="connStatus">Connecting to server…</span></div>
       <div class="keys">
         <kbd>WASD</kbd><span>Move</span>
         <kbd>Mouse</kbd><span>Aim and shoot</span>
@@ -185,25 +257,65 @@ button:focus-visible{outline:3px solid var(--hazard);outline-offset:3px}
         <kbd>R</kbd><span>Reload</span>
         <kbd>1 2 3</kbd><span>Switch weapon</span>
         <kbd>F</kbd><span>Heal</span>
+        <kbd>Esc</kbd><span>Settings</span>
+        <kbd>M</kbd><span>Mute</span>
       </div>
-    </form>
+    </div>
   </div>
 </div>
 
-<div class="overlay" id="lobbyScreen" hidden>
+<div class="overlay" id="queueScreen" hidden>
+  <div class="panel">
+    <div class="hazard"></div>
+    <div class="inner center">
+      <div class="spin" aria-hidden="true"></div>
+      <div class="h2">Finding match</div>
+      <div class="qcount"><b id="qN">1</b><span> / <i id="qMax">5</i></span></div>
+      <div class="qdots" id="qDots"></div>
+      <div class="note" id="qNote" aria-live="polite"></div>
+      <div class="row"><button id="cancelBtn" class="ghost" type="button">Cancel</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="roomScreen" hidden>
   <div class="panel">
     <div class="hazard"></div>
     <div class="inner">
-      <div class="h2">The Block</div>
-      <div class="plist" id="lobbyList"></div>
-      <div class="note" id="lobbyNote"></div>
+      <div class="roomHead">
+        <div>
+          <div class="sub">Private room code</div>
+          <div class="code" id="roomCode">-----</div>
+        </div>
+        <div class="row">
+          <button id="copyCodeBtn" class="ghost" type="button">Copy code</button>
+          <button id="copyLinkBtn" class="ghost" type="button">Copy invite link</button>
+        </div>
+      </div>
+      <div class="plist" id="roomList"></div>
+      <div class="note" id="roomNote"></div>
+      <div class="err" id="roomErr" role="alert" hidden></div>
       <div class="row">
         <button id="startBtn" type="button" hidden>Start match</button>
+        <button id="leaveRoomBtn" class="ghost" type="button">Leave room</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="settingsScreen" hidden>
+  <div class="panel">
+    <div class="hazard"></div>
+    <div class="inner">
+      <div class="h2">Settings</div>
       <div>
-        <label class="lbl">Bring your dawgs: send them this link</label>
-        <div class="share"><code id="shareUrl"></code><button id="copyBtn" class="ghost" type="button">Copy</button></div>
+        <label class="set" for="volIn"><span>Volume<b id="volOut">70</b></span><input type="range" id="volIn" min="0" max="100" step="5"></label>
+        <div class="set"><span>Minimap</span><div class="seg" id="miniSeg"><button type="button" data-v="large">Large</button><button type="button" data-v="small">Small</button></div></div>
+        <label class="set chk"><span>Show ping</span><input type="checkbox" id="pingChk"></label>
+        <label class="set chk"><span>Show FPS</span><input type="checkbox" id="fpsChk"></label>
       </div>
+      <div class="note">Press M in a match to mute, Esc to open this.</div>
+      <div class="row"><button id="settingsDone" type="button">Done</button><button id="quitBtn" class="ghost" type="button" hidden>Leave match</button></div>
     </div>
   </div>
 </div>
@@ -219,9 +331,10 @@ button:focus-visible{outline:3px solid var(--hazard);outline-offset:3px}
         <div><b id="endKills">0</b><span>Kills</span></div>
         <div><b id="endTime">0:00</b><span>Survived</span></div>
       </div>
-      <div class="note" id="endNote">Back to the lobby when the match ends.</div>
+      <div class="note" id="endNote"></div>
       <div class="row">
-        <button id="leaveBtn" type="button">Back to lobby</button>
+        <button id="againBtn" type="button">Find another match</button>
+        <button id="leaveBtn" type="button">Back to home</button>
         <button id="specBtn" class="ghost" type="button">Spectate</button>
       </div>
     </div>
@@ -880,6 +993,8 @@ function updateHud() {
   const me = meP(), md = M.meData, z = M.zone;
   setText($('alive'), String(M.alive)); setText($('kills'), String(md ? md.k : 0));
   $('leaveHud').hidden = !((me && !me.alive) || M.state === 'over');
+  $('pingStat').hidden = !S.ping; $('fpsStat').hidden = !S.fps;
+  if (S.fps) setText($('fps'), String(Math.round(fps)));
   const pe = $('ping'); setText(pe, net.ping ? String(net.ping) : '--'); pe.className = !net.ping ? '' : net.ping < 90 ? 'good' : net.ping < 160 ? 'ok' : 'bad';
   let zm;
   if (M.state === 'lockdown') zm = 'Lockdown in effect';
@@ -932,87 +1047,201 @@ function showEnd() {
     $('endKills').textContent = M.meData ? M.meData.k : 0;
     $('endTime').textContent = fmtTime(won ? M.liveTime : (M.meData ? M.meData.dt : 0));
   }
-  $('endNote').textContent = over ? 'Back to the lobby in a few seconds.' : 'Head back to the lobby to start a new match, or stay and watch.';
+  const inRoom = !!net.room;
+  $('endNote').textContent = over ? `Back to the ${inRoom ? 'room' : 'home screen'} in a few seconds.`
+    : inRoom ? 'Head back to the room, or stay and watch. Everyone returns to the room when the match ends.'
+    : 'Jump into another match, or stay and watch.';
+  $('leaveBtn').textContent = inRoom ? 'Back to room' : 'Back to home';
+  $('againBtn').hidden = inRoom;
   $('specBtn').hidden = over;
   showScreen('endScreen');
 }
 
-// ---------- screens ----------
-function showScreen(id) {
-  for (const s of ['joinScreen', 'lobbyScreen', 'endScreen']) $(s).hidden = s !== id;
+// ---------- settings ----------
+const S = { vol: 70, mini: 'large', ping: true, fps: false };
+try { Object.assign(S, JSON.parse(localStorage.getItem('dubg-settings') || '{}')); } catch (e) {}
+function saveSettings() { try { localStorage.setItem('dubg-settings', JSON.stringify(S)); } catch (e) {} }
+function applySettings() {
+  $('volIn').value = S.vol; $('volOut').textContent = S.vol;
+  for (const b of $('miniSeg').children) b.classList.toggle('on', b.dataset.v === S.mini);
+  $('pingChk').checked = S.ping; $('fpsChk').checked = S.fps;
+  document.body.classList.toggle('mini-small', S.mini === 'small');
+  applyVolume(); resize();
 }
-function renderLobby(l) {
-  net.lobby = l;
-  const list = l.players.map(p => {
-    const you = p.cid === net.cid, host = p.cid === l.host;
-    const tag = host ? '<span class="tagx host">Host</span>' : p.playing ? '<span class="tagx">In match</span>' : '';
+$('volIn').addEventListener('input', () => { S.vol = +$('volIn').value; $('volOut').textContent = S.vol; applyVolume(); saveSettings(); });
+$('miniSeg').addEventListener('click', e => { const v = e.target.dataset && e.target.dataset.v; if (v) { S.mini = v; applySettings(); saveSettings(); } });
+$('pingChk').addEventListener('change', () => { S.ping = $('pingChk').checked; saveSettings(); });
+$('fpsChk').addEventListener('change', () => { S.fps = $('fpsChk').checked; saveSettings(); });
+let settingsBack = null;
+function openSettings() {
+  settingsBack = ['homeScreen', 'queueScreen', 'roomScreen', 'endScreen'].find(id => !$(id).hidden) || null;
+  $('quitBtn').hidden = !inMatch();
+  showScreen('settingsScreen');
+}
+function closeSettings() { showScreen(settingsBack); if (!settingsBack) cv.focus(); }
+$('settingsBtn').addEventListener('click', openSettings);
+$('settingsDone').addEventListener('click', closeSettings);
+
+// ---------- screens ----------
+const SCREENS = ['homeScreen', 'queueScreen', 'roomScreen', 'settingsScreen', 'endScreen'];
+function showScreen(id) { for (const s of SCREENS) $(s).hidden = s !== id; }
+function showErr(msg) {
+  const el = net.where === 'room' ? $('roomErr') : $('homeErr');
+  el.textContent = msg; el.hidden = !msg;
+  clearTimeout(showErr.t); if (msg) showErr.t = setTimeout(() => { el.hidden = true; }, 5000);
+}
+// out of a match and back to the room or home screen
+function exitMatch() {
+  if (M && M.state !== 'menu') { menuState(); $('hud').hidden = true; }
+  if (net.where === 'match') { net.where = net.room ? 'room' : 'home'; showScreen(net.room ? 'roomScreen' : 'homeScreen'); }
+}
+function goHome() { net.room = null; net.where = 'home'; if (M && M.state !== 'menu') { menuState(); $('hud').hidden = true; } showScreen('homeScreen'); }
+
+function renderQueue(q) {
+  $('qN').textContent = q.n; $('qMax').textContent = q.max;
+  let dots = ''; for (let i = 0; i < q.max; i++) dots += `<i class="${i < q.n ? 'in' : ''}"></i>`;
+  $('qDots').innerHTML = dots;
+  $('qNote').textContent = q.full ? 'Every match slot on this server is busy. You start as soon as one frees up.'
+    : q.n >= q.max ? 'Match found. Dropping you in…'
+    : `Starts when ${q.max} dawgs are in, or in ${q.left}s with whoever is here. Bots fill the rest of the ${D.MAX_PLAYERS} spots.`;
+}
+function renderRoom(r) {
+  $('roomCode').textContent = r.code;
+  const owner = r.players.find(p => p.cid === r.owner), amOwner = r.owner === net.cid;
+  $('roomList').innerHTML = r.players.map(p => {
+    const you = p.cid === net.cid;
+    const tag = p.playing ? '<span class="tagx live">In match</span>' : p.cid === r.owner ? '<span class="tagx host">Room boss</span>' : '';
     return `<div><span class="${you ? 'you' : ''}">${esc(p.name)}${you ? ' (you)' : ''}</span>${tag}</div>`;
   }).join('');
-  $('lobbyList').innerHTML = list || '<div>Nobody here yet</div>';
-  const w = l.players.filter(p => !p.playing).length, busy = l.players.length - w, amHost = l.host === net.cid;
-  const games = Math.ceil(w / D.MAX_PLAYERS), bots = games * D.MAX_PLAYERS - w;
-  let note = `${w} ${w === 1 ? 'dawg' : 'dawgs'} waiting. `;
-  note += games > 1 ? `That's ${games} matches of up to ${D.MAX_PLAYERS}, with ${bots} bots filling the gaps. ` : `${bots} bots fill the rest of the ${D.MAX_PLAYERS} spots. `;
-  if (busy) note += `${busy} ${busy === 1 ? 'is' : 'are'} in ${l.games === 1 ? 'a match' : l.games + ' matches'} right now. `;
-  note += amHost ? 'Start when your crew is in.' : 'Waiting for the host to start.';
-  $('lobbyNote').textContent = note;
-  $('startBtn').hidden = !amHost || l.state !== 'lobby';
+  const n = r.players.length, bots = D.MAX_PLAYERS - n, playing = r.players.filter(p => p.playing).length;
+  $('roomNote').textContent = r.live
+    ? `Match in progress. ${playing} still playing. Everyone comes back here when it ends.`
+    : `${n} of ${r.max} in the room. ${bots} bots fill the rest. ` + (amOwner ? 'Share the code, then start when your crew is in.' : `Waiting for ${owner ? owner.name : 'the room boss'} to start.`);
+  $('startBtn').hidden = !amOwner || r.live;
 }
 
+// ---------- servers ----------
+// Add more servers here when they exist, e.g. { id: 'gulf', name: 'Dubai', where: 'Middle East', host: 'gulf.dubg.online' }.
+const LOCAL = /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(location.hostname);
+const SERVERS = [
+  { id: 'sg', name: LOCAL ? 'This computer' : 'Singapore', where: LOCAL ? 'Local network' : 'Asia', host: location.host },
+];
+const wsUrl = s => (location.protocol === 'https:' || s.host !== location.host ? 'wss://' : 'ws://') + s.host;
+for (const s of SERVERS) s.ping = 0;
+function renderServers() {
+  $('serverList').innerHTML = SERVERS.map(s => {
+    const cur = s === net.server, ms = cur ? (net.ws && net.ws.readyState === 1 ? net.ping : -1) : s.ping;
+    const q = ms < 0 ? 'off' : !ms ? '' : ms < 90 ? 'good' : ms < 160 ? 'ok' : 'bad', lit = q === 'good' ? 4 : q === 'ok' ? 3 : q === 'bad' ? 1 : 0;
+    const label = ms < 0 ? (cur && net.ws && net.ws.readyState === 0 ? 'Connecting' : 'Offline') : ms ? ms + ' ms' : '…';
+    return `<button type="button" class="srv ${cur ? 'on' : ''} ${q}" data-id="${s.id}" aria-pressed="${cur}"><span><b>${esc(s.name)}</b><small>${esc(s.where)}</small></span>`
+      + `<span class="pg" aria-hidden="true">${[0, 1, 2, 3].map(i => `<i class="${i < lit ? 'lit' : ''}"></i>`).join('')}</span><span class="ms">${label}</span></button>`;
+  }).join('');
+  const st = net.stats, ok = net.ws && net.ws.readyState === 1;
+  $('srvStats').textContent = ok && st ? `${st.online} online · ${st.live} ${st.live === 1 ? 'match' : 'matches'} live · ${st.queued} in queue` : ok ? '' : "Can't reach this server right now. Retrying…";
+  for (const b of ['findBtn', 'createBtn', 'joinBtn']) $(b).disabled = !ok;
+}
+$('serverList').addEventListener('click', e => {
+  const b = e.target.closest('.srv'); if (!b || net.where !== 'home') return;
+  const s = SERVERS.find(x => x.id === b.dataset.id);
+  if (s && s !== net.server) { try { localStorage.setItem('dubg-server', s.id); } catch (e) {} connect(s); }
+});
+// ping the servers we're not connected to, so the picker shows a number for each
+function probe(s) {
+  let ws; try { ws = new WebSocket(wsUrl(s)); } catch (e) { s.ping = -1; return; }
+  const t0 = setTimeout(() => { s.ping = -1; ws.close(); }, 4000);
+  ws.onopen = () => ws.send(JSON.stringify({ t: 'ping', c: performance.now() }));
+  ws.onmessage = ev => { const m = JSON.parse(ev.data); if (m.t === 'pong') { s.ping = Math.max(1, Math.round(performance.now() - m.c)); clearTimeout(t0); ws.close(); renderServers(); } };
+  ws.onerror = () => { s.ping = -1; clearTimeout(t0); renderServers(); };
+}
+setInterval(() => { if (net.where === 'home') for (const s of SERVERS) if (s !== net.server) probe(s); }, 5000);
+
 // ---------- network ----------
-const net = { ws: null, cid: null, name: '', lobby: null, ping: 0, joined: false };
+const net = { ws: null, server: null, cid: null, ping: 0, stats: null, room: null, where: 'home' };
 function send(o) { if (net.ws && net.ws.readyState === 1) net.ws.send(JSON.stringify(o)); }
-function connect() {
-  const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host);
+function connect(s) {
+  if (net.ws) { net.ws.onclose = null; net.ws.close(); }
+  net.server = s; net.ping = 0; net.stats = null;
+  const ws = new WebSocket(wsUrl(s));
   net.ws = ws;
-  ws.onopen = () => { $('connStatus').textContent = 'Connected'; $('connStatus').className = 'status on'; $('joinBtn').disabled = false; };
+  renderServers();
+  ws.onopen = () => { send({ t: 'ping', c: performance.now() }); renderServers(); };
   ws.onclose = () => {
-    $('connStatus').textContent = "Can't reach the server. Refresh to try again."; $('connStatus').className = 'status off'; $('joinBtn').disabled = true;
-    if (net.joined) $('conn').hidden = false;
+    if (ws !== net.ws) return;
+    renderServers();
+    if (net.where === 'home') setTimeout(() => { if (ws === net.ws && net.where === 'home') connect(s); }, 3000);
+    else $('conn').hidden = false;
   };
   ws.onmessage = ev => {
     let m; try { m = JSON.parse(ev.data); } catch { return; }
     if (m.t === 's') onSnap(m);
     else if (m.t === 'hello') net.cid = m.cid;
-    else if (m.t === 'joined') { net.joined = true; net.name = m.name; try { localStorage.setItem('dubg-name', m.name); } catch (e) {} showScreen('lobbyScreen'); }
-    else if (m.t === 'lobby') {
-      renderLobby(m);
-      if (net.joined && m.state === 'lobby' && M && M.state !== 'menu') { menuState(); $('hud').hidden = true; showScreen('lobbyScreen'); }
+    else if (m.t === 'stats') { net.stats = m; if (net.where === 'home') renderServers(); }
+    else if (m.t === 'queue') { if (net.where !== 'match') { net.where = 'queue'; showScreen('queueScreen'); } renderQueue(m); }
+    else if (m.t === 'room') {
+      net.room = m; renderRoom(m);
+      if (net.where === 'home') { net.where = 'room'; showScreen('roomScreen'); }
     }
-    else if (m.t === 'match') onMatch(m);
-    else if (m.t === 'pong') net.ping = Math.round(performance.now() - m.c);
+    else if (m.t === 'match') { net.where = 'match'; onMatch(m); }
+    else if (m.t === 'ended') exitMatch();
+    else if (m.t === 'home') { if (net.where !== 'match') goHome(); }
+    else if (m.t === 'err') showErr(m.msg);
+    else if (m.t === 'pong') { net.ping = Math.max(1, Math.round(performance.now() - m.c)); if (net.where === 'home') renderServers(); }
   };
 }
 setInterval(() => send({ t: 'ping', c: performance.now() }), 2000);
 
+function playerName() {
+  const n = $('nameInput').value.trim();
+  if (!n) { showErr('Pick a street name first.'); $('nameInput').focus(); return null; }
+  try { localStorage.setItem('dubg-name', n); } catch (e) {}
+  initAudio(); showErr('');
+  return n;
+}
+$('findBtn').addEventListener('click', () => { const name = playerName(); if (name) send({ t: 'queue', name }); });
+$('createBtn').addEventListener('click', () => { const name = playerName(); if (name) send({ t: 'create', name }); });
 $('joinForm').addEventListener('submit', e => {
-  e.preventDefault(); initAudio();
-  const name = $('nameInput').value.trim(); if (!name) return;
-  send({ t: 'join', name });
+  e.preventDefault();
+  const code = $('codeInput').value.trim().toUpperCase();
+  if (code.length !== 5) { showErr('Room codes are 5 letters.'); $('codeInput').focus(); return; }
+  const name = playerName(); if (name) send({ t: 'join', name, code });
 });
-$('startBtn').addEventListener('click', () => { initAudio(); send({ t: 'start' }); });
-$('specBtn').addEventListener('click', () => showScreen(null));
-function leaveMatch() { send({ t: 'leave' }); menuState(); $('hud').hidden = true; showScreen('lobbyScreen'); }
+$('codeInput').addEventListener('input', () => { $('codeInput').value = $('codeInput').value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
+$('cancelBtn').addEventListener('click', () => { send({ t: 'unqueue' }); goHome(); });
+$('startBtn').addEventListener('click', () => { initAudio(); showErr(''); send({ t: 'start' }); });
+$('leaveRoomBtn').addEventListener('click', () => { send({ t: 'leaveRoom' }); goHome(); });
+$('specBtn').addEventListener('click', () => { showScreen(null); cv.focus(); });
+function leaveMatch() { send({ t: 'leave' }); exitMatch(); }
 $('leaveBtn').addEventListener('click', leaveMatch);
 $('leaveHud').addEventListener('click', leaveMatch);
-$('reloadBtn').addEventListener('click', () => location.reload());
-$('shareUrl').textContent = location.origin;
-$('copyBtn').addEventListener('click', () => {
-  const done = () => { $('copyBtn').textContent = 'Copied'; setTimeout(() => { $('copyBtn').textContent = 'Copy'; }, 1500); };
-  if (navigator.clipboard) navigator.clipboard.writeText(location.origin).then(done, () => {});
+$('quitBtn').addEventListener('click', () => { settingsBack = null; leaveMatch(); });
+$('againBtn').addEventListener('click', () => {
+  send({ t: 'leave' }); send({ t: 'queue', name: $('nameInput').value.trim() });
+  if (M && M.state !== 'menu') { menuState(); $('hud').hidden = true; }
+  net.where = 'queue'; showScreen('queueScreen');
 });
+$('reloadBtn').addEventListener('click', () => location.reload());
+function copy(btn, text, label) {
+  const done = () => { btn.textContent = 'Copied'; setTimeout(() => { btn.textContent = label; }, 1500); };
+  if (navigator.clipboard) navigator.clipboard.writeText(text).then(done, () => {});
+}
+$('copyCodeBtn').addEventListener('click', () => net.room && copy($('copyCodeBtn'), net.room.code, 'Copy code'));
+$('copyLinkBtn').addEventListener('click', () => net.room && copy($('copyLinkBtn'), `${location.origin}/?room=${net.room.code}`, 'Copy invite link'));
 try { const n = localStorage.getItem('dubg-name'); if (n) $('nameInput').value = n; } catch (e) {}
+{ const code = new URLSearchParams(location.search).get('room'); if (code) $('codeInput').value = code.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5); }
 
 // ---------- audio ----------
-let AC = null, noiseBuf = null, muted = false;
+let AC = null, noiseBuf = null, master = null, muted = false;
 function initAudio() {
   if (AC) return;
   try {
     AC = new (window.AudioContext || window.webkitAudioContext)();
+    master = AC.createGain(); master.connect(AC.destination); applyVolume();
     noiseBuf = AC.createBuffer(1, AC.sampleRate * 0.4, AC.sampleRate);
     const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   } catch (e) { AC = null; }
 }
+// 70 on the slider is the original mix
+function applyVolume() { if (master) master.gain.value = muted ? 0 : S.vol / 70; }
 function sound(kind, src, W) {
   if (!AC || muted || !M) return;
   const v = viewer(), d = Math.hypot(src.x - v.x, src.y - v.y);
@@ -1023,7 +1252,7 @@ function sound(kind, src, W) {
   if (kind === 'shot') { f.frequency.value = W.name === 'Shotgun' ? 900 : W.name === 'Rifle' ? 2200 : W.name === 'Pistol' ? 1700 : 1400; g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + (W.name === 'Shotgun' ? 0.35 : 0.16)); }
   else if (kind === 'punch') { f.frequency.value = 400; g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.08); }
   else { f.frequency.value = 3000; g.gain.setValueAtTime(0.06, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.05); }
-  n.connect(f); f.connect(g); g.connect(AC.destination); n.start(t); n.stop(t + 0.4);
+  n.connect(f); f.connect(g); g.connect(master); n.start(t); n.stop(t + 0.4);
 }
 function alarm() {
   if (!AC || muted) return;
@@ -1032,14 +1261,15 @@ function alarm() {
     const o = AC.createOscillator(), g = AC.createGain();
     o.type = 'square'; o.frequency.value = i % 2 ? 520 : 780;
     g.gain.setValueAtTime(0.0001, t + i * 0.22); g.gain.linearRampToValueAtTime(0.05, t + i * 0.22 + 0.02); g.gain.linearRampToValueAtTime(0.0001, t + i * 0.22 + 0.2);
-    o.connect(g); g.connect(AC.destination); o.start(t + i * 0.22); o.stop(t + i * 0.22 + 0.22);
+    o.connect(g); g.connect(master); o.start(t + i * 0.22); o.stop(t + i * 0.22 + 0.22);
   }
 }
 
 // ---------- input ----------
 const inMatch = () => M && M.state !== 'menu';
 function onKey(code) {
-  if (code === 'KeyM') { muted = !muted; return; }
+  if (code === 'KeyM') { muted = !muted; applyVolume(); if (inMatch()) { M.msg = muted ? 'Muted' : 'Sound on'; M.msgT = 0.8; } return; }
+  if (code === 'Escape') { if ($('settingsScreen').hidden) openSettings(); else closeSettings(); return; }
   const me = meP(); if (!inMatch() || !me || !me.alive) return;
   if (code === 'KeyE') send({ t: 'act', a: 'pickup' });
   else if (code === 'KeyR') send({ t: 'act', a: 'reload' });
@@ -1050,7 +1280,7 @@ function onKey(code) {
   else if (code === 'KeyQ') send({ t: 'act', a: 'cycle' });
 }
 addEventListener('keydown', e => {
-  if (e.target && e.target.tagName === 'INPUT') return;
+  if (e.target && e.target.tagName === 'INPUT' && e.code !== 'Escape') return;
   keys[e.code] = true;
   if (!e.repeat) onKey(e.code);
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
@@ -1066,12 +1296,13 @@ addEventListener('resize', resize);
 
 // ---------- loop ----------
 menuState();
-resize();
-connect();
+applySettings();
+{ let id = null; try { id = localStorage.getItem('dubg-server'); } catch (e) {} connect(SERVERS.find(s => s.id === id) || SERVERS[0]); }
 mouse.x = VW / 2; mouse.y = VH / 2;
-let last = performance.now();
+let last = performance.now(), fps = 60;
 function frame(now) {
-  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+  const raw = (now - last) / 1000, dt = Math.min(0.05, raw); last = now;
+  if (raw > 0) fps += (1 / raw - fps) * 0.05;
   update(dt);
   render(dt);
   if (inMatch()) { updateHud(); drawMini(); }
