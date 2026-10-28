@@ -65,6 +65,26 @@ body{background:var(--ink);color:var(--text);font-family:var(--body);font-size:1
 #healBar{width:60%;height:8px;background:rgba(0,0,0,.6);border:1px solid var(--line);position:relative}
 #healFill{position:absolute;inset:0 auto 0 0;background:#7fe08a;width:0}
 #leaveHud{position:absolute;left:calc(16px + env(safe-area-inset-left,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));pointer-events:auto;background:rgba(0,0,0,.6)}
+#board{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:min(760px,calc(100vw - 32px));max-height:calc(100vh - 120px);overflow:hidden;background:rgba(14,15,16,.94);border:1px solid var(--line);pointer-events:none}
+#board .bh{display:flex;align-items:baseline;justify-content:space-between;padding:12px 16px 10px;border-bottom:1px solid var(--line)}
+#board .bh b{font-family:var(--display);font-weight:400;font-size:28px}
+#board .bh span{color:var(--muted);font-weight:700;letter-spacing:.1em;text-transform:uppercase;font-size:13px}
+#board .cols2{display:grid;grid-template-columns:1fr 1fr;gap:0 18px;padding:6px 16px 12px}
+#board .hd,#board .pr{display:grid;grid-template-columns:24px 1fr 46px 62px;gap:8px;align-items:center;padding:3px 0;font-size:16px}
+#board .hd{color:var(--muted);font-size:12px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;border-bottom:1px solid var(--line)}
+#board .pr{border-bottom:1px solid rgba(52,55,59,.5)}
+#board .pr .n{display:flex;align-items:center;gap:7px;min-width:0;font-weight:700}
+#board .pr .n span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#board .pr .n i{flex:0 0 3px;height:15px}
+#board .pr em{font-style:normal;font-size:11px;font-weight:700;letter-spacing:.08em;color:var(--muted);border:1px solid var(--line);padding:0 4px}
+#board .pr .k,#board .hd .k{text-align:right;font-variant-numeric:tabular-nums}
+#board .pr .k{font-weight:700}
+#board .pr .st{text-align:right;font-weight:700;font-size:13px;letter-spacing:.06em;text-transform:uppercase}
+#board .pr .st.al{color:var(--good)}
+#board .pr.dead{color:var(--muted)} #board .pr.dead .n{font-weight:600}
+#board .pr.me{color:var(--orange)} #board .pr.me.dead{color:#a8662e}
+#board .pos{color:var(--muted);font-variant-numeric:tabular-nums;font-size:13px}
+@media (max-width:720px){#board .cols2{grid-template-columns:1fr}}
 #mini{position:absolute;right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));width:210px;height:210px;border:1px solid var(--line);background:#000}
 #center{position:absolute;top:26%;left:0;right:0;text-align:center;font-family:var(--display);font-size:clamp(28px,6vw,64px);text-shadow:0 3px 0 #000,0 0 30px rgba(0,0,0,.6);letter-spacing:.02em;line-height:1.05}
 #center small{display:block;font-family:var(--body);font-size:clamp(14px,2vw,20px);letter-spacing:.14em;text-transform:uppercase;color:var(--hazard);font-weight:700;margin-bottom:6px}
@@ -205,6 +225,7 @@ body.mini-small #mini{width:140px;height:140px}
     <div class="kit"><span>Bandage <b id="nb">0</b></span><span>Medkit <b id="nm">0</b></span><span>Ammo <b id="na">0</b></span></div>
   </div>
   <canvas id="mini" width="210" height="210"></canvas>
+  <div id="board" hidden></div>
 </div>
 
 <div class="overlay" id="homeScreen">
@@ -259,6 +280,7 @@ body.mini-small #mini{width:140px;height:140px}
         <kbd>F</kbd><span>Heal</span>
         <kbd>Esc</kbd><span>Settings</span>
         <kbd>M</kbd><span>Mute</span>
+        <kbd>Tab</kbd><span>Players</span>
       </div>
     </div>
   </div>
@@ -396,7 +418,7 @@ function onMatch(m) {
   M.me = m.you;
   for (const r of m.roster) {
     const P = { id: r.id, name: r.name, bot: r.bot, crew: CREWS[r.crew] || CREWS[0], look: { ...r.look, hood: darken(r.look.hoodie, 0.7) },
-      x: 0, y: 0, ang: 0, hp: 100, armor: 0, alive: true, gun: null, flags: 0, buf: [], flash: 0, hurt: 0, punch: 0, init: false };
+      x: 0, y: 0, ang: 0, hp: 100, armor: 0, alive: true, gun: null, flags: 0, buf: [], flash: 0, hurt: 0, punch: 0, init: false, kills: 0, place: 0 };
     M.players.set(r.id, P); M.list.push(P);
   }
   M.alive = M.list.length;
@@ -451,6 +473,8 @@ function handleEvent(e) {
     const [, kid, vid, wname, place, x, y] = e;
     const V = M.players.get(vid), K = kid >= 0 ? M.players.get(kid) : null;
     if (!V) return;
+    if (K) K.kills++;
+    V.place = place;
     M.corpses.push({ x, y, ang: V.ang, tint: V.look.hoodie, skin: V.look.skin });
     for (let i = 0; i < 14; i++) burst(x, y, '#a3271f', 140);
     const left = wname === 'left';
@@ -1030,6 +1054,21 @@ function updateHud() {
   setHtml($('feed'), M.feed.map(f => `<div class="${f.me ? 'me' : ''}">${esc(f.k)}<i>${esc(f.w)}</i>${esc(f.v)}</div>`).join(''));
 }
 
+// ---------- scoreboard (hold Tab) ----------
+let boardT = 0;
+function showBoard(on) { $('board').hidden = !on || !inMatch(); boardT = 0; }
+function renderBoard(dt) {
+  if ((boardT -= dt) > 0) return; boardT = 0.25;
+  const rows = M.list.slice().sort((a, b) => (b.alive - a.alive) || (b.kills - a.kills) || (a.alive ? 0 : a.place - b.place) || a.name.localeCompare(b.name));
+  const row = (p, i) => `<div class="pr ${p.alive ? '' : 'dead'} ${p.id === M.me ? 'me' : ''}"><span class="pos">${i + 1}</span>`
+    + `<span class="n"><i style="background:${p.crew.c}"></i><span>${esc(p.name)}</span>${p.bot ? '<em>BOT</em>' : ''}</span>`
+    + `<span class="k">${p.kills}</span><span class="st ${p.alive ? 'al' : ''}">${p.alive ? 'Alive' : p.place ? '#' + p.place : 'Out'}</span></div>`;
+  const hd = '<div class="hd"><span></span><span>Player</span><span class="k">Kills</span><span class="k">Status</span></div>';
+  const half = Math.ceil(rows.length / 2), humans = M.list.filter(p => !p.bot).length;
+  setHtml($('board'), `<div class="bh"><b>Players</b><span>${M.alive} alive · ${humans} real · ${M.list.length - humans} bots</span></div>`
+    + `<div class="cols2"><div>${hd}${rows.slice(0, half).map(row).join('')}</div><div>${hd}${rows.slice(half).map((p, i) => row(p, i + half)).join('')}</div></div>`);
+}
+
 function showEnd() {
   if (!M || M.state === 'menu') return;
   const me = meP(), won = me && M.winner === M.me, W = M.winner >= 0 ? M.players.get(M.winner) : null;
@@ -1092,6 +1131,7 @@ function showErr(msg) {
 }
 // out of a match and back to the room or home screen
 function exitMatch() {
+  showBoard(false);
   if (M && M.state !== 'menu') { menuState(); $('hud').hidden = true; }
   if (net.where === 'match') { net.where = net.room ? 'room' : 'home'; showScreen(net.room ? 'roomScreen' : 'homeScreen'); }
 }
@@ -1281,12 +1321,13 @@ function onKey(code) {
 }
 addEventListener('keydown', e => {
   if (e.target && e.target.tagName === 'INPUT' && e.code !== 'Escape') return;
+  if (e.code === 'Tab' && inMatch()) { e.preventDefault(); if (!e.repeat) showBoard(true); return; }
   keys[e.code] = true;
   if (!e.repeat) onKey(e.code);
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
 });
-addEventListener('keyup', e => { keys[e.code] = false; });
-addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouse.down = false; });
+addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Tab') showBoard(false); });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouse.down = false; showBoard(false); });
 addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
 cv.addEventListener('mousedown', e => { if (e.button === 0) { mouse.down = true; mouse.clicked = true; clicks++; } initAudio(); });
 addEventListener('mouseup', e => { if (e.button === 0) mouse.down = false; });
@@ -1305,7 +1346,7 @@ function frame(now) {
   if (raw > 0) fps += (1 / raw - fps) * 0.05;
   update(dt);
   render(dt);
-  if (inMatch()) { updateHud(); drawMini(); }
+  if (inMatch()) { updateHud(); drawMini(); if (!$('board').hidden) renderBoard(dt); }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
