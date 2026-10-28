@@ -25,14 +25,14 @@ to open the link waits about a minute while it wakes up.
 
 ## How to play
 
-- **Find match**: joins the public queue. A match starts as soon as 5 players are queued,
+- **Find match**: joins the public queue. A match starts as soon as 10 players are queued,
   or after 20 seconds with whoever is waiting. Bots fill the rest of the 30 spots.
 - **Create private room**: gives you a 5-letter code and an invite link. Only people with the
   code can join. The room boss starts the match, and everyone returns to the room afterwards.
 - **Join private room**: type the code (or open an invite link, which fills it in).
 - A match is deleted as soon as every real player has left it, and a room is deleted when it is empty.
 
-Server settings (environment variables): `QUEUE_SIZE` (default 5), `QUEUE_WAIT` in seconds
+Server settings (environment variables): `QUEUE_SIZE` (default 10), `QUEUE_WAIT` in seconds
 (default 20), `MAX_MATCHES` running at once (default 12).
 
 To add another server (for example a Gulf one), add it to the `SERVERS` list in `public/index.html`.
