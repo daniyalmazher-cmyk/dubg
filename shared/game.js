@@ -2,6 +2,7 @@
 // Loaded by the Node server (require) and by the browser (<script>, exposes window.DUBG).
 (function (root, factory) {
   const api = factory();
+  api.instance = factory;   // a fresh, independent copy (one per match on the server)
   if (typeof module === 'object' && module.exports) module.exports = api; else root.DUBG = api;
 })(typeof self !== 'undefined' ? self : this, function () {
 'use strict';

@@ -64,6 +64,7 @@ body{background:var(--ink);color:var(--text);font-family:var(--body);font-size:1
 .kit b{color:var(--text);font-variant-numeric:tabular-nums}
 #healBar{width:60%;height:8px;background:rgba(0,0,0,.6);border:1px solid var(--line);position:relative}
 #healFill{position:absolute;inset:0 auto 0 0;background:#7fe08a;width:0}
+#leaveHud{position:absolute;left:calc(16px + env(safe-area-inset-left,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));pointer-events:auto;background:rgba(0,0,0,.6)}
 #mini{position:absolute;right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));width:210px;height:210px;border:1px solid var(--line);background:#000}
 #center{position:absolute;top:26%;left:0;right:0;text-align:center;font-family:var(--display);font-size:clamp(28px,6vw,64px);text-shadow:0 3px 0 #000,0 0 30px rgba(0,0,0,.6);letter-spacing:.02em;line-height:1.05}
 #center small{display:block;font-family:var(--body);font-size:clamp(14px,2vw,20px);letter-spacing:.14em;text-transform:uppercase;color:var(--hazard);font-weight:700;margin-bottom:6px}
@@ -136,6 +137,7 @@ button:focus-visible{outline:3px solid var(--hazard);outline-offset:3px}
   <div class="tr" id="feed"></div>
   <div id="center"></div>
   <div id="prompt" hidden></div>
+  <button id="leaveHud" class="ghost" type="button" hidden>Back to lobby</button>
   <div class="bc" id="meHud">
     <div id="healBar" hidden><div id="healFill"></div></div>
     <div class="slots">
@@ -219,6 +221,7 @@ button:focus-visible{outline:3px solid var(--hazard);outline-offset:3px}
       </div>
       <div class="note" id="endNote">Back to the lobby when the match ends.</div>
       <div class="row">
+        <button id="leaveBtn" type="button">Back to lobby</button>
         <button id="specBtn" class="ghost" type="button">Spectate</button>
       </div>
     </div>
@@ -876,6 +879,7 @@ function setHtml(el, v) { if (el._v !== v) { el._v = v; el.innerHTML = v; } }
 function updateHud() {
   const me = meP(), md = M.meData, z = M.zone;
   setText($('alive'), String(M.alive)); setText($('kills'), String(md ? md.k : 0));
+  $('leaveHud').hidden = !((me && !me.alive) || M.state === 'over');
   const pe = $('ping'); setText(pe, net.ping ? String(net.ping) : '--'); pe.className = !net.ping ? '' : net.ping < 90 ? 'good' : net.ping < 160 ? 'ok' : 'bad';
   let zm;
   if (M.state === 'lockdown') zm = 'Lockdown in effect';
@@ -920,7 +924,7 @@ function showEnd() {
   $('endTitle').textContent = won ? 'Top Dawg!' : me ? 'Eliminated' : `${W ? W.name : 'Nobody'} won`;
   $('endTitle').className = 'big ' + (won ? 'win' : me ? 'lose' : 'win');
   $('endLine').textContent = won ? 'Last dawg standing. The city is yours.'
-    : !me ? 'Match over. You join the next one from the lobby.'
+    : !me ? 'Match over.'
     : `Taken out by ${M.death ? M.death.by : 'someone'}.` + (over && W ? ` ${W.name} won the match.` : '');
   $('endRes').hidden = !me;
   if (me) {
@@ -928,7 +932,7 @@ function showEnd() {
     $('endKills').textContent = M.meData ? M.meData.k : 0;
     $('endTime').textContent = fmtTime(won ? M.liveTime : (M.meData ? M.meData.dt : 0));
   }
-  $('endNote').textContent = over ? 'Back to the lobby in a few seconds.' : 'Back to the lobby when the match ends.';
+  $('endNote').textContent = over ? 'Back to the lobby in a few seconds.' : 'Head back to the lobby to start a new match, or stay and watch.';
   $('specBtn').hidden = over;
   showScreen('endScreen');
 }
@@ -945,9 +949,13 @@ function renderLobby(l) {
     return `<div><span class="${you ? 'you' : ''}">${esc(p.name)}${you ? ' (you)' : ''}</span>${tag}</div>`;
   }).join('');
   $('lobbyList').innerHTML = list || '<div>Nobody here yet</div>';
-  const n = Math.min(l.players.length, D.MAX_PLAYERS), bots = D.MAX_PLAYERS - n, amHost = l.host === net.cid;
-  if (l.state === 'match') $('lobbyNote').textContent = 'A match is running. You can watch it now and play in the next one.';
-  else $('lobbyNote').textContent = `${n} ${n === 1 ? 'dawg' : 'dawgs'} here. ${bots} bots fill the rest of the 30 spots. ` + (amHost ? 'Start when your crew is in.' : 'Waiting for the host to start.');
+  const w = l.players.filter(p => !p.playing).length, busy = l.players.length - w, amHost = l.host === net.cid;
+  const games = Math.ceil(w / D.MAX_PLAYERS), bots = games * D.MAX_PLAYERS - w;
+  let note = `${w} ${w === 1 ? 'dawg' : 'dawgs'} waiting. `;
+  note += games > 1 ? `That's ${games} matches of up to ${D.MAX_PLAYERS}, with ${bots} bots filling the gaps. ` : `${bots} bots fill the rest of the ${D.MAX_PLAYERS} spots. `;
+  if (busy) note += `${busy} ${busy === 1 ? 'is' : 'are'} in ${l.games === 1 ? 'a match' : l.games + ' matches'} right now. `;
+  note += amHost ? 'Start when your crew is in.' : 'Waiting for the host to start.';
+  $('lobbyNote').textContent = note;
   $('startBtn').hidden = !amHost || l.state !== 'lobby';
 }
 
@@ -984,6 +992,9 @@ $('joinForm').addEventListener('submit', e => {
 });
 $('startBtn').addEventListener('click', () => { initAudio(); send({ t: 'start' }); });
 $('specBtn').addEventListener('click', () => showScreen(null));
+function leaveMatch() { send({ t: 'leave' }); menuState(); $('hud').hidden = true; showScreen('lobbyScreen'); }
+$('leaveBtn').addEventListener('click', leaveMatch);
+$('leaveHud').addEventListener('click', leaveMatch);
 $('reloadBtn').addEventListener('click', () => location.reload());
 $('shareUrl').textContent = location.origin;
 $('copyBtn').addEventListener('click', () => {

@@ -1,4 +1,4 @@
-// DUBG server: serves the game page and runs one shared lobby + match over WebSockets.
+// DUBG server: serves the game page and runs a shared lobby plus any number of matches over WebSockets.
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -29,17 +29,23 @@ const server = http.createServer((req, res) => {
 });
 
 // ---------- lobby ----------
+// Everyone joins one lobby. Starting splits the waiting players into matches of up to
+// MAX_PLAYERS; each match runs its own copy of the game code, so several can run at once.
 const wss = new WebSocketServer({ server, maxPayload: 4096 });
-const clients = new Map();   // ws -> { cid, name, pid }
-let nextCid = 1;
-const room = { state: 'lobby', hostCid: null, endAt: 0, tick: 0 };
+const clients = new Map();   // ws -> { cid, name, match, pid }
+const matches = new Set();   // { id, E, seed, tick, endAt }
+let nextCid = 1, nextMatch = 1;
 
 const send = (ws, obj) => { if (ws.readyState === 1) ws.send(typeof obj === 'string' ? obj : JSON.stringify(obj)); };
 const named = () => [...clients.values()].filter(c => c.name);
-function lobbyMsg() {
-  return { t: 'lobby', state: room.state, host: room.hostCid, players: named().map(c => ({ cid: c.cid, name: c.name, playing: c.pid != null })) };
+const waiting = () => named().filter(c => !c.match);
+const members = m => [...clients.entries()].filter(([, c]) => c.match === m);
+const hostCid = () => { const w = waiting(); return w.length ? w[0].cid : null; };
+function broadcastLobby() {
+  const host = hostCid();
+  const players = named().map(c => ({ cid: c.cid, name: c.name, playing: !!c.match }));
+  for (const [ws, c] of clients) if (c.name) send(ws, { t: 'lobby', state: c.match ? 'match' : 'lobby', host, players, games: matches.size });
 }
-function broadcastLobby() { const m = JSON.stringify(lobbyMsg()); for (const ws of clients.keys()) send(ws, m); }
 function cleanName(s) {
   const n = String(s || '').replace(/[^\w .\-]/g, '').trim().slice(0, 14);
   return n || 'Dawg' + Math.floor(Math.random() * 900 + 100);
@@ -50,54 +56,60 @@ function uniqueName(n) {
   while (used.has(out.toLowerCase())) out = `${n.slice(0, 12)}${k++}`;
   return out;
 }
-function matchMsg(pid) {
-  const G = D.match();
-  return { t: 'match', seed: room.seed, you: pid, roster: D.roster(), items: D.itemList(), st: G.state };
-}
 
-function startMatch() {
-  const humans = named().slice(0, D.MAX_PLAYERS);
-  room.seed = Math.floor(Math.random() * 1e9);
-  D.createMatch(humans.map(c => ({ name: c.name })), room.seed);
-  for (const c of clients.values()) c.pid = null;
-  humans.forEach((c, i) => { c.pid = i; });
-  room.state = 'match'; room.endAt = 0; room.tick = 0;
-  for (const [ws, c] of clients) if (c.name) send(ws, matchMsg(c.pid));
+function startMatches() {
+  const w = waiting();
+  for (let i = 0; i < w.length; i += D.MAX_PLAYERS) {
+    const humans = w.slice(i, i + D.MAX_PLAYERS);
+    const m = { id: nextMatch++, E: D.instance(), seed: Math.floor(Math.random() * 1e9), tick: 0, endAt: 0 };
+    m.E.createMatch(humans.map(c => ({ name: c.name })), m.seed);
+    matches.add(m);
+    humans.forEach((c, pid) => { c.match = m; c.pid = pid; });
+    const roster = m.E.roster(), items = m.E.itemList(), st = m.E.match().state;
+    for (const [ws, c] of members(m)) send(ws, { t: 'match', seed: m.seed, you: c.pid, roster, items, st });
+    console.log(`match ${m.id} started: ${humans.length} players, ${D.MAX_PLAYERS - humans.length} bots`);
+  }
   broadcastLobby();
-  console.log(`match started: ${humans.length} players, ${D.MAX_PLAYERS - humans.length} bots`);
 }
-function endMatch() {
-  room.state = 'lobby'; room.endAt = 0;
-  for (const c of clients.values()) c.pid = null;
+function leaveMatch(c) {
+  const m = c.match; if (!m) return;
+  const p = m.E.match().players[c.pid];
+  if (p && p.alive) m.E.humanLeft(p);
+  c.match = null; c.pid = null;
+}
+function endMatch(m) {
+  matches.delete(m);
+  for (const [, c] of members(m)) { c.match = null; c.pid = null; }
+  console.log(`match ${m.id} ended`);
   broadcastLobby();
 }
 
 wss.on('connection', ws => {
-  const c = { cid: nextCid++, name: null, pid: null };
+  const c = { cid: nextCid++, name: null, match: null, pid: null };
   clients.set(ws, c);
   send(ws, { t: 'hello', cid: c.cid });
   ws.on('message', raw => {
     let m; try { m = JSON.parse(raw); } catch { return; }
     if (!m || typeof m.t !== 'string') return;
-    const G = D.match();
-    const me = room.state === 'match' && c.pid != null ? G.players[c.pid] : null;
+    const me = c.match ? c.match.E.match().players[c.pid] : null;
     switch (m.t) {
       case 'join':
         if (c.name) return;
         c.name = uniqueName(cleanName(m.name));
-        if (room.hostCid == null) room.hostCid = c.cid;
         send(ws, { t: 'joined', cid: c.cid, name: c.name });
-        if (room.state === 'match') send(ws, matchMsg(null));
         broadcastLobby();
         break;
       case 'start':
-        if (c.cid === room.hostCid && room.state === 'lobby') startMatch();
+        if (!c.match && c.cid === hostCid()) startMatches();
+        break;
+      case 'leave':
+        if (c.match) { leaveMatch(c); broadcastLobby(); }
         break;
       case 'in':
-        if (me) D.setInput(me, m);
+        if (me) c.match.E.setInput(me, m);
         break;
       case 'act':
-        if (me) D.humanAction(me, String(m.a), m.v);
+        if (me) c.match.E.humanAction(me, String(m.a), m.v);
         break;
       case 'ping':
         send(ws, { t: 'pong', c: m.c });
@@ -105,9 +117,8 @@ wss.on('connection', ws => {
     }
   });
   ws.on('close', () => {
+    leaveMatch(c);
     clients.delete(ws);
-    if (room.state === 'match' && c.pid != null) D.humanLeft(D.match().players[c.pid]);
-    if (room.hostCid === c.cid) { const next = named()[0]; room.hostCid = next ? next.cid : null; }
     broadcastLobby();
   });
 });
@@ -117,24 +128,22 @@ let last = Date.now(), acc = 0;
 setInterval(() => {
   const now = Date.now();
   acc += Math.min(0.25, (now - last) / 1000); last = now;
-  if (room.state !== 'match') { acc = 0; return; }
-  const G = D.match();
-  while (acc >= TICK) {
-    acc -= TICK;
-    D.step(TICK);
-    room.tick++;
-    if (room.tick % SEND_EVERY === 0) {
-      const common = JSON.stringify(D.snapCommon()).slice(0, -1);
-      for (const [ws, c] of clients) {
-        if (!c.name) continue;
-        send(ws, c.pid != null ? `${common},"me":${JSON.stringify(D.snapMe(G.players[c.pid]))}}` : common + '}');
+  if (!matches.size) { acc = 0; return; }
+  const steps = Math.floor(acc / TICK); acc -= steps * TICK;
+  for (const m of [...matches]) {
+    const E = m.E, G = E.match(), who = members(m);
+    // every real player has left: no point running it for the bots
+    if (!who.length) { endMatch(m); continue; }
+    for (let i = 0; i < steps; i++) {
+      E.step(TICK);
+      if (++m.tick % SEND_EVERY === 0) {
+        const common = JSON.stringify(E.snapCommon()).slice(0, -1);
+        for (const [ws, c] of who) send(ws, `${common},"me":${JSON.stringify(E.snapMe(G.players[c.pid]))}}`);
       }
     }
+    if (G.state === 'over' && !m.endAt) m.endAt = now + END_DELAY;
+    if (m.endAt && now > m.endAt) endMatch(m);
   }
-  if (G.state === 'over' && !room.endAt) room.endAt = now + END_DELAY;
-  if (room.endAt && now > room.endAt) endMatch();
-  // nobody left watching: stop simulating
-  if (room.state === 'match' && named().length === 0) endMatch();
 }, 1000 * TICK);
 
 server.listen(PORT, () => console.log(`DUBG server on http://localhost:${PORT}`));
