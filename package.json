@@ -1,0 +1,16 @@
+{
+  "name": "dubg",
+  "version": "0.1.0",
+  "description": "DUBG: Dawg Unknown Battle Ground. Browser battle royale with a Node.js WebSocket server.",
+  "main": "server.js",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "ws": "^8.18.0"
+  }
+}
