@@ -357,6 +357,7 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
         </div>
       </div>
       <div class="plist" id="roomList"></div>
+      <label class="set chk" id="botsRow"><span>Fill empty spots with bots</span><input type="checkbox" id="botsChk"></label>
       <div class="note" id="roomNote"></div>
       <div class="err" id="roomErr" role="alert" hidden></div>
       <div class="row">
@@ -1206,9 +1207,11 @@ function renderRoom(r) {
     return `<div><span class="${you ? 'you' : ''}">${esc(p.name)}${you ? ' (you)' : ''}</span>${tag}</div>`;
   }).join('');
   const n = r.players.length, bots = D.MAX_PLAYERS - n, playing = r.players.filter(p => p.playing).length;
+  $('botsChk').checked = r.bots; $('botsChk').disabled = !amOwner || r.live;
   $('roomNote').textContent = r.live
     ? `Match in progress. ${playing} still playing. Everyone comes back here when it ends.`
-    : `${n} of ${r.max} in the room. ${bots} bots fill the rest. ` + (amOwner ? 'Share the code, then start when your crew is in.' : `Waiting for ${owner ? owner.name : 'the room boss'} to start.`);
+    : `${n} of ${r.max} in the room. ` + (r.bots ? `${bots} bots fill the rest. ` : n < 2 ? 'Bots are off, so you need at least 2 players. ' : 'Bots are off: just your crew. ')
+      + (amOwner ? 'Share the code, then start when your crew is in.' : `Waiting for ${owner ? owner.name : 'the room boss'} to start.`);
   $('startBtn').hidden = !amOwner || r.live;
 }
 
@@ -1300,6 +1303,7 @@ $('joinForm').addEventListener('submit', e => {
 $('codeInput').addEventListener('input', () => { $('codeInput').value = $('codeInput').value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
 $('cancelBtn').addEventListener('click', () => { send({ t: 'unqueue' }); goHome(); });
 $('startBtn').addEventListener('click', () => { initAudio(); showErr(''); goFull(); send({ t: 'start' }); });
+$('botsChk').addEventListener('change', () => send({ t: 'roomBots', on: $('botsChk').checked }));
 $('leaveRoomBtn').addEventListener('click', () => { send({ t: 'leaveRoom' }); goHome(); });
 $('specBtn').addEventListener('click', () => { showScreen(null); cv.focus(); });
 function leaveMatch() { send({ t: 'leave' }); exitMatch(); }

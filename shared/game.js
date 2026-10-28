@@ -309,8 +309,10 @@ function spawnLoot() {
   for (let i = 0; i < 3; i++) addItem('band', rnd(PX + 880, PX + 1520), CORR_Y + rnd(-40, 40));
 }
 
-// humans: [{ name }]. Returns the match; humans get player ids 0..n-1, bots fill the rest.
-function createMatch(humans, seed) {
+// humans: [{ name }]. Returns the match; humans get player ids 0..n-1, bots fill the rest
+// unless opts.bots is false.
+function createMatch(humans, seed, opts) {
+  const bots = !opts || opts.bots !== false;
   buildWorld(seed);
   G = {
     state: 'lockdown', t: LOCKDOWN, time: 0, liveTime: 0, players: [], items: [], nextItem: 1, bullets: [], events: [],
@@ -322,7 +324,7 @@ function createMatch(humans, seed) {
   const taken = new Set(humans.map(h => h.name.toLowerCase()));
   const names = shuffle(NAMES.filter(n => !taken.has(n.toLowerCase())));
   humans.slice(0, MAX_PLAYERS).forEach((h, i) => G.players.push(makePlayer(i, h.name, false, cellOrder[i])));
-  for (let i = G.players.length, k = 0; i < MAX_PLAYERS; i++, k++) G.players.push(makePlayer(i, names[k % names.length], true, cellOrder[i]));
+  if (bots) for (let i = G.players.length, k = 0; i < MAX_PLAYERS; i++, k++) G.players.push(makePlayer(i, names[k % names.length], true, cellOrder[i]));
   G.alive = G.players.length;
   return G;
 }

@@ -35,7 +35,7 @@ const server = http.createServer((req, res) => {
 
 // ---------- state ----------
 // client: { cid, ws, name, queued, room, match, pid }
-// room:   { code, owner, members: [client], match }
+// room:   { code, owner, members: [client], match, bots }
 // match:  { id, E, seed, tick, endAt, room }
 const wss = new WebSocketServer({ server, maxPayload: 4096 });
 const clients = new Map();   // ws -> client
@@ -70,7 +70,7 @@ function newCode() {
 // ---------- matches ----------
 function startMatch(humans, room) {
   const m = { id: nextMatch++, E: D.instance(), seed: Math.floor(Math.random() * 1e9), tick: 0, endAt: 0, room };
-  m.E.createMatch(uniqueNames(humans), m.seed);
+  m.E.createMatch(uniqueNames(humans), m.seed, { bots: room ? room.bots : true });
   matches.add(m);
   const roster = m.E.roster(), items = m.E.itemList(), st = m.E.match().state;
   humans.forEach((c, pid) => {
@@ -78,7 +78,7 @@ function startMatch(humans, room) {
     send(c, { t: 'match', seed: m.seed, you: pid, roster, items, st, room: room ? room.code : null });
   });
   if (room) { room.match = m; roomUpdate(room); }
-  console.log(`match ${m.id} started (${room ? 'room ' + room.code : 'public'}): ${humans.length} players, ${D.MAX_PLAYERS - humans.length} bots`);
+  console.log(`match ${m.id} started (${room ? 'room ' + room.code : 'public'}): ${humans.length} players, ${m.E.match().players.length - humans.length} bots`);
 }
 const inMatch = m => [...clients.values()].filter(c => c.match === m);
 function leaveMatch(c) {
@@ -120,7 +120,7 @@ function pumpQueue() {
 // ---------- private rooms ----------
 function roomUpdate(r) {
   const msg = {
-    t: 'room', code: r.code, owner: r.owner.cid, max: ROOM_MAX, live: !!r.match,
+    t: 'room', code: r.code, owner: r.owner.cid, max: ROOM_MAX, live: !!r.match, bots: r.bots,
     players: r.members.map(c => ({ cid: c.cid, name: c.name, playing: !!r.match && c.match === r.match })),
   };
   for (const c of r.members) send(c, msg);
@@ -162,7 +162,7 @@ wss.on('connection', ws => {
       case 'create': {
         if (!free) return;
         c.name = cleanName(m.name);
-        const r = { code: newCode(), owner: c, members: [c], match: null };
+        const r = { code: newCode(), owner: c, members: [c], match: null, bots: true };
         rooms.set(r.code, r); c.room = r;
         console.log(`room ${r.code} opened`);
         roomUpdate(r);
@@ -178,6 +178,9 @@ wss.on('connection', ws => {
         roomUpdate(r);
         break;
       }
+      case 'roomBots':
+        if (c.room && c.room.owner === c && !c.room.match) { c.room.bots = !!m.on; roomUpdate(c.room); }
+        break;
       case 'leaveRoom':
         leaveRoom(c);
         break;
@@ -185,6 +188,7 @@ wss.on('connection', ws => {
         const r = c.room;
         if (!r || r.owner !== c || r.match) return;
         if (matches.size >= MAX_MATCHES) { send(c, { t: 'err', msg: 'The server is busy right now. Try again in a minute.' }); return; }
+        if (!r.bots && r.members.length < 2) { send(c, { t: 'err', msg: 'With bots off you need at least 2 players. Turn bots on to play solo.' }); return; }
         startMatch(r.members.slice(), r);
         break;
       }
