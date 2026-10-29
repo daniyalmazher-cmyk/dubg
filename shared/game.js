@@ -401,9 +401,12 @@ function finishReload(p) {
   const g = curGun(p); if (!g) return;
   const take = Math.min(WEAPONS[g.type].mag - g.mag, p.ammo); g.mag += take; p.ammo -= take;
 }
-function startHeal(p) {
+// want: 'band' or 'med' when the player picked one, otherwise the best choice for their health
+function startHeal(p, want) {
   if (p.heal || p.hp >= 100) return;
-  if (p.med > 0 && (p.hp < 60 || p.band === 0 || p.hp >= 75)) p.heal = { type: 'med', t: 0, dur: 4 };
+  if (want === 'med') { if (p.med > 0) p.heal = { type: 'med', t: 0, dur: 4 }; }
+  else if (want === 'band') { if (p.band > 0 && p.hp < 75) p.heal = { type: 'band', t: 0, dur: 2 }; }
+  else if (p.med > 0 && (p.hp < 60 || p.band === 0 || p.hp >= 75)) p.heal = { type: 'med', t: 0, dur: 4 };
   else if (p.band > 0 && p.hp < 75) p.heal = { type: 'band', t: 0, dur: 2 };
   if (p.heal) p.reload = 0;
 }
@@ -497,7 +500,7 @@ function humanAction(p, a, v) {
   if (!p || !p.alive) return;
   if (a === 'pickup') { const it = nearestItem(p, 48); if (it) pickup(p, it); }
   else if (a === 'reload') startReload(p);
-  else if (a === 'heal') startHeal(p);
+  else if (a === 'heal') startHeal(p, v);
   else if (a === 'slot') { const i = v | 0; if (i >= -1 && i <= 1) setSlot(p, i); }
   else if (a === 'cycle') cycleSlot(p);
 }
