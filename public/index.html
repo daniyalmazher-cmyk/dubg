@@ -1224,6 +1224,7 @@ function drawProjs() {
     ctx.beginPath(); ctx.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = 'rgba(255,75,58,.18)'; ctx.strokeStyle = 'rgba(255,75,58,.8)';
     ctx.beginPath(); ctx.arc(ex, ey, D.GRENADE.blast, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(ex, ey, D.GRENADE.blast * D.BLAST_CORE, 0, TAU); ctx.fill();   // the kill core
   }
 }
 // airdrops on the way down: a growing crate under a parachute over a smoke marker on the ground
