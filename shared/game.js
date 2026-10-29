@@ -487,7 +487,8 @@ function humanUpdate(p, dt) {
   p.ang = inp.a;
   if (inp.c !== p.lastClicks) { p.lastClicks = inp.c; p.pendingFire = 0.3; }
   const W = wdef(p);
-  if ((W.auto && inp.f) || p.pendingFire > 0) { if (tryFire(p)) p.pendingFire = 0; }
+  // holding fire repeats at the weapon's own rate, fists and pistols included
+  if (inp.f || p.pendingFire > 0) { if (tryFire(p)) p.pendingFire = 0; }
   p.pendingFire -= dt;
   const g = curGun(p); if (g && g.mag === 0 && p.ammo > 0 && p.reload <= 0) startReload(p);
   for (let i = G.items.length - 1; i >= 0; i--) {
