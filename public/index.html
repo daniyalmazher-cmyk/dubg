@@ -421,7 +421,7 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
 (() => {
 'use strict';
 const D = window.DUBG;
-const { TAU, WEAPONS, ITEMS, SHOPS, CREWS, WORLD, PRISON, CITY, PX, PY, CORR_Y, GATE_L, GATE_R, CX, CY, YN, SPEED, clamp, dist, angDiff, darken, inRect } = D;
+const { TAU, WEAPONS, ITEMS, SHOPS, CREWS, WORLD, PRISON, CITY, PX, PY, CORR_Y, GATE_L, GATE_R, CX, CY, YN, SPEED, BODY_R, clamp, dist, angDiff, darken, inRect } = D;
 const cv = document.getElementById('game');
 let ctx = cv.getContext('2d');
 const mini = document.getElementById('mini'), mctx = mini.getContext('2d');
@@ -440,7 +440,8 @@ function resize() {
   DPR = Math.min(2, window.devicePixelRatio || 1);
   VW = innerWidth; VH = innerHeight;
   cv.width = Math.round(VW * DPR); cv.height = Math.round(VH * DPR);
-  ZOOM = Math.max(0.55, Math.min(1.45, Math.min(VW, VH) / 720));
+  // zoomed in so the (small) players stay a good size on screen and the city feels big
+  ZOOM = 1.35 * Math.max(0.55, Math.min(1.45, Math.min(VW, VH) / 720));
   const ms = mini.clientWidth || 210;
   mini.width = Math.round(ms * DPR); mini.height = Math.round(ms * DPR);
   if (M) buildMiniBase();
@@ -498,7 +499,7 @@ function onSnap(s) {
   }
   if (s.me) {
     M.meData = s.me;
-    if (!M.local) M.local = { x: s.me.x, y: s.me.y, r: 12 };
+    if (!M.local) M.local = { x: s.me.x, y: s.me.y, r: BODY_R };
     else {
       const d = Math.hypot(M.local.x - s.me.x, M.local.y - s.me.y);
       if (d > 60) { M.errT += 1 / 15; if (M.errT > 0.4 || d > 250) { M.local.x = s.me.x; M.local.y = s.me.y; M.errT = 0; } } else M.errT = 0;
@@ -649,7 +650,7 @@ function update(dt) {
 function inView(x, y, w, h) { const v = M.view; return x + w > v.x0 && x < v.x1 && y + h > v.y0 && y < v.y1; }
 function viewer() { const me = meP(); return me && me.alive ? me : (M.spec || me || { x: M.cam.x, y: M.cam.y }); }
 
-const VIS_R = 620, VIS_RAYS = 360;
+const VIS_R = 480, VIS_RAYS = 360;
 const fog = document.createElement('canvas'), fctx = fog.getContext('2d');
 function canSee(a, b) {
   const d = dist(a, b); if (d > VIS_R) return false;
@@ -1100,7 +1101,7 @@ function render3D(dt) {
   ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(255,236,170,.9)'; ctx.lineWidth = 2.2; ctx.beginPath();
   for (const b of M.tracers) { if (!inVis(b.x, b.y)) continue; const a = P3(b.x - b.vx * 0.018, b.y - b.vy * 0.018, AH), c = P3(b.x, b.y, AH); ctx.moveTo(a.x, a.y); ctx.lineTo(c.x, c.y); }
   ctx.stroke();
-  for (const p of M.particles) { if (!inVis(p.x, p.y)) continue; const q = P3(p.x, p.y, 16); ctx.globalAlpha = clamp(p.life / p.max, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(q.x - p.s, q.y - p.s, p.s * 2, p.s * 2); }
+  for (const p of M.particles) { if (!inVis(p.x, p.y)) continue; const q = P3(p.x, p.y, 12); ctx.globalAlpha = clamp(p.life / p.max, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(q.x - p.s, q.y - p.s, p.s * 2, p.s * 2); }
   ctx.globalAlpha = 1;
   // neon signs float above the doors
   drawSigns(t, (sx, sy) => {
@@ -1110,8 +1111,8 @@ function render3D(dt) {
   // name tags
   ctx.textAlign = 'center';
   for (const p of M.list) {
-    if (!p.seen || p.id === M.me || dist(p, vw) > 360) continue;
-    const q = P3(p.x, p.y, 74);
+    if (!p.seen || p.id === M.me || dist(p, vw) > 300) continue;
+    const q = P3(p.x, p.y, 54);
     ctx.font = p.bot ? '600 12px "Barlow Condensed", "Arial Narrow", sans-serif' : '700 13px "Barlow Condensed", "Arial Narrow", sans-serif';
     const tw = ctx.measureText(p.name).width + 14;
     ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(q.x - tw / 2, q.y - 15, tw, 15);
@@ -1119,7 +1120,7 @@ function render3D(dt) {
     ctx.fillStyle = p.bot ? '#c9c2b4' : '#ffffff'; ctx.fillText(p.name, q.x + 2, q.y - 3.5);
   }
   const me = meP(), mq = me ? P3(me.x, me.y, 0) : { x: 0, y: 0 };
-  drawScreenFx(dt, mq.x, mq.y, 30 * R3D.pxScale(me ? me.x : 0, me ? me.y : 0, 0));
+  drawScreenFx(dt, mq.x, mq.y, 24 * R3D.pxScale(me ? me.x : 0, me ? me.y : 0, 0));
 }
 
 // ---------- minimap ----------
@@ -1532,14 +1533,17 @@ setup3D();
 { let id = null; try { id = localStorage.getItem('dubg-server'); } catch (e) {} connect(SERVERS.find(s => s.id === id) || SERVERS[0]); }
 mouse.x = VW / 2; mouse.y = VH / 2;
 let last = performance.now(), fps = 60, playing = false;
+let frameErr = 0;
 function frame(now) {
+  requestAnimationFrame(frame);   // first, so one bad frame can't freeze the game
   const raw = (now - last) / 1000, dt = Math.min(0.05, raw); last = now;
   if (raw > 0) fps += (1 / raw - fps) * 0.05;
-  update(dt);
-  render(dt);
-  if (inMatch()) { updateHud(); drawMini(); if (!$('board').hidden) renderBoard(dt); }
+  try {
+    update(dt);
+    render(dt);
+    if (inMatch()) { updateHud(); drawMini(); if (!$('board').hidden) renderBoard(dt); }
+  } catch (e) { if (frameErr++ < 5) console.error('DUBG frame error', e); }
   if (inMatch() !== playing) { playing = inMatch(); document.body.classList.toggle('playing', playing); if (!playing) resetSticks(); }
-  requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 })();

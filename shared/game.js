@@ -35,14 +35,16 @@ const CORR_Y = PY + 2160;
 const WORLD = { w: XN + 160, h: PRISON.y + PRISON.h + 100 };
 const SCALE = (COLS * ROWS) / 30;
 const GATE_L = PRISON.x - 35, GATE_R = PRISON.x + PRISON.w + 35;
-const MAX_PLAYERS = 30, LOCKDOWN = 8, SPEED = 205;
+// players are small next to the city (a car is about twice as long as a person is tall)
+const MAX_PLAYERS = 30, LOCKDOWN = 8, SPEED = 160, BOT_SPEED = 145, BODY_R = 9;
+const CAR_L = 80, CAR_W = 30;
 
 const WEAPONS = {
-  fists:   { name: 'Fists',   dmg: 14, rate: 0.45, melee: true, range: 34, tier: 0 },
-  pistol:  { name: 'Pistol',  dmg: 17, rate: 0.26, spread: 0.05, mag: 12, speed: 1300, range: 650, reload: 1.2, auto: false, tier: 1, len: 15 },
-  smg:     { name: 'SMG',     dmg: 11, rate: 0.085, spread: 0.11, mag: 30, speed: 1300, range: 560, reload: 1.8, auto: true, tier: 2, len: 20 },
-  shotgun: { name: 'Shotgun', dmg: 10, pellets: 8, rate: 0.85, spread: 0.22, mag: 5, speed: 1100, range: 380, reload: 2.2, auto: false, tier: 2, len: 24 },
-  rifle:   { name: 'Rifle',   dmg: 23, rate: 0.13, spread: 0.045, mag: 30, speed: 1600, range: 900, reload: 2.0, auto: true, tier: 3, len: 28 },
+  fists:   { name: 'Fists',   dmg: 14, rate: 0.45, melee: true, range: 26, tier: 0 },
+  pistol:  { name: 'Pistol',  dmg: 17, rate: 0.26, spread: 0.05, mag: 12, speed: 1050, range: 520, reload: 1.2, auto: false, tier: 1, len: 11 },
+  smg:     { name: 'SMG',     dmg: 11, rate: 0.085, spread: 0.11, mag: 30, speed: 1050, range: 450, reload: 1.8, auto: true, tier: 2, len: 15 },
+  shotgun: { name: 'Shotgun', dmg: 10, pellets: 8, rate: 0.85, spread: 0.22, mag: 5, speed: 880, range: 300, reload: 2.2, auto: false, tier: 2, len: 18 },
+  rifle:   { name: 'Rifle',   dmg: 23, rate: 0.13, spread: 0.045, mag: 30, speed: 1280, range: 720, reload: 2.0, auto: true, tier: 3, len: 21 },
 };
 const ITEMS = {
   pistol:  { label: 'Pistol', kind: 'gun', color: '#d8c27c' },
@@ -189,22 +191,22 @@ function buildWorld(seed) {
     cells.push({ x: x + 25, y: PY + 2031, top: true }, { x: x + 25, y: PY + 2289, top: false });
   }
   // parked cars along the kerbs, away from doors, junctions and the prison exits
-  const doorNear = (lane, v, pos) => buildings.some(b => b.outPt.lane === lane && b.outPt[lane === 'h' ? 'y' : 'x'] === v && Math.abs(b.outPt[lane === 'h' ? 'x' : 'y'] - pos) < 75);
+  const doorNear = (lane, v, pos) => buildings.some(b => b.outPt.lane === lane && b.outPt[lane === 'h' ? 'y' : 'x'] === v && Math.abs(b.outPt[lane === 'h' ? 'x' : 'y'] - pos) < 85);
   for (let tries = 0, n = 0; tries < 300 * SCALE && n < 26 * SCALE; tries++) {
     const horiz = R() < 0.55, s = R() < 0.5 ? 1 : -1, color = pick(CAR_COLORS.map(c => [c, 1]));
     if (horiz) {
-      const j = Math.floor(R() * (ROWS + 1)), cx = rnd(XL[0] + 70, XN - 70);
-      if (XL.some(x => Math.abs(x - cx) < 85) || doorNear('h', YL[j], cx)) continue;
-      if (j === ROWS && (Math.abs(cx - GATE_L) < 90 || Math.abs(cx - GATE_R) < 90)) continue;
-      const y = s > 0 ? YL[j] + 16 : YL[j] - 38;
-      if (cars.some(c => Math.abs(c.x + c.w / 2 - cx) < 90 && Math.abs(c.y - y) < 40)) continue;
-      const w = addWall(cx - 29, y, 58, 22, 'car'); w.color = color; w.burned = R() < 0.4; w.rust = [0, 1, 2].map(() => [rnd(6, 52), rnd(4, 18), rnd(3, 7)]); cars.push(w); n++;
+      const j = Math.floor(R() * (ROWS + 1)), cx = rnd(XL[0] + 80, XN - 80);
+      if (XL.some(x => Math.abs(x - cx) < 95) || doorNear('h', YL[j], cx)) continue;
+      if (j === ROWS && (Math.abs(cx - GATE_L) < 100 || Math.abs(cx - GATE_R) < 100)) continue;
+      const y = s > 0 ? YL[j] + 13 : YL[j] - 13 - CAR_W;
+      if (cars.some(c => Math.abs(c.x + c.w / 2 - cx) < CAR_L + 30 && Math.abs(c.y - y) < 40)) continue;
+      const w = addWall(cx - CAR_L / 2, y, CAR_L, CAR_W, 'car'); w.color = color; w.burned = R() < 0.4; w.rust = [0, 1, 2].map(() => [rnd(8, CAR_L - 8), rnd(5, CAR_W - 5), rnd(3, 8)]); cars.push(w); n++;
     } else {
-      const i = Math.floor(R() * (COLS + 1)), cy = rnd(YL[0] + 70, YN - 70);
-      if (YL.some(y => Math.abs(y - cy) < 85) || doorNear('v', XL[i], cy)) continue;
-      const x = s > 0 ? XL[i] + 16 : XL[i] - 38;
-      if (cars.some(c => Math.abs(c.y + c.h / 2 - cy) < 90 && Math.abs(c.x - x) < 40)) continue;
-      const w = addWall(x, cy - 29, 22, 58, 'car'); w.color = color; w.burned = R() < 0.4; w.rust = [0, 1, 2].map(() => [rnd(4, 18), rnd(6, 52), rnd(3, 7)]); cars.push(w); n++;
+      const i = Math.floor(R() * (COLS + 1)), cy = rnd(YL[0] + 80, YN - 80);
+      if (YL.some(y => Math.abs(y - cy) < 95) || doorNear('v', XL[i], cy)) continue;
+      const x = s > 0 ? XL[i] + 13 : XL[i] - 13 - CAR_W;
+      if (cars.some(c => Math.abs(c.y + c.h / 2 - cy) < CAR_L + 30 && Math.abs(c.x - x) < 40)) continue;
+      const w = addWall(x, cy - CAR_L / 2, CAR_W, CAR_L, 'car'); w.color = color; w.burned = R() < 0.4; w.rust = [0, 1, 2].map(() => [rnd(5, CAR_W - 5), rnd(8, CAR_L - 8), rnd(3, 8)]); cars.push(w); n++;
     }
   }
   // which shops are open: always five gun shops, the rest mixed
@@ -287,11 +289,11 @@ function makePlayer(id, name, isBot, cell) {
   const hat = pick([['cap', 3], ['capBack', 2], ['beanie', 2], ['durag', 2], ['dreads', 2], ['buzz', 2], ['bandana', 2]]);
   const look = { skin: pick(SKINS.map(c => [c, 1])), hoodie, hat, beanie: pick(BEANIES.map(c => [c, 1])) };
   return {
-    id, name, isBot, crew: crewIdx, look, x: cell.x, y: cell.y, r: 12, ang: cell.top ? Math.PI / 2 : -Math.PI / 2,
+    id, name, isBot, crew: crewIdx, look, x: cell.x, y: cell.y, r: BODY_R, ang: cell.top ? Math.PI / 2 : -Math.PI / 2,
     hp: 100, armor: 0, alive: true, slots: [null, null], cur: -1, ammo: 0, band: 0, med: 0, kills: 0,
     cd: 0, reload: 0, heal: null, punch: 0, place: 0, diedAt: 0,
     input: null, lastClicks: 0, pendingFire: 0,
-    ai: isBot ? { path: [], think: 0, enemy: null, provoked: null, react: 0, lostT: 0, strafe: 1, strafeT: 0, aimErr: rnd(0.22, 0.45), visited: new Set(), stuckT: 0, stuck: 0, lx: cell.x, ly: cell.y, sight: rnd(320, 400) } : null,
+    ai: isBot ? { path: [], think: 0, enemy: null, provoked: null, react: 0, lostT: 0, strafe: 1, strafeT: 0, aimErr: rnd(0.22, 0.45), visited: new Set(), stuckT: 0, stuck: 0, lx: cell.x, ly: cell.y, sight: rnd(260, 320) } : null,
   };
 }
 
@@ -413,7 +415,7 @@ function damage(q, dmg, src, wname) {
   q.hp -= dmg;
   if (q.isBot && src && src !== q && src.alive) {
     q.ai.provoked = src;
-    if (q.ai.enemy !== src && dist(q, src) < 700) { q.ai.enemy = src; q.ai.react = 0.2; q.ai.lostT = 0; }
+    if (q.ai.enemy !== src && dist(q, src) < 560) { q.ai.enemy = src; q.ai.react = 0.2; q.ai.lostT = 0; }
   }
   if (q.hp <= 0) kill(q, src, wname);
 }
@@ -490,12 +492,12 @@ function humanUpdate(p, dt) {
   for (let i = G.items.length - 1; i >= 0; i--) {
     const it = G.items[i]; if (!it) continue;
     const k = ITEMS[it.type].kind;
-    if ((k === 'ammo' || k === 'heal' || (k === 'armor' && ITEMS[it.type].val > p.armor)) && Math.hypot(it.x - p.x, it.y - p.y) < p.r + 12) pickup(p, it);
+    if ((k === 'ammo' || k === 'heal' || (k === 'armor' && ITEMS[it.type].val > p.armor)) && Math.hypot(it.x - p.x, it.y - p.y) < p.r + 10) pickup(p, it);
   }
 }
 function humanAction(p, a, v) {
   if (!p || !p.alive) return;
-  if (a === 'pickup') { const it = nearestItem(p, 48); if (it) pickup(p, it); }
+  if (a === 'pickup') { const it = nearestItem(p, 40); if (it) pickup(p, it); }
   else if (a === 'reload') startReload(p);
   else if (a === 'heal') startHeal(p);
   else if (a === 'slot') { const i = v | 0; if (i >= -1 && i <= 1) setSlot(p, i); }
@@ -575,15 +577,15 @@ function updateBot(b, dt) {
   if (ai.think <= 0) { ai.think = 0.25; botThink(b); }
   let mvx = 0, mvy = 0;
   const e = ai.enemy, armed = b.cur >= 0;
-  if (e && e.alive && (armed || (ai.provoked === e && dist(b, e) < 130))) {
+  if (e && e.alive && (armed || (ai.provoked === e && dist(b, e) < 100))) {
     const d = dist(b, e), a = Math.atan2(e.y - b.y, e.x - b.x), W = wdef(b);
     b.ang = lerpAngle(b.ang, a, dt * 9);
     if (ai.react > 0) ai.react -= dt;
-    else if (Math.abs(angDiff(b.ang, a)) < 0.3 && (armed ? d < W.range * 0.9 : d < 48)) tryFire(b);
+    else if (Math.abs(angDiff(b.ang, a)) < 0.3 && (armed ? d < W.range * 0.9 : d < 36)) tryFire(b);
     const fx = Math.cos(a), fy = Math.sin(a);
     if (armed) {
-      const want = W.range < 450 ? 140 : 240;
-      if (d > want + 70) { mvx += fx; mvy += fy; } else if (d < want - 70) { mvx -= fx; mvy -= fy; }
+      const want = W.range < 400 ? 110 : 190;
+      if (d > want + 55) { mvx += fx; mvy += fy; } else if (d < want - 55) { mvx -= fx; mvy -= fy; }
       ai.strafeT -= dt; if (ai.strafeT <= 0) { ai.strafe = R() < 0.5 ? -1 : 1; ai.strafeT = rnd(0.5, 1.4); }
       mvx += -fy * ai.strafe * 0.8; mvy += fx * ai.strafe * 0.8;
     } else { mvx += fx; mvy += fy; }
@@ -593,7 +595,7 @@ function updateBot(b, dt) {
     else { mvx = dx / d; mvy = dy / d; b.ang = lerpAngle(b.ang, Math.atan2(dy, dx), dt * 7); }
   }
   const m = Math.hypot(mvx, mvy);
-  if (m > 0) { const sp = 185 * (b.heal ? 0.5 : 1); b.x += mvx / m * sp * dt; b.y += mvy / m * sp * dt; }
+  if (m > 0) { const sp = BOT_SPEED * (b.heal ? 0.5 : 1); b.x += mvx / m * sp * dt; b.y += mvy / m * sp * dt; }
   pushOut(b);
   ai.stuckT += dt;
   if (ai.stuckT > 0.8) {
@@ -604,7 +606,7 @@ function updateBot(b, dt) {
     } else ai.stuck = 0;
     ai.stuckT = 0; ai.lx = b.x; ai.ly = b.y;
   }
-  for (let i = G.items.length - 1; i >= 0; i--) { const it = G.items[i]; if (it && Math.abs(it.x - b.x) < 22 && Math.abs(it.y - b.y) < 22) pickup(b, it); }
+  for (let i = G.items.length - 1; i >= 0; i--) { const it = G.items[i]; if (it && Math.abs(it.x - b.x) < 18 && Math.abs(it.y - b.y) < 18) pickup(b, it); }
 }
 
 // ---------- tick ----------
@@ -636,7 +638,7 @@ function step(dt) {
     }
   }
   for (let i = G.bullets.length - 1; i >= 0; i--) {
-    const bl = G.bullets[i], sp = Math.hypot(bl.vx, bl.vy), steps = Math.max(1, Math.ceil(sp * dt / 10)), sl = sp * dt / steps;
+    const bl = G.bullets[i], sp = Math.hypot(bl.vx, bl.vy), steps = Math.max(1, Math.ceil(sp * dt / 8)), sl = sp * dt / steps;
     let dead = false;
     for (let s = 0; s < steps && !dead; s++) {
       bl.x += bl.vx * dt / steps; bl.y += bl.vy * dt / steps; bl.left -= sl;
@@ -672,7 +674,7 @@ function snapMe(p) {
 function match() { return G; }
 
 return {
-  TAU, COLS, ROWS, XL, YL, XN, YN, CITY, CX, CY, PRISON, PX, PY, CORR_Y, WORLD, GATE_L, GATE_R, MAX_PLAYERS, LOCKDOWN, SPEED,
+  TAU, COLS, ROWS, XL, YL, XN, YN, CITY, CX, CY, PRISON, PX, PY, CORR_Y, WORLD, GATE_L, GATE_R, MAX_PLAYERS, LOCKDOWN, SPEED, BODY_R, CAR_L, CAR_W,
   WEAPONS, ITEMS, CREWS, SHOPS, PHASES,
   clamp, dist, angDiff, lerpAngle, darken, inRect,
   buildWorld, setDoors, cellWalls, solidAt, blocksSight, pushOut,

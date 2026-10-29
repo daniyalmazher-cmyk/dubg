@@ -4,7 +4,8 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 
-const H = { wall: 68, pwall: 78, block: 64, fence: 30, door: 68, aim: 34 };
+const H = { wall: 68, pwall: 78, block: 64, fence: 30, door: 68, aim: 25 };
+const BODY = 0.72;   // characters are built at a big size and shrunk to fit the city
 const PITCH = THREE.MathUtils.degToRad(60), FOV = 34;
 const coarse = matchMedia('(pointer: coarse)').matches;
 const LIGHTS = coarse ? 6 : 10;
@@ -137,7 +138,7 @@ function addCars(g, cars) {
     const hz = c.w > c.h, len = hz ? c.w : c.h, wid = hz ? c.h : c.w;
     // which way it faces is fixed per car so it doesn't change between clients
     const flip = (Math.floor(c.x * 7 + c.y * 13) & 1) ? Math.PI : 0;
-    car.position.set(c.x + c.w / 2, 0, c.y + c.h / 2); car.rotation.set(0, (hz ? 0 : -Math.PI / 2) + flip, c.burned ? 0.04 : 0); car.scale.set(len / CAR_L, c.burned ? 0.9 : 1, wid / CAR_W);
+    car.position.set(c.x + c.w / 2, 0, c.y + c.h / 2); car.rotation.set(0, (hz ? 0 : -Math.PI / 2) + flip, c.burned ? 0.04 : 0); car.scale.set(len / CAR_L, (c.burned ? 0.9 : 1) * len / CAR_L * 0.85, wid / CAR_W);
     car.updateMatrix();
     body.setMatrixAt(i, car.matrix); body.setColorAt(i, tmpC.set(c.burned ? '#2a2522' : c.color));
     glass.setMatrixAt(i, car.matrix); glass.setColorAt(i, tmpC.set(c.burned ? '#050505' : '#ffffff'));
@@ -296,7 +297,7 @@ function addHat(head, L, crew) {
 function makePlayer(P, isMe) {
   const L = P.look, crew = P.crew.c, hoodie = L.hoodie, skin = L.skin;
   const pants = PANTS[P.id % PANTS.length], shoe = P.id % 3 === 0 ? crew : '#e9e6df';
-  const holder = new THREE.Group(), rig = new THREE.Group(); holder.add(rig);
+  const holder = new THREE.Group(), rig = new THREE.Group(); holder.add(rig); holder.scale.setScalar(BODY);
   // legs swing from the hips; the hips turn toward where you walk while the chest faces your aim
   const hips = new THREE.Group(); hips.position.y = 22; rig.add(hips);
   const legs = [-1, 1].map(s => {
@@ -435,14 +436,22 @@ function updatePlayer(P, v, dt, visible) {
   }
   // hit flash
   const hurt = P.hurt > 0;
-  if (hurt !== v.hurt) { v.hurt = hurt; v.rig.traverse(o => { if (o.isMesh) o.material = hurt ? hurtMat : o.userData.base; }); }
+  // guns are swapped in after the player is built, so their parts pick up a base material here
+  if (hurt !== v.hurt) {
+    v.hurt = hurt;
+    v.rig.traverse(o => {
+      if (!o.isMesh) return;
+      if (!o.userData.base) o.userData.base = o.material;
+      o.material = hurt ? hurtMat : o.userData.base;
+    });
+  }
 }
 const hurtMat = fogify(new THREE.MeshLambertMaterial({ color: '#ff5a4a', emissive: '#a01810' }));
 // muzzle position of a player's gun, for the muzzle flash light
-function muzzle(P) { return { x: P.x + Math.cos(P.ang) * 30, y: P.y + Math.sin(P.ang) * 30 }; }
+function muzzle(P) { return { x: P.x + Math.cos(P.ang) * 22, y: P.y + Math.sin(P.ang) * 22 }; }
 
 // ---------- items: 3D pickups that float and turn above a glowing ring ----------
-const ringGeo = new THREE.RingGeometry(10, 13, 24).rotateX(-Math.PI / 2);
+const ringGeo = new THREE.RingGeometry(8, 10.5, 24).rotateX(-Math.PI / 2);
 const cylGeo = new THREE.CylinderGeometry(1, 1, 1, 10);
 function cyl(parent, c, r, h, x, y, z) { const m = new THREE.Mesh(cylGeo, mat(c)); m.scale.set(r, h, r); m.position.set(x, y, z); parent.add(m); return m; }
 const ITEM_BUILD = {
@@ -490,7 +499,7 @@ function makeItem(it, ITEMS) {
   const d = ITEMS[it.type], g = new THREE.Group();
   const ring = new THREE.Mesh(ringGeo, ringMat(d.color));
   ring.position.y = 0.9; g.add(ring);
-  const icon = new THREE.Group(); icon.position.y = 12; icon.add(itemModel(it.type, d)); g.add(icon);
+  const icon = new THREE.Group(); icon.position.y = 10; icon.scale.setScalar(0.8); icon.add(itemModel(it.type, d)); g.add(icon);
   g.position.set(it.x, 0, it.y);
   g.userData = { ring, icon };
   world.group.add(g);
@@ -563,7 +572,7 @@ function frame(F) {
     if (Math.abs(it.x - cx) > 1300 || Math.abs(it.y - cy) > 1100) { const g = itemViews.get(it.id); if (g) g.visible = false; continue; }
     let g = itemViews.get(it.id); if (!g) { g = makeItem(it, F.ITEMS); itemViews.set(it.id, g); }
     g.visible = seenItem(it);
-    if (g.visible) { g.userData.icon.rotation.y = t * 1.2 + it.x; g.userData.icon.position.y = 12 + Math.sin(t * 3 + it.x * 0.1) * 2.5; }
+    if (g.visible) { g.userData.icon.rotation.y = t * 1.2 + it.x; g.userData.icon.position.y = 10 + Math.sin(t * 3 + it.x * 0.1) * 2; }
   }
   // players
   let flash = null;
