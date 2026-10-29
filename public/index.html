@@ -44,9 +44,6 @@ body.v3d #game{background:transparent}
 .stat b{font-family:var(--display);font-size:26px;font-weight:400;font-variant-numeric:tabular-nums}
 .stat span{color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-size:13px;font-weight:600}
 #ping.good{color:var(--good)} #ping.ok{color:var(--hazard)} #ping.bad{color:var(--danger)}
-.tc{position:absolute;top:calc(16px + env(safe-area-inset-top,0px));left:50%;transform:translateX(-50%);text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center}
-#zoneMsg{background:var(--panel);border:1px solid var(--line);padding:5px 14px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;font-size:15px;white-space:nowrap;font-variant-numeric:tabular-nums}
-#outMsg{color:var(--danger);font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:14px;text-shadow:0 1px 3px #000}
 .tr{position:absolute;top:calc(14px + env(safe-area-inset-top,0px));right:calc(16px + env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:4px;align-items:flex-end;max-width:40vw}
 .tr div{background:var(--panel);padding:3px 10px;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .tr .me{color:var(--orange)}
@@ -93,7 +90,18 @@ body.v3d #game{background:transparent}
 #board .pr.me{color:var(--orange)} #board .pr.me.dead{color:#a8662e}
 #board .pos{color:var(--muted);font-variant-numeric:tabular-nums;font-size:13px}
 @media (max-width:720px){#board .cols2{grid-template-columns:1fr}}
-#mini{position:absolute;right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));width:210px;height:210px;border:1px solid var(--line);background:#000}
+/* minimap with the zone timer under it: time left, and a bar that fills white while waiting and blue while the zone closes */
+#mapBox{position:absolute;right:calc(16px + env(safe-area-inset-right,0px));bottom:calc(16px + env(safe-area-inset-bottom,0px));width:210px;display:flex;flex-direction:column;gap:4px}
+#mini{display:block;width:100%;aspect-ratio:1;border:1px solid var(--line);background:#000}
+#zoneBox{background:var(--panel);border:1px solid var(--line);padding:3px 7px 5px;display:flex;flex-direction:column;gap:3px}
+#zoneBox .zt{display:flex;align-items:baseline;gap:6px;white-space:nowrap}
+#zoneLbl{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);overflow:hidden;text-overflow:ellipsis}
+#zoneTime{margin-left:auto;font-size:15px;font-weight:700;font-variant-numeric:tabular-nums}
+#zoneBox.closing #zoneLbl,#zoneBox.closing #zoneTime{color:#6fa8ff}
+#zoneBox.out #zoneLbl{color:var(--danger)}
+.zbar{height:5px;background:rgba(255,255,255,.12);position:relative;overflow:hidden}
+#zoneFill{position:absolute;inset:0 auto 0 0;width:0;background:#e8e4da}
+#zoneBox.closing #zoneFill{background:#3d8bff}
 #center{position:absolute;top:26%;left:0;right:0;text-align:center;font-family:var(--display);font-size:clamp(28px,6vw,64px);text-shadow:0 3px 0 #000,0 0 30px rgba(0,0,0,.6);letter-spacing:.02em;line-height:1.05}
 #center small{display:block;font-family:var(--body);font-size:clamp(14px,2vw,20px);letter-spacing:.14em;text-transform:uppercase;color:var(--hazard);font-weight:700;margin-bottom:6px}
 #prompt{position:absolute;top:60%;left:50%;transform:translateX(-50%);background:var(--panel);border:1px solid var(--line);padding:5px 12px;font-weight:600;font-size:15px;white-space:nowrap}
@@ -176,7 +184,7 @@ button.play:active:not(:disabled){transform:translateY(3px);box-shadow:0 2px 0 #
 .seg button{font-family:var(--body);font-weight:700;font-size:15px;text-transform:uppercase;letter-spacing:.08em;padding:7px 14px;background:transparent;color:var(--muted);border:1px solid var(--line)}
 .seg button+button{border-left:0}
 .seg button.on{background:var(--orange);color:#111;border-color:var(--orange)}
-body.mini-small #mini{width:140px;height:140px}
+body.mini-small #mapBox{width:150px}
 .plist{display:flex;flex-direction:column;border-top:1px solid var(--line)}
 .plist div{display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid var(--line);font-size:19px;font-weight:700}
 .plist .tagx{margin-left:auto;font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700}
@@ -233,7 +241,9 @@ body.touch #reloadBtn{display:grid;place-items:center;position:absolute;right:ca
 body.touch #reloadBtn:active{background:var(--orange);color:#111}
 #reloadBtn.busy svg{animation:sp .8s linear infinite}
 body.touch #menuBtn{display:block;position:absolute;top:calc(14px + env(safe-area-inset-top,0px));right:calc(136px + env(safe-area-inset-right,0px));pointer-events:auto;font-family:var(--body);font-weight:700;font-size:14px;letter-spacing:.08em;text-transform:uppercase;padding:8px 12px;background:rgba(14,15,16,.72);color:var(--text);border:1px solid var(--line)}
-body.touch #mini,body.touch.mini-small #mini{top:calc(14px + env(safe-area-inset-top,0px));bottom:auto;width:110px;height:110px}
+body.touch #mapBox,body.touch.mini-small #mapBox{top:calc(14px + env(safe-area-inset-top,0px));bottom:auto;width:118px}
+body.touch #zoneLbl{font-size:11px}
+body.touch #zoneTime{font-size:14px}
 body.touch .tr{display:none}
 body.touch .tl{gap:6px}
 body.touch .stat{padding:2px 8px 4px}
@@ -270,7 +280,7 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
   .cols{grid-template-columns:1fr}
   .code{font-size:44px}
   .keys{grid-template-columns:auto 1fr}
-  #mini{width:110px;height:110px}
+  #mapBox{width:118px}
   .bc{width:calc(100vw - 150px);left:calc(16px + env(safe-area-inset-left,0px));transform:none}
   .tr{display:none}
 }
@@ -289,7 +299,6 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
     <div class="stat" id="pingStat"><b id="ping">--</b><span>ms</span></div>
     <div class="stat" id="fpsStat" hidden><b id="fps">0</b><span>fps</span></div>
   </div>
-  <div class="tc"><div id="zoneMsg">Lockdown</div><div id="outMsg" hidden>Outside the zone. Move!</div></div>
   <div class="tr" id="feed"></div>
   <div id="center"></div>
   <div id="prompt" hidden></div>
@@ -310,7 +319,10 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
     </div>
     <div class="kit"><span>Bandage <b id="nb">0</b></span><span>Medkit <b id="nm">0</b></span><span>Ammo <b id="na">0</b></span></div>
   </div>
-  <canvas id="mini" width="210" height="210"></canvas>
+  <div id="mapBox">
+    <canvas id="mini" width="210" height="210"></canvas>
+    <div id="zoneBox"><div class="zt"><span id="zoneLbl">Lockdown</span><b id="zoneTime">0:00</b></div><div class="zbar"><div id="zoneFill"></div></div></div>
+  </div>
   <div id="board" hidden></div>
   <div id="moveStick" class="stick mv"><i></i><b>Move</b></div>
   <div id="aimStick" class="stick am"><i></i><b>Aim · push to shoot</b></div>
@@ -1205,14 +1217,16 @@ function updateHud() {
   $('pingStat').hidden = !S.ping; $('fpsStat').hidden = !S.fps;
   if (S.fps) setText($('fps'), String(Math.round(fps)));
   const pe = $('ping'); setText(pe, net.ping ? String(net.ping) : '--'); pe.className = !net.ping ? '' : net.ping < 90 ? 'good' : net.ping < 160 ? 'ok' : 'bad';
-  let zm;
-  if (M.state === 'lockdown') zm = 'Lockdown in effect';
-  else if (M.state === 'over') zm = 'Match over';
-  else if (z.mode === 'wait') zm = `Zone shrinks in ${fmtTime(Math.max(0, z.t))}`;
-  else if (z.mode === 'shrink') zm = `Zone closing  ${fmtTime(Math.max(0, z.t))}`;
-  else zm = 'Final zone';
-  setText($('zoneMsg'), zm);
-  $('outMsg').hidden = !(M.state === 'live' && me && me.alive && Math.hypot(me.x - z.cur.x, me.y - z.cur.y) > z.cur.r);
+  // zone timer: the bar shows how far through the current phase we are (the next circle's size tells which phase)
+  const phase = M.state === 'lockdown' ? 'lock' : M.state === 'live' ? z.mode : 'over', left = Math.max(0, M.state === 'lockdown' ? M.lockT : z.t);
+  const ph = z.next && D.PHASES.find(p => p.r === z.next.r);
+  const total = phase === 'lock' ? D.LOCKDOWN : ph ? (phase === 'wait' ? ph.wait : ph.shrink) : left;
+  const out = M.state === 'live' && me && me.alive && Math.hypot(me.x - z.cur.x, me.y - z.cur.y) > z.cur.r;
+  const lbl = out ? 'Outside zone!' : phase === 'lock' ? 'Doors open' : phase === 'wait' ? 'Zone shrinks' : phase === 'shrink' ? 'Zone closing' : phase === 'final' ? 'Final zone' : 'Match over';
+  const timed = phase === 'lock' || phase === 'wait' || phase === 'shrink';
+  setText($('zoneLbl'), lbl); setText($('zoneTime'), timed ? fmtTime(left) : '');
+  $('zoneFill').style.width = (timed ? (1 - left / Math.max(total, left, 0.001)) * 100 : 100) + '%';
+  $('zoneBox').classList.toggle('closing', phase === 'shrink' || phase === 'final'); $('zoneBox').classList.toggle('out', !!out);
   let center = '';
   if (M.state === 'lockdown') center = `<small>Power failure in Cell Block D</small>Doors open in ${Math.ceil(M.lockT)}`;
   else if (M.msgT > 0) center = M.msg;
