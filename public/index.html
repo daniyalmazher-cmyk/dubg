@@ -207,6 +207,7 @@ body{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
 .stick,#menuBtn,.touchHelp,.touchOnly,#rotate{display:none}
 body.touch .keys,body.touch .mouseOnly{display:none}
 body.touch .touchHelp,body.touch .touchOnly{display:block}
+body.touch .set.touchOnly{display:flex}
 body.touch .stick{display:block;position:absolute;width:124px;height:124px;margin:-62px 0 0 -62px;border-radius:50%;border:2px solid rgba(237,231,218,.25);background:rgba(0,0,0,.25);pointer-events:none;opacity:.5}
 body.touch .stick.live{opacity:1}
 body.touch .stick.mv{left:calc(104px + env(safe-area-inset-left,0px));top:calc(100% - 104px - env(safe-area-inset-bottom,0px))}
@@ -241,6 +242,12 @@ body.touch #hpNum{line-height:15px;font-size:12px}
 body.touch #reloadBtn{display:grid;place-items:center;position:absolute;right:calc(140px + env(safe-area-inset-right,0px));bottom:calc(140px + env(safe-area-inset-bottom,0px));width:56px;height:56px;border-radius:50%;padding:0;background:rgba(14,15,16,.72);color:var(--text);border:2px solid rgba(237,231,218,.35);pointer-events:auto}
 body.touch #reloadBtn:active{background:var(--orange);color:#111}
 #reloadBtn.busy svg{animation:sp .8s linear infinite}
+/* "Fire button" mode: one above the move stick, one next to reload */
+.fireBtn{display:none}
+body.touch.fire-btn .fireBtn{display:grid;place-items:center;position:absolute;width:64px;height:64px;border-radius:50%;padding:0;background:rgba(14,15,16,.6);color:var(--danger);border:2px solid rgba(255,77,61,.6);pointer-events:auto;touch-action:none}
+body.touch.fire-btn .fireBtn.on{background:var(--danger);color:#111}
+#fireL{left:calc(140px + env(safe-area-inset-left,0px));bottom:calc(140px + env(safe-area-inset-bottom,0px))}
+#fireR{right:calc(205px + env(safe-area-inset-right,0px));bottom:calc(112px + env(safe-area-inset-bottom,0px))}
 body.touch #menuBtn{display:block;position:absolute;top:calc(14px + env(safe-area-inset-top,0px));right:calc(136px + env(safe-area-inset-right,0px));pointer-events:auto;font-family:var(--body);font-weight:700;font-size:14px;letter-spacing:.08em;text-transform:uppercase;padding:8px 12px;background:rgba(14,15,16,.72);color:var(--text);border:1px solid var(--line)}
 body.touch #mapBox,body.touch.mini-small #mapBox{top:calc(14px + env(safe-area-inset-top,0px));bottom:auto;width:118px}
 body.touch #zoneLbl{font-size:11px}
@@ -327,6 +334,8 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
   <div id="board" hidden></div>
   <div id="moveStick" class="stick mv"><i></i><b>Move</b></div>
   <div id="aimStick" class="stick am"><i></i><b>Aim · push to shoot</b></div>
+  <button id="fireL" class="fireBtn" type="button" aria-label="Fire"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="7"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></svg></button>
+  <button id="fireR" class="fireBtn" type="button" aria-label="Fire"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="7"/><path d="M12 2v5M12 17v5M2 12h5M17 12h5"/></svg></button>
   <button id="reloadBtn" type="button" aria-label="Reload"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg></button>
   <button id="menuBtn" type="button">Menu</button>
 </div>
@@ -374,7 +383,7 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
         <div>Hit the shops<span>Neon sign means open. Boarded means sealed.</span></div>
         <div>Survive<span>Stay inside the circle</span></div>
       </div>
-      <div class="note touchHelp">Left thumb moves. Right thumb aims, and pushing it all the way out shoots. Tap a gun at the bottom to hold it, tap it again to put it away. The red cross heals. Tap the alive counter to see every player.</div>
+      <div class="note touchHelp">Left thumb moves. Right thumb aims, and pushing it all the way out shoots (or switch to fire buttons in Settings). Tap a gun at the bottom to hold it, tap it again to put it away. The red cross heals. Tap the alive counter to see every player.</div>
       <div class="keys">
         <kbd>WASD</kbd><span>Move</span>
         <kbd>Mouse</kbd><span>Aim and shoot</span>
@@ -437,6 +446,7 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
       <div class="h2">Settings</div>
       <div>
         <label class="set" for="volIn"><span>Volume<b id="volOut">70</b></span><input type="range" id="volIn" min="0" max="100" step="5"></label>
+        <div class="set touchOnly"><span>Shooting</span><div class="seg" id="fireSeg"><button type="button" data-v="stick">Push stick</button><button type="button" data-v="button">Fire button</button></div></div>
         <div class="set"><span>Minimap</span><div class="seg" id="miniSeg"><button type="button" data-v="large">Large</button><button type="button" data-v="small">Small</button></div></div>
         <label class="set chk"><span>Show ping</span><input type="checkbox" id="pingChk"></label>
         <label class="set chk"><span>Show FPS</span><input type="checkbox" id="fpsChk"></label>
@@ -624,7 +634,7 @@ function myGun() { const md = M.meData; if (!md || md.c < 0) return null; return
 function localFire(me) {
   const md = M.meData; if (!md) return;
   const slot = myGun(), W = slot ? WEAPONS[slot[0]] : WEAPONS.fists;
-  const want = mouse.down && (W.auto || mouse.clicked);
+  const want = mouse.down || mouse.clicked;   // held = keep firing at the weapon's rate
   mouse.clicked = false;
   if (!want || M.localCd > 0 || md.r > 0) return;
   if (slot && slot[1] <= 0) return;
@@ -660,12 +670,11 @@ function update(dt) {
     D.pushOut(M.local);
     me.x = M.local.x; me.y = M.local.y;
     if (touch.on) {
-      // twin-stick: aim with the right stick, otherwise face where you walk; right stick at the edge fires
-      const a = touch.aim, am = a ? Math.hypot(a.x, a.y) : 0;
-      if (am > 0.25) me.ang = Math.atan2(a.y, a.x); else if (m) me.ang = Math.atan2(my, mx);
-      mouse.down = am >= 0.9;
-      const slot = myGun(), W = slot ? WEAPONS[slot[0]] : WEAPONS.fists;
-      if (mouse.down && !W.auto && M.localCd <= 0) { clicks++; mouse.clicked = true; }
+      // twin-stick: aim with the right stick, otherwise face where you walk.
+      // Shooting is either the right stick pushed to the edge, or the fire buttons (Settings)
+      const a = touch.aim, am = a ? Math.hypot(a.x, a.y) : 0, btns = S.fire === 'button';
+      if (am > 0.25) me.ang = Math.atan2(a.y, a.x); else if (m && !(btns && touch.fire.size)) me.ang = Math.atan2(my, mx);
+      mouse.down = btns ? touch.fire.size > 0 : am >= 0.9;
     } else { const mw = mouseWorld(); me.ang = Math.atan2(mw.y - me.y, mw.x - me.x); }
     M.localCd -= dt;
     localFire(me);
@@ -1303,7 +1312,7 @@ function showEnd() {
 }
 
 // ---------- settings ----------
-const S = { vol: 70, mini: 'large', ping: true, fps: false };
+const S = { vol: 70, mini: 'large', ping: true, fps: false, fire: 'stick' };
 try { Object.assign(S, JSON.parse(localStorage.getItem('dubg-settings') || '{}')); } catch (e) {}
 function saveSettings() { try { localStorage.setItem('dubg-settings', JSON.stringify(S)); } catch (e) {} }
 function applySettings() {
@@ -1311,10 +1320,14 @@ function applySettings() {
   for (const b of $('miniSeg').children) b.classList.toggle('on', b.dataset.v === S.mini);
   $('pingChk').checked = S.ping; $('fpsChk').checked = S.fps;
   document.body.classList.toggle('mini-small', S.mini === 'small');
+  for (const b of $('fireSeg').children) b.classList.toggle('on', b.dataset.v === S.fire);
+  document.body.classList.toggle('fire-btn', S.fire === 'button');
+  $('aimStick').querySelector('b').textContent = S.fire === 'button' ? 'Aim' : 'Aim · push to shoot';
   applyVolume(); resize();
 }
 $('volIn').addEventListener('input', () => { S.vol = +$('volIn').value; $('volOut').textContent = S.vol; applyVolume(); saveSettings(); });
 $('miniSeg').addEventListener('click', e => { const v = e.target.dataset && e.target.dataset.v; if (v) { S.mini = v; applySettings(); saveSettings(); } });
+$('fireSeg').addEventListener('click', e => { const v = e.target.dataset && e.target.dataset.v; if (v) { S.fire = v; applySettings(); saveSettings(); } });
 $('pingChk').addEventListener('change', () => { S.ping = $('pingChk').checked; saveSettings(); });
 $('fpsChk').addEventListener('change', () => { S.fps = $('fpsChk').checked; saveSettings(); });
 let settingsBack = null;
@@ -1545,7 +1558,7 @@ cv.addEventListener('wheel', () => { if (inMatch()) onKey('KeyQ'); }, { passive:
 addEventListener('resize', resize);
 
 // ---------- touch controls ----------
-const touch = { on: matchMedia('(pointer: coarse)').matches, move: null, aim: null };
+const touch = { on: matchMedia('(pointer: coarse)').matches, move: null, aim: null, fire: new Set() };
 const STICK_R = 56;
 function setTouch(on) { touch.on = on; document.body.classList.toggle('touch', on); resize(); }
 setTouch(touch.on);
@@ -1555,7 +1568,7 @@ function releaseStick(side) {
   const el = stickEl(side); el.classList.remove('live', 'fire'); el.style.left = el.style.top = ''; el.firstChild.style.transform = '';
   if (side === 'aim') mouse.down = false;
 }
-function resetSticks() { releaseStick('move'); releaseStick('aim'); showMeds(false); }
+function resetSticks() { releaseStick('move'); releaseStick('aim'); showMeds(false); touch.fire.clear(); for (const id of ['fireL', 'fireR']) $(id).classList.remove('on'); }
 cv.addEventListener('pointerdown', e => {
   if (e.pointerType !== 'touch') { if (touch.on) setTouch(false); return; }
   if (!touch.on) setTouch(true);
@@ -1574,7 +1587,7 @@ addEventListener('pointermove', e => {
     const d = Math.hypot(dx, dy); if (d > STICK_R) { dx *= STICK_R / d; dy *= STICK_R / d; }
     st.x = dx / STICK_R; st.y = dy / STICK_R;
     const el = stickEl(side); el.firstChild.style.transform = `translate(${dx}px,${dy}px)`;
-    if (side === 'aim') el.classList.toggle('fire', Math.hypot(st.x, st.y) >= 0.9);
+    if (side === 'aim') el.classList.toggle('fire', S.fire !== 'button' && Math.hypot(st.x, st.y) >= 0.9);
   }
 });
 for (const ev of ['pointerup', 'pointercancel']) addEventListener(ev, e => { for (const side of ['move', 'aim']) if (touch[side] && touch[side].id === e.pointerId) releaseStick(side); });
@@ -1588,6 +1601,12 @@ const act = (a, v) => { const me = meP(); if (me && me.alive) send({ t: 'act', a
 function showMeds(on) { $('medsPop').hidden = !on; $('medsBtn').classList.toggle('open', on); }
 $('medsBtn').addEventListener('pointerdown', e => { e.preventDefault(); showMeds($('medsPop').hidden); });
 $('medsPop').addEventListener('pointerdown', e => { const b = e.target.closest('button'); if (!b) return; e.preventDefault(); if (!b.disabled) act('heal', b.dataset.h); showMeds(false); });
+// fire buttons: held = keep shooting; each finger is tracked so both can be used at once
+for (const id of ['fireL', 'fireR']) {
+  const el = $(id);
+  el.addEventListener('pointerdown', e => { e.preventDefault(); initAudio(); showMeds(false); touch.fire.add(e.pointerId); el.classList.add('on'); if (!mouse.down) { clicks++; mouse.clicked = true; } });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(ev, e => { touch.fire.delete(e.pointerId); el.classList.remove('on'); });
+}
 $('reloadBtn').addEventListener('pointerdown', e => { e.preventDefault(); act('reload'); });
 $('prompt').addEventListener('pointerdown', e => { e.preventDefault(); act('pickup'); });
 $('aliveStat').addEventListener('pointerdown', e => { if (!touch.on) return; e.preventDefault(); showBoard($('board').hidden); });
