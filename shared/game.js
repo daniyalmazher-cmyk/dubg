@@ -46,9 +46,10 @@ const WEAPONS = {
   shotgun: { name: 'Shotgun', dmg: 10, pellets: 8, rate: 0.85, spread: 0.22, mag: 5, speed: 880, range: 300, reload: 2.2, auto: false, tier: 2, len: 18 },
   rifle:   { name: 'Rifle',   dmg: 23, rate: 0.13, spread: 0.045, mag: 30, speed: 1280, range: 720, reload: 2.0, auto: true, tier: 3, len: 21 },
   // airdrop only: fires one rocket that blows up on whatever it hits, and uses rockets instead of ammo
-  rpg:     { name: 'RPG',     dmg: 0, rate: 1.0, spread: 0.01, mag: 1, speed: 610, range: 680, reload: 2.4, auto: false, tier: 4, len: 23, proj: 'r', blast: 100, blastDmg: 125 },
+  rpg:     { name: 'RPG',     dmg: 0, rate: 1.0, spread: 0.01, mag: 1, speed: 610, range: 680, reload: 2.4, auto: false, tier: 4, len: 23, proj: 'r', blast: 100 },
 };
-const GRENADE = { name: 'Grenade', fuse: 2.2, blast: 92, blastDmg: 105, minD: 40, maxD: 340, drag: 2.6, max: 5 };
+const GRENADE = { name: 'Grenade', fuse: 2.2, blast: 92, minD: 40, maxD: 340, drag: 2.6, max: 5 };
+const BLAST_CORE = 0.6, BLAST_RIM = 50;   // explosions: inner 60% of the radius kills, the rest takes 50 hp
 const ITEMS = {
   pistol:  { label: 'Pistol', kind: 'gun', color: '#d8c27c' },
   smg:     { label: 'SMG', kind: 'gun', color: '#e59a4b' },
@@ -461,12 +462,13 @@ function throwGrenade(p, a, d) {
   return true;
 }
 // damage falls off from the centre; walls between you and the blast protect you
-function explode(o, R, dmgMax, wname) {
+// inside the kill core you die whatever armor you wear; out on the rim you lose half your health
+function explode(o, R, wname) {
   G.events.push(['boom', o.id, Math.round(o.x), Math.round(o.y), R]);
   for (const q of G.players) {
     if (!q.alive) continue;
     const d = Math.hypot(q.x - o.x, q.y - o.y);
-    if (d < R + q.r && los(o, q)) damage(q, dmgMax * (1 - 0.75 * clamp(d / R, 0, 1)), o.owner, wname);
+    if (d < R + q.r && los(o, q)) damage(q, d < R * BLAST_CORE ? 999 : BLAST_RIM, o.owner, wname, true);
   }
 }
 function updateProjs(dt) {
@@ -474,10 +476,10 @@ function updateProjs(dt) {
     const o = G.projs[i];
     if (o.k === 'g') {
       stepProj(o, dt);
-      if ((o.fuse -= dt) <= 0) { G.projs.splice(i, 1); explode(o, GRENADE.blast, GRENADE.blastDmg, GRENADE.name); }
+      if ((o.fuse -= dt) <= 0) { G.projs.splice(i, 1); explode(o, GRENADE.blast, GRENADE.name); }
     } else {
       const hitP = r => G.players.some(q => q.alive && q !== r.owner && Math.hypot(q.x - r.x, q.y - r.y) < q.r + 4);
-      if (stepProj(o, dt, hitP)) { G.projs.splice(i, 1); explode(o, WEAPONS.rpg.blast, WEAPONS.rpg.blastDmg, WEAPONS.rpg.name); }
+      if (stepProj(o, dt, hitP)) { G.projs.splice(i, 1); explode(o, WEAPONS.rpg.blast, WEAPONS.rpg.name); }
     }
   }
 }
@@ -529,9 +531,9 @@ function startHeal(p, want) {
   else if (p.band > 0 && p.hp < 75) p.heal = { type: 'band', t: 0, dur: 2 };
   if (p.heal) p.reload = 0;
 }
-function damage(q, dmg, src, wname) {
+function damage(q, dmg, src, wname, pierce) {
   if (!q.alive) return;
-  if (q.armor > 0 && src) { const ab = Math.min(q.armor, dmg * 0.55); q.armor -= ab; dmg -= ab; }
+  if (q.armor > 0 && src && !pierce) { const ab = Math.min(q.armor, dmg * 0.55); q.armor -= ab; dmg -= ab; }
   q.hp -= dmg;
   if (q.isBot && src && src !== q && src.alive) {
     q.ai.provoked = src;
@@ -808,7 +810,7 @@ function match() { return G; }
 
 return {
   TAU, COLS, ROWS, XL, YL, XN, YN, CITY, CX, CY, PRISON, PX, PY, CORR_Y, WORLD, GATE_L, GATE_R, MAX_PLAYERS, LOCKDOWN, SPEED, BODY_R, CAR_L, CAR_W,
-  WEAPONS, ITEMS, CREWS, SHOPS, PHASES, GRENADE, DROPS, DROP_FALL,
+  WEAPONS, ITEMS, CREWS, SHOPS, PHASES, GRENADE, BLAST_CORE, DROPS, DROP_FALL,
   clamp, dist, angDiff, lerpAngle, darken, inRect,
   buildWorld, setDoors, cellWalls, solidAt, blocksSight, pushOut,
   stepProj, createMatch, step, setInput, humanAction, humanLeft, roster, itemList, snapCommon, snapMe, match,

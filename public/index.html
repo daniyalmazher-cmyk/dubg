@@ -1311,6 +1311,7 @@ function drawProjs() {
     ctx.beginPath(); ctx.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]); ctx.stroke(); ctx.setLineDash([]);
     ctx.fillStyle = 'rgba(255,75,58,.18)'; ctx.strokeStyle = 'rgba(255,75,58,.8)';
     ctx.beginPath(); ctx.arc(ex, ey, D.GRENADE.blast, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(ex, ey, D.GRENADE.blast * D.BLAST_CORE, 0, TAU); ctx.fill();   // the kill core
   }
 }
 // the same explosives and airdrops for the 3D view, drawn on the overlay at their projected spots
@@ -1346,6 +1347,9 @@ function drawBlasts3D(P3, inVis, t) {
     ctx.fillStyle = 'rgba(255,75,58,.18)'; ctx.strokeStyle = 'rgba(255,75,58,.85)'; ctx.beginPath();
     for (let i = 0; i <= 40; i++) { const a = i / 40 * TAU, q = P3(ex + Math.cos(a) * D.GRENADE.blast, ey + Math.sin(a) * D.GRENADE.blast, 1); if (i) ctx.lineTo(q.x, q.y); else ctx.moveTo(q.x, q.y); }
     ctx.fill(); ctx.stroke();
+    ctx.beginPath();   // the kill core
+    for (let i = 0; i <= 40; i++) { const a = i / 40 * TAU, r = D.GRENADE.blast * D.BLAST_CORE, q = P3(ex + Math.cos(a) * r, ey + Math.sin(a) * r, 1); if (i) ctx.lineTo(q.x, q.y); else ctx.moveTo(q.x, q.y); }
+    ctx.fill();
   }
   // falling airdrops: parachute and crate coming down over a red ring
   for (const [, x, y, left] of M.drops) {
