@@ -335,7 +335,7 @@ function makePlayer(P, isMe) {
   scene.add(holder);
   return { holder, rig, hips, legs, chest, arms, head, vest, gun, ring, mats, lx: P.x, ly: P.y, mvx: 0, mvy: 0, speed: 0, phase: 0, punch: 0, fall: 0, gunType: null, hurt: false };
 }
-const TWO_HANDED = { smg: true, shotgun: true, rifle: true };
+const TWO_HANDED = { smg: true, shotgun: true, rifle: true, rpg: true };
 // Block guns: barrel along +Z, up is +Y, the grip at the origin where the hand holds it.
 const METAL = '#1c1e21', STEEL = '#3a3f46', WOOD = '#6b4426', BRASS = '#c9a24a';
 function tilt(m, rx) { m.rotation.x = rx; return m; }
@@ -372,6 +372,15 @@ const GUN_BUILD = {
     box(g, unitBox, STEEL, 2.2, 2.2, 8, 0, 7.4, 3);              // scope
     box(g, unitBox, '#7fb6ff', 1.6, 1.6, 0.4, 0, 7.4, 7.1);      // lens
     box(g, unitBox, METAL, 1, 1.6, 1, 0, 5.8, 0.5); box(g, unitBox, METAL, 1, 1.6, 1, 0, 5.8, 5.5);
+  },
+  rpg(g) {
+    const tube = cyl(g, '#4b5a2e', 2.6, 34, 0, 5, 6); tube.rotation.x = Math.PI / 2;      // launch tube
+    const bell = cyl(g, '#2a3119', 3.2, 4, 0, 5, -11); bell.rotation.x = Math.PI / 2;     // back blast cone
+    const head = cyl(g, '#9fd356', 3.6, 7, 0, 5, 25); head.rotation.x = Math.PI / 2;      // warhead sticking out the front
+    box(g, unitBox, '#9fd356', 2, 2, 4, 0, 5, 30);
+    tilt(box(g, unitBox, METAL, 2.4, 6, 3, 0, 0, 0), 0.25);                               // grip
+    tilt(box(g, unitBox, METAL, 2.4, 5, 3, 0, 0.5, 10), 0.1);                             // front grip
+    box(g, unitBox, STEEL, 1.6, 3, 4, 1.8, 9, 6);                                         // sight
   },
 };
 const gunProto = {};
@@ -473,6 +482,22 @@ const ITEM_BUILD = {
     box(g, unitBox, '#d8c27c', 5, 2.4, 0.4, 0, 0, 4.1);              // label
     for (let i = -1; i <= 1; i++) { cyl(g, BRASS, 1.1, 5, i * 3.2, 6, 0); cyl(g, '#8a5a2a', 0.8, 1.6, i * 3.2, 9.2, 0); }
   },
+  gren(g) {
+    const body = new THREE.Mesh(new THREE.SphereGeometry(4.2, 12, 10), mat('#5f7438')); body.scale.y = 1.2; g.add(body);
+    cyl(g, '#b9b3a3', 1.6, 2.4, 0, 5.6, 0);                          // fuse top
+    tilt(box(g, unitBox, '#b9b3a3', 1, 6, 1.6, 2.4, 3, 0), -0.3);    // lever
+  },
+  rocket(g) {
+    for (const x of [-3.4, 3.4]) { cyl(g, '#9fd356', 2.4, 12, x, 0, 0); const tip = new THREE.Mesh(new THREE.ConeGeometry(2.4, 5, 10), mat('#9fd356')); tip.position.set(x, 8.5, 0); g.add(tip); }
+  },
+  crate(g) {
+    box(g, unitBox, '#3f4a2c', 26, 22, 26, 0, 11, 0);
+    for (const [w, d] of [[27, 6], [6, 27]]) box(g, unitBox, '#ff4b3a', w, 22.4, d, 0, 11, 0);
+    box(g, unitBox, '#2c3420', 27, 2, 27, 0, 22, 0);
+    // a red beacon so people can find it from a distance
+    const beam = new THREE.Mesh(cylGeo, fogify(new THREE.MeshBasicMaterial({ color: '#ff4b3a', transparent: true, opacity: 0.22, depthWrite: false })));
+    beam.scale.set(4, 360, 4); beam.position.y = 180; g.add(beam);
+  },
   vest1(g) { vest(g, '#5aa7ff', 1); },
   vest2(g) { vest(g, '#2f5fbf', 1.15); },
 };
@@ -499,9 +524,11 @@ function makeItem(it, ITEMS) {
   const d = ITEMS[it.type], g = new THREE.Group();
   const ring = new THREE.Mesh(ringGeo, ringMat(d.color));
   ring.position.y = 0.9; g.add(ring);
-  const icon = new THREE.Group(); icon.position.y = 10; icon.scale.setScalar(0.8); icon.add(itemModel(it.type, d)); g.add(icon);
+  const still = d.kind === 'crate';   // the airdrop crate sits on the ground instead of floating
+  const icon = new THREE.Group(); icon.position.y = still ? 0 : 10; icon.scale.setScalar(still ? 0.85 : 0.8); icon.add(itemModel(it.type, d)); g.add(icon);
+  if (still) ring.scale.setScalar(2);
   g.position.set(it.x, 0, it.y);
-  g.userData = { ring, icon };
+  g.userData = { ring, icon, still };
   world.group.add(g);
   return g;
 }
@@ -571,8 +598,8 @@ function frame(F) {
   for (const it of M.items.values()) {
     if (Math.abs(it.x - cx) > 1300 || Math.abs(it.y - cy) > 1100) { const g = itemViews.get(it.id); if (g) g.visible = false; continue; }
     let g = itemViews.get(it.id); if (!g) { g = makeItem(it, F.ITEMS); itemViews.set(it.id, g); }
-    g.visible = seenItem(it);
-    if (g.visible) { g.userData.icon.rotation.y = t * 1.2 + it.x; g.userData.icon.position.y = 10 + Math.sin(t * 3 + it.x * 0.1) * 2; }
+    g.visible = g.userData.still || seenItem(it);
+    if (g.visible && !g.userData.still) { g.userData.icon.rotation.y = t * 1.2 + it.x; g.userData.icon.position.y = 10 + Math.sin(t * 3 + it.x * 0.1) * 2; }
   }
   // players
   let flash = null;
