@@ -440,6 +440,7 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
       <div class="h2">Settings</div>
       <div>
         <label class="set" for="volIn"><span>Volume<b id="volOut">70</b></span><input type="range" id="volIn" min="0" max="100" step="5"></label>
+        <label class="set" for="fovIn"><span>Field of view<b id="fovOut">100%</b></span><input type="range" id="fovIn" min="70" max="140" step="5"></label>
         <div class="set touchOnly"><span>Shooting</span><div class="seg" id="fireSeg"><button type="button" data-v="stick">Push stick</button><button type="button" data-v="button">Fire button</button></div></div>
         <div class="set"><span>Minimap</span><div class="seg" id="miniSeg"><button type="button" data-v="large">Large</button><button type="button" data-v="small">Small</button></div></div>
         <label class="set chk"><span>Show ping</span><input type="checkbox" id="pingChk"></label>
@@ -500,7 +501,7 @@ function resize() {
   VW = innerWidth; VH = innerHeight;
   cv.width = Math.round(VW * DPR); cv.height = Math.round(VH * DPR);
   // phones get a closer camera so players aren't tiny on a small screen
-  ZOOM = document.body.classList.contains('touch') ? Math.max(0.7, Math.min(1.25, Math.min(VW, VH) / 460)) : Math.max(0.55, Math.min(1.45, Math.min(VW, VH) / 720));
+  ZOOM = (document.body.classList.contains('touch') ? Math.max(0.7, Math.min(1.25, Math.min(VW, VH) / 460)) : Math.max(0.55, Math.min(1.45, Math.min(VW, VH) / 720))) * 100 / (S.fov || 100);
   const ms = mini.clientWidth || 210;
   mini.width = Math.round(ms * DPR); mini.height = Math.round(ms * DPR);
   if (M) buildMiniBase();
@@ -1227,11 +1228,12 @@ function showEnd() {
 }
 
 // ---------- settings ----------
-const S = { vol: 70, mini: 'large', ping: true, fps: false, fire: 'stick' };
+const S = { vol: 70, mini: 'large', ping: true, fps: false, fire: 'stick', fov: 100 };
 try { Object.assign(S, JSON.parse(localStorage.getItem('dubg-settings') || '{}')); } catch (e) {}
 function saveSettings() { try { localStorage.setItem('dubg-settings', JSON.stringify(S)); } catch (e) {} }
 function applySettings() {
   $('volIn').value = S.vol; $('volOut').textContent = S.vol;
+  $('fovIn').value = S.fov; $('fovOut').textContent = S.fov + '%';
   for (const b of $('miniSeg').children) b.classList.toggle('on', b.dataset.v === S.mini);
   $('pingChk').checked = S.ping; $('fpsChk').checked = S.fps;
   document.body.classList.toggle('mini-small', S.mini === 'small');
@@ -1241,6 +1243,8 @@ function applySettings() {
   applyVolume(); resize();
 }
 $('volIn').addEventListener('input', () => { S.vol = +$('volIn').value; $('volOut').textContent = S.vol; applyVolume(); saveSettings(); });
+// field of view: higher shows more of the map, applied live so it can be tuned mid-match
+$('fovIn').addEventListener('input', () => { S.fov = +$('fovIn').value; $('fovOut').textContent = S.fov + '%'; resize(); saveSettings(); });
 $('miniSeg').addEventListener('click', e => { const v = e.target.dataset && e.target.dataset.v; if (v) { S.mini = v; applySettings(); saveSettings(); } });
 $('fireSeg').addEventListener('click', e => { const v = e.target.dataset && e.target.dataset.v; if (v) { S.fire = v; applySettings(); saveSettings(); } });
 $('pingChk').addEventListener('change', () => { S.ping = $('pingChk').checked; saveSettings(); });
