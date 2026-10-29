@@ -231,12 +231,12 @@ body.touch .slot{flex-direction:column;align-items:flex-start;justify-content:ce
 body.touch .slot .wn{font-size:17px;max-width:100%}
 body.touch .slot .am{margin-left:0;font-size:14px}
 body.touch .slot.empty .wn{color:var(--muted)}
-body.touch .bc{width:min(380px,calc(100vw - 440px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)));min-width:260px;bottom:calc(8px + env(safe-area-inset-bottom,0px));gap:5px}
+body.touch .bc{width:min(380px,calc(100vw - 480px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)));min-width:200px;bottom:calc(8px + env(safe-area-inset-bottom,0px));gap:5px}
 body.touch .slots{align-items:stretch}
 body.touch .bar.hp{height:15px}
 body.touch #hpNum{line-height:15px;font-size:12px}
-/* reload sits up and to the left of the aim stick, clear of the minimap (which ends 132px from the right) */
-body.touch #reloadBtn{display:grid;place-items:center;position:absolute;right:calc(140px + env(safe-area-inset-right,0px));bottom:calc(140px + env(safe-area-inset-bottom,0px));width:56px;height:56px;border-radius:50%;padding:0;background:rgba(14,15,16,.72);color:var(--text);border:2px solid rgba(237,231,218,.35);pointer-events:auto}
+/* reload sits just left of the aim stick, level with it, low on the screen and far from the minimap */
+body.touch #reloadBtn{display:grid;place-items:center;position:absolute;right:calc(178px + env(safe-area-inset-right,0px));bottom:calc(76px + env(safe-area-inset-bottom,0px));width:56px;height:56px;border-radius:50%;padding:0;background:rgba(14,15,16,.72);color:var(--text);border:2px solid rgba(237,231,218,.35);pointer-events:auto}
 body.touch #reloadBtn:active{background:var(--orange);color:#111}
 #reloadBtn.busy svg{animation:sp .8s linear infinite}
 /* "Fire button" mode: one above the move stick, one next to reload */
@@ -244,7 +244,7 @@ body.touch #reloadBtn:active{background:var(--orange);color:#111}
 body.touch.fire-btn .fireBtn{display:grid;place-items:center;position:absolute;width:64px;height:64px;border-radius:50%;padding:0;background:rgba(14,15,16,.6);color:var(--danger);border:2px solid rgba(255,77,61,.6);pointer-events:auto;touch-action:none}
 body.touch.fire-btn .fireBtn.on{background:var(--danger);color:#111}
 #fireL{left:calc(140px + env(safe-area-inset-left,0px));bottom:calc(140px + env(safe-area-inset-bottom,0px))}
-#fireR{right:calc(205px + env(safe-area-inset-right,0px));bottom:calc(112px + env(safe-area-inset-bottom,0px))}
+#fireR{right:calc(174px + env(safe-area-inset-right,0px));bottom:calc(146px + env(safe-area-inset-bottom,0px))}
 body.touch #menuBtn{display:block;position:absolute;top:calc(14px + env(safe-area-inset-top,0px));right:calc(136px + env(safe-area-inset-right,0px));pointer-events:auto;font-family:var(--body);font-weight:700;font-size:14px;letter-spacing:.08em;text-transform:uppercase;padding:8px 12px;background:rgba(14,15,16,.72);color:var(--text);border:1px solid var(--line)}
 body.touch #mapBox,body.touch.mini-small #mapBox{top:calc(14px + env(safe-area-inset-top,0px));bottom:auto;width:118px}
 body.touch #zoneLbl{font-size:11px}
