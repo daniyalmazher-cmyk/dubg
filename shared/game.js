@@ -43,19 +43,26 @@ const WEAPONS = {
   smg:     { name: 'SMG',     dmg: 11, rate: 0.085, spread: 0.11, mag: 30, speed: 1300, range: 560, reload: 1.8, auto: true, tier: 2, len: 20 },
   shotgun: { name: 'Shotgun', dmg: 10, pellets: 8, rate: 0.85, spread: 0.22, mag: 5, speed: 1100, range: 380, reload: 2.2, auto: false, tier: 2, len: 24 },
   rifle:   { name: 'Rifle',   dmg: 23, rate: 0.13, spread: 0.045, mag: 30, speed: 1600, range: 900, reload: 2.0, auto: true, tier: 3, len: 28 },
+  // airdrop only: fires one rocket that blows up on whatever it hits, and uses rockets instead of ammo
+  rpg:     { name: 'RPG',     dmg: 0, rate: 1.0, spread: 0.01, mag: 1, speed: 760, range: 850, reload: 2.4, auto: false, tier: 4, len: 30, proj: 'r', blast: 125, blastDmg: 125 },
 };
+const GRENADE = { name: 'Grenade', fuse: 2.2, blast: 115, blastDmg: 105, minD: 50, maxD: 420, drag: 2.6, max: 5 };
 const ITEMS = {
   pistol:  { label: 'Pistol', kind: 'gun', color: '#d8c27c' },
   smg:     { label: 'SMG', kind: 'gun', color: '#e59a4b' },
   shotgun: { label: 'Shotgun', kind: 'gun', color: '#d46a4a' },
   rifle:   { label: 'Rifle', kind: 'gun', color: '#f2c230' },
+  rpg:     { label: 'RPG', kind: 'gun', color: '#9fd356' },
+  gren:    { label: 'Grenade', kind: 'gren', color: '#7f9a4a' },
+  rocket:  { label: 'Rockets', kind: 'rocket', color: '#c9d84a' },
+  crate:   { label: 'Airdrop', kind: 'crate', color: '#ff4b3a' },
   ammo:    { label: 'Ammo box', kind: 'ammo', color: '#b9a35a' },
   band:    { label: 'Bandage', kind: 'heal', color: '#f1ede4' },
   med:     { label: 'Medkit', kind: 'heal', color: '#ff5a4e' },
   vest1:   { label: 'Light vest', kind: 'armor', val: 50, color: '#5aa7ff' },
   vest2:   { label: 'Heavy vest', kind: 'armor', val: 100, color: '#3a78ea' },
 };
-const LOOT_TABLE = [['pistol', 14], ['smg', 9], ['shotgun', 7], ['rifle', 5], ['ammo', 25], ['band', 20], ['med', 7], ['vest1', 8], ['vest2', 4]];
+const LOOT_TABLE = [['pistol', 14], ['smg', 9], ['shotgun', 7], ['rifle', 5], ['ammo', 25], ['band', 20], ['med', 7], ['vest1', 8], ['vest2', 4], ['gren', 5]];
 const PHASES = [
   { wait: 50, shrink: 35, r: 1500, dps: 1 },
   { wait: 40, shrink: 30, r: 950, dps: 2 },
@@ -64,6 +71,9 @@ const PHASES = [
   { wait: 18, shrink: 14, r: 130, dps: 11 },
   { wait: 12, shrink: 14, r: 0, dps: 18 },
 ];
+// airdrops: when they're announced (seconds after the doors open), how long they take to fall, and what's inside
+const DROPS = [55, 135, 205], DROP_FALL = 14;
+const DROP_LOOT = [['rpg'], ['rocket', 3], ['gren', 3], ['vest2'], ['med', 2]];
 const NAMES = ['BigTone', 'LilSmoke', 'Ghostface', 'Kingpin', 'Rico', 'Dre', 'Tiny', 'Scrap', 'Blaze', 'Cash', 'Junebug', 'Nitro', 'Spider', 'Saint', 'Lefty', 'Bones', 'Dutch', 'Mook', 'Shadow', 'Ace', 'Vandal', 'Rocco', 'Diesel', 'Smokey', 'Knuckles', 'Slim', 'Capo', 'Truck', 'Ox'];
 const CREWS = [
   { n: 'Dawgz', c: '#ff7a1a' }, { n: 'Vipers', c: '#3ddc84' }, { n: 'Kings', c: '#f2c230' },
@@ -73,8 +83,8 @@ const SKINS = ['#8d5524', '#c68642', '#e0ac69', '#5c3a1e', '#f1c27d', '#3d2314',
 const HOODIES = ['#1c1c1e', '#2b2f36', '#3a3a3a', '#4b3b2a', '#1f2a3a', '#55524c', '#5e1d1d', '#2f3d2a', '#d9d6cf', '#6b5a3e'];
 const BEANIES = ['#1b1b1b', '#5a2a2a', '#2a3a4a', '#d8d2c4', '#3d4a2a'];
 const SHOPS = {
-  gun:      { sign: 'GUN SHOP', color: '#ff3b3b', floor: '#3a3230', extra: 1, loot: [['pistol', 20], ['smg', 16], ['shotgun', 14], ['rifle', 12], ['ammo', 28], ['vest1', 6], ['vest2', 4]] },
-  pawn:     { sign: 'PAWN', color: '#f2c230', floor: '#463c2c', extra: 0, loot: [['pistol', 12], ['smg', 6], ['shotgun', 6], ['rifle', 3], ['ammo', 20], ['band', 10], ['vest1', 14], ['vest2', 8]] },
+  gun:      { sign: 'GUN SHOP', color: '#ff3b3b', floor: '#3a3230', extra: 1, loot: [['pistol', 20], ['smg', 16], ['shotgun', 14], ['rifle', 12], ['ammo', 28], ['vest1', 6], ['vest2', 4], ['gren', 9]] },
+  pawn:     { sign: 'PAWN', color: '#f2c230', floor: '#463c2c', extra: 0, loot: [['pistol', 12], ['smg', 6], ['shotgun', 6], ['rifle', 3], ['ammo', 20], ['band', 10], ['vest1', 14], ['vest2', 8], ['gren', 6]] },
   pharmacy: { sign: 'PHARMACY', color: '#39e07a', floor: '#3e4644', extra: 0, loot: [['band', 40], ['med', 25], ['ammo', 10], ['pistol', 6]] },
   liquor:   { sign: 'LIQUOR', color: '#3fb8ff', floor: '#3b3646', extra: 0, loot: LOOT_TABLE },
   motel:    { sign: 'MOTEL', color: '#ff4fd8', floor: '#4a3a3e', extra: 0, loot: LOOT_TABLE },
@@ -288,10 +298,10 @@ function makePlayer(id, name, isBot, cell) {
   const look = { skin: pick(SKINS.map(c => [c, 1])), hoodie, hat, beanie: pick(BEANIES.map(c => [c, 1])) };
   return {
     id, name, isBot, crew: crewIdx, look, x: cell.x, y: cell.y, r: 12, ang: cell.top ? Math.PI / 2 : -Math.PI / 2,
-    hp: 100, armor: 0, alive: true, slots: [null, null], cur: -1, ammo: 0, band: 0, med: 0, kills: 0,
-    cd: 0, reload: 0, heal: null, punch: 0, place: 0, diedAt: 0,
+    hp: 100, armor: 0, alive: true, slots: [null, null], cur: -1, ammo: 0, rockets: 0, gren: 0, band: 0, med: 0, kills: 0,
+    cd: 0, reload: 0, heal: null, punch: 0, place: 0, diedAt: 0, throwCd: 0,
     input: null, lastClicks: 0, pendingFire: 0,
-    ai: isBot ? { path: [], think: 0, enemy: null, provoked: null, react: 0, lostT: 0, strafe: 1, strafeT: 0, aimErr: rnd(0.22, 0.45), visited: new Set(), stuckT: 0, stuck: 0, lx: cell.x, ly: cell.y, sight: rnd(320, 400) } : null,
+    ai: isBot ? { path: [], think: 0, enemy: null, provoked: null, react: 0, lostT: 0, strafe: 1, strafeT: 0, aimErr: rnd(0.22, 0.45), visited: new Set(), stuckT: 0, stuck: 0, grenT: rnd(3, 8), lx: cell.x, ly: cell.y, sight: rnd(320, 400) } : null,
   };
 }
 
@@ -316,6 +326,7 @@ function createMatch(humans, seed, opts) {
   buildWorld(seed);
   G = {
     state: 'lockdown', t: LOCKDOWN, time: 0, liveTime: 0, players: [], items: [], nextItem: 1, bullets: [], events: [],
+    projs: [], nextProj: 1, drops: [], dropsDone: 0,
     alive: 0, winner: null,
     zone: { cur: { x: WORLD.w / 2, y: WORLD.h / 2, r: Math.hypot(WORLD.w, WORLD.h) * 0.55 }, next: null, phase: 0, mode: 'wait', t: 0, from: null, dps: 0.5 },
   };
@@ -383,6 +394,12 @@ function tryFire(p) {
   if (g.mag <= 0) { startReload(p); return false; }
   g.mag--; p.cd = W.rate;
   const mx = p.x + Math.cos(p.ang) * (W.len + 6), my = p.y + Math.sin(p.ang) * (W.len + 6);
+  if (W.proj) {
+    const a = p.ang + (R() - 0.5) * 2 * W.spread + (p.isBot ? (R() - 0.5) * p.ai.aimErr * 0.5 : 0);
+    const sx = solidAt(mx, my) ? p.x : mx, sy = solidAt(mx, my) ? p.y : my;
+    addProj(p, 'r', sx, sy, Math.cos(a) * W.speed, Math.sin(a) * W.speed, { left: W.range });
+    return true;
+  }
   const angs = [];
   for (let i = 0; i < (W.pellets || 1); i++) {
     const a = p.ang + (R() - 0.5) * 2 * W.spread + (p.isBot ? (R() - 0.5) * p.ai.aimErr : 0);
@@ -392,14 +409,114 @@ function tryFire(p) {
   G.events.push(['shot', p.id, Math.round(mx), Math.round(my), angs, g.type]);
   return true;
 }
+// rockets are their own ammo; every other gun shares the ammo pool
+const ammoKey = type => type === 'rpg' ? 'rockets' : 'ammo';
 function startReload(p) {
   const g = curGun(p); if (!g || p.reload > 0) return;
-  const W = WEAPONS[g.type]; if (g.mag >= W.mag || p.ammo <= 0) return;
+  const W = WEAPONS[g.type]; if (g.mag >= W.mag || p[ammoKey(g.type)] <= 0) return;
   p.reload = W.reload; p.heal = null;
 }
 function finishReload(p) {
   const g = curGun(p); if (!g) return;
-  const take = Math.min(WEAPONS[g.type].mag - g.mag, p.ammo); g.mag += take; p.ammo -= take;
+  const k = ammoKey(g.type), take = Math.min(WEAPONS[g.type].mag - g.mag, p[k]); g.mag += take; p[k] -= take;
+}
+
+// ---------- explosives ----------
+// k: 'g' grenade (bounces, slows down, blows up when the fuse runs out) or 'r' rocket (flies straight until it hits something)
+function addProj(p, k, x, y, vx, vy, extra) {
+  const o = { id: G.nextProj++, k, x, y, vx, vy, owner: p, t: 0, ...extra };
+  G.projs.push(o);
+  G.events.push(['proj', o.id, k, +x.toFixed(1), +y.toFixed(1), +vx.toFixed(1), +vy.toFixed(1), p.id]);
+  return o;
+}
+// shared by the server and the client so a thrown grenade lands in the same place on both.
+// Returns true when a rocket hits a wall or runs out of range; hit(o) can stop it early (players, server only).
+function stepProj(o, dt, hit) {
+  o.t += dt;
+  const sp = Math.hypot(o.vx, o.vy), n = Math.max(1, Math.ceil(sp * dt / 6));
+  for (let i = 0; i < n; i++) {
+    const nx = o.x + o.vx * dt / n, ny = o.y + o.vy * dt / n;
+    if (o.k === 'g') {
+      if (solidAt(nx, o.y)) o.vx *= -0.45; else o.x = nx;
+      if (solidAt(o.x, ny)) o.vy *= -0.45; else o.y = ny;
+    } else {
+      if (solidAt(nx, ny)) return true;
+      o.x = nx; o.y = ny;
+      if ((o.left -= sp * dt / n) <= 0 || (hit && hit(o))) return true;
+    }
+  }
+  if (o.k === 'g') { const f = Math.exp(-GRENADE.drag * dt); o.vx *= f; o.vy *= f; }
+  return false;
+}
+function throwGrenade(p, a, d) {
+  if (p.gren <= 0 || p.throwCd > 0 || !Number.isFinite(a)) return false;
+  d = clamp(Number.isFinite(d) ? d : 260, GRENADE.minD, GRENADE.maxD);
+  p.gren--; p.throwCd = 0.9; p.heal = null; p.ang = a;
+  const sx = p.x + Math.cos(a) * (p.r + 6), sy = p.y + Math.sin(a) * (p.r + 6), ok = !solidAt(sx, sy);
+  // with this drag a grenade slides d before stopping
+  addProj(p, 'g', ok ? sx : p.x, ok ? sy : p.y, Math.cos(a) * d * GRENADE.drag, Math.sin(a) * d * GRENADE.drag, { fuse: GRENADE.fuse });
+  G.events.push(['throw', p.id]);
+  return true;
+}
+// damage falls off from the centre; walls between you and the blast protect you
+function explode(o, R, dmgMax, wname) {
+  G.events.push(['boom', o.id, Math.round(o.x), Math.round(o.y), R]);
+  for (const q of G.players) {
+    if (!q.alive) continue;
+    const d = Math.hypot(q.x - o.x, q.y - o.y);
+    if (d < R + q.r && los(o, q)) damage(q, dmgMax * (1 - 0.75 * clamp(d / R, 0, 1)), o.owner, wname);
+  }
+}
+function updateProjs(dt) {
+  for (let i = G.projs.length - 1; i >= 0; i--) {
+    const o = G.projs[i];
+    if (o.k === 'g') {
+      stepProj(o, dt);
+      if ((o.fuse -= dt) <= 0) { G.projs.splice(i, 1); explode(o, GRENADE.blast, GRENADE.blastDmg, GRENADE.name); }
+    } else {
+      const hitP = r => G.players.some(q => q.alive && q !== r.owner && Math.hypot(q.x - r.x, q.y - r.y) < q.r + 4);
+      if (stepProj(o, dt, hitP)) { G.projs.splice(i, 1); explode(o, WEAPONS.rpg.blast, WEAPONS.rpg.blastDmg, WEAPONS.rpg.name); }
+    }
+  }
+}
+
+// ---------- airdrops ----------
+function dropSpot() {
+  const z = G.zone, c = z.next || z.cur, r = Math.min(c.r * 0.75, 1400);
+  for (let i = 0; i < 80; i++) {
+    const a = R() * TAU, d = Math.sqrt(R()) * r, x = c.x + Math.cos(a) * d, y = c.y + Math.sin(a) * d;
+    if (!inRect(CITY, x, y) || buildingAt(x, y)) continue;
+    let clear = true;
+    for (let k = 0; k < 8 && clear; k++) if (solidAt(x + Math.cos(k * TAU / 8) * 28, y + Math.sin(k * TAU / 8) * 28)) clear = false;
+    if (clear) return { x, y };
+  }
+  return { x: c.x, y: c.y };
+}
+function updateDrops(dt) {
+  if (G.dropsDone < DROPS.length && G.liveTime >= DROPS[G.dropsDone]) {
+    G.dropsDone++;
+    const s = dropSpot(), d = { id: G.dropsDone, x: Math.round(s.x), y: Math.round(s.y), t: DROP_FALL };
+    G.drops.push(d);
+    G.events.push(['drop', d.id, d.x, d.y]);
+  }
+  for (let i = G.drops.length - 1; i >= 0; i--) {
+    const d = G.drops[i];
+    if ((d.t -= dt) > 0) continue;
+    G.drops.splice(i, 1);
+    const it = addItem('crate', d.x, d.y);
+    G.events.push(['iadd', it.id, it.type, it.x, it.y]);
+  }
+}
+function openCrate(it) {
+  removeItem(it);
+  DROP_LOOT.forEach(([type, n], i) => {
+    const a = i / DROP_LOOT.length * TAU + 0.4;
+    let x = it.x + Math.cos(a) * 30, y = it.y + Math.sin(a) * 30;
+    if (solidAt(x, y)) { x = it.x; y = it.y; }
+    const o = addItem(type, x, y, n);
+    G.events.push(['iadd', o.id, o.type, Math.round(o.x), Math.round(o.y)]);
+  });
+  G.events.push(['crate', Math.round(it.x), Math.round(it.y)]);
 }
 // want: 'band' or 'med' when the player picked one, otherwise the best choice for their health
 function startHeal(p, want) {
@@ -426,9 +543,11 @@ function kill(q, src, wname) {
   const drop = (type, n) => { const it = addItem(type, q.x + rnd(-18, 18), q.y + rnd(-18, 18), n); G.events.push(['iadd', it.id, it.type, Math.round(it.x), Math.round(it.y)]); };
   for (const g of q.slots) if (g) drop(g.type);
   if (q.ammo > 0) drop('ammo', q.ammo);
+  if (q.rockets > 0) drop('rocket', q.rockets);
+  if (q.gren > 0) drop('gren', q.gren);
   if (q.band > 0) drop('band', q.band);
   if (q.med > 0) drop('med', q.med);
-  q.slots = [null, null]; q.ammo = 0; q.band = 0; q.med = 0;
+  q.slots = [null, null]; q.ammo = 0; q.rockets = 0; q.gren = 0; q.band = 0; q.med = 0;
   if (src && src !== q) src.kills++;
   G.events.push(['kill', src ? src.id : -1, q.id, wname, q.place, Math.round(q.x), Math.round(q.y)]);
   if (G.alive <= 1 && G.state !== 'over') {
@@ -443,6 +562,8 @@ function removeItem(it) {
 }
 function pickup(p, it) {
   const d = ITEMS[it.type];
+  if (d.kind === 'crate') { openCrate(it); return true; }
+  if (d.kind === 'gren' && p.gren >= GRENADE.max) return false;
   if (d.kind === 'gun') {
     let slot = p.slots[0] == null ? 0 : p.slots[1] == null ? 1 : -1;
     if (p.isBot && p.slots.some(s => s && s.type === it.type)) return false;
@@ -456,9 +577,11 @@ function pickup(p, it) {
       G.events.push(['iadd', old.id, old.type, Math.round(old.x), Math.round(old.y)]);
     }
     p.slots[slot] = { type: it.type, mag: WEAPONS[it.type].mag };
-    p.ammo += Math.round(WEAPONS[it.type].mag * 0.6);
+    if (it.type === 'rpg') p.rockets += 1; else p.ammo += Math.round(WEAPONS[it.type].mag * 0.6);
     if (!p.isBot) { p.cur = slot; p.reload = 0; }
   } else if (d.kind === 'ammo') p.ammo += it.n || 40;
+  else if (d.kind === 'rocket') p.rockets += it.n || 2;
+  else if (d.kind === 'gren') p.gren = Math.min(GRENADE.max, p.gren + (it.n || 1));
   else if (d.kind === 'heal') p[it.type] += it.n || 1;
   else if (d.kind === 'armor') { if (d.val <= p.armor) return false; p.armor = d.val; }
   removeItem(it);
@@ -490,11 +613,11 @@ function humanUpdate(p, dt) {
   // holding fire repeats at the weapon's own rate, fists and pistols included
   if (inp.f || p.pendingFire > 0) { if (tryFire(p)) p.pendingFire = 0; }
   p.pendingFire -= dt;
-  const g = curGun(p); if (g && g.mag === 0 && p.ammo > 0 && p.reload <= 0) startReload(p);
+  const g = curGun(p); if (g && g.mag === 0 && p[ammoKey(g.type)] > 0 && p.reload <= 0) startReload(p);
   for (let i = G.items.length - 1; i >= 0; i--) {
     const it = G.items[i]; if (!it) continue;
     const k = ITEMS[it.type].kind;
-    if ((k === 'ammo' || k === 'heal' || (k === 'armor' && ITEMS[it.type].val > p.armor)) && Math.hypot(it.x - p.x, it.y - p.y) < p.r + 12) pickup(p, it);
+    if ((k === 'ammo' || k === 'heal' || k === 'rocket' || k === 'gren' || k === 'crate' || (k === 'armor' && ITEMS[it.type].val > p.armor)) && Math.hypot(it.x - p.x, it.y - p.y) < p.r + (k === 'crate' ? 22 : 12)) pickup(p, it);
   }
 }
 function humanAction(p, a, v) {
@@ -502,15 +625,17 @@ function humanAction(p, a, v) {
   if (a === 'pickup') { const it = nearestItem(p, 48); if (it) pickup(p, it); }
   else if (a === 'reload') startReload(p);
   else if (a === 'heal') startHeal(p, v);
+  else if (a === 'throw' && Array.isArray(v)) throwGrenade(p, +v[0], +v[1]);
   else if (a === 'slot') { const i = v | 0; if (i >= -1 && i <= 1) setSlot(p, i); }
   else if (a === 'cycle') cycleSlot(p);
 }
 function humanLeft(p) { if (p && p.alive) kill(p, null, 'left'); }
 
 // ---------- bots ----------
-function usableGunSlot(b) {
+// close: an enemy is near, so don't pick the rocket launcher (it would blow the bot up too) if there's anything else
+function usableGunSlot(b, close) {
   let best = -1, bt = 0;
-  b.slots.forEach((g, i) => { if (g && (g.mag > 0 || b.ammo > 0) && WEAPONS[g.type].tier > bt) { bt = WEAPONS[g.type].tier; best = i; } });
+  b.slots.forEach((g, i) => { const t = WEAPONS[g ? g.type : 'fists'].tier - (close && g && g.type === 'rpg' ? 4 : 0); if (g && (g.mag > 0 || b[ammoKey(g.type)] > 0) && t > bt) { bt = t; best = i; } });
   return best;
 }
 function chooseBuilding(b, zoneMode, inB) {
@@ -555,12 +680,12 @@ function botThink(b) {
   if (best) { if (ai.enemy !== best) ai.react = rnd(0.55, 1.0); ai.enemy = best; ai.lostT = 0; }
   else if (ai.enemy) { ai.lostT += 0.25; if (ai.lostT > 1.5 || !ai.enemy.alive) { ai.enemy = null; ai.path = []; } }
   if (ai.enemy && !ai.enemy.alive) { ai.enemy = null; ai.path = []; }
-  const s = usableGunSlot(b); if (s !== b.cur) { b.cur = s; b.reload = 0; }
+  const s = usableGunSlot(b, ai.enemy && dist(b, ai.enemy) < 190); if (s !== b.cur) { b.cur = s; b.reload = 0; }
   const g = curGun(b);
-  if (g && g.mag === 0 && b.ammo > 0) startReload(b);
+  if (g && g.mag === 0) startReload(b);
   const fighting = ai.enemy && (b.cur >= 0 || ai.provoked === ai.enemy);
   if (!fighting) {
-    if (g && g.mag < WEAPONS[g.type].mag * 0.5 && b.ammo > 0) startReload(b);
+    if (g && g.mag < WEAPONS[g.type].mag * 0.5) startReload(b);
     if (b.hp < 65 && (b.band > 0 || b.med > 0)) startHeal(b);
     const z = G.zone;
     if (z.next) {
@@ -583,7 +708,9 @@ function updateBot(b, dt) {
     const d = dist(b, e), a = Math.atan2(e.y - b.y, e.x - b.x), W = wdef(b);
     b.ang = lerpAngle(b.ang, a, dt * 9);
     if (ai.react > 0) ai.react -= dt;
-    else if (Math.abs(angDiff(b.ang, a)) < 0.3 && (armed ? d < W.range * 0.9 : d < 48)) tryFire(b);
+    else if (b.gren > 0 && ai.grenT <= 0 && d > 150 && d < 380 && los(b, e)) { ai.grenT = rnd(7, 12); throwGrenade(b, a + (R() - 0.5) * 0.25, d + rnd(-40, 30)); }
+    else if (Math.abs(angDiff(b.ang, a)) < 0.3 && (armed ? d < W.range * 0.9 && !(W.proj && d < 150) : d < 48)) tryFire(b);
+    ai.grenT -= dt;
     const fx = Math.cos(a), fy = Math.sin(a);
     if (armed) {
       const want = W.range < 450 ? 140 : 240;
@@ -615,7 +742,7 @@ function updateBot(b, dt) {
 function step(dt) {
   G.time += dt;
   if (G.state === 'lockdown') { G.t -= dt; if (G.t <= 0) release(); }
-  if (G.state === 'live') { G.liveTime += dt; updateZone(dt); }
+  if (G.state === 'live') { G.liveTime += dt; updateZone(dt); updateDrops(dt); }
   for (const p of G.players) {
     if (!p.alive) continue;
     if (!p.isBot) humanUpdate(p, dt);
@@ -624,7 +751,7 @@ function step(dt) {
   }
   for (const p of G.players) {
     if (!p.alive) continue;
-    p.cd -= dt; p.punch -= dt;
+    p.cd -= dt; p.punch -= dt; p.throwCd -= dt;
     if (p.reload > 0) { p.reload -= dt; if (p.reload <= 0) { p.reload = 0; finishReload(p); } }
     if (p.heal) {
       p.heal.t += dt;
@@ -639,6 +766,7 @@ function step(dt) {
       if (Math.hypot(p.x - z.x, p.y - z.y) > z.r) damage(p, G.zone.dps * dt, null, 'Zone');
     }
   }
+  updateProjs(dt);
   for (let i = G.bullets.length - 1; i >= 0; i--) {
     const bl = G.bullets[i], sp = Math.hypot(bl.vx, bl.vy), steps = Math.max(1, Math.ceil(sp * dt / 10)), sl = sp * dt / steps;
     let dead = false;
@@ -664,12 +792,13 @@ function snapCommon() {
     t: 's', st: G.state, lk: +Math.max(0, G.t).toFixed(1), lt: +G.liveTime.toFixed(1), al: G.alive, w: G.winner ? G.winner.id : -1,
     z: [Math.round(z.cur.x), Math.round(z.cur.y), Math.round(z.cur.r), z.next ? Math.round(z.next.x) : 0, z.next ? Math.round(z.next.y) : 0, z.next ? Math.round(z.next.r) : -1, z.mode, +Math.max(0, z.t).toFixed(1)],
     p: G.players.map(p => [p.id, Math.round(p.x), Math.round(p.y), +p.ang.toFixed(2), Math.ceil(p.hp), Math.ceil(p.armor), p.alive ? 1 : 0, curGun(p) ? curGun(p).type : '', (p.heal ? 1 : 0) | (p.reload > 0 ? 2 : 0) | (p.punch > 0 ? 4 : 0)]),
+    dr: G.drops.map(d => [d.id, d.x, d.y, +d.t.toFixed(1)]),
     ev,
   };
 }
 function snapMe(p) {
   return {
-    x: +p.x.toFixed(1), y: +p.y.toFixed(1), s: p.slots.map(s => s ? [s.type, s.mag] : null), c: p.cur, am: p.ammo, b: p.band, m: p.med, k: p.kills,
+    x: +p.x.toFixed(1), y: +p.y.toFixed(1), s: p.slots.map(s => s ? [s.type, s.mag] : null), c: p.cur, am: p.ammo, rk: p.rockets, gr: p.gren, b: p.band, m: p.med, k: p.kills,
     h: p.heal ? [p.heal.type, +p.heal.t.toFixed(2), p.heal.dur] : null, r: +p.reload.toFixed(2), pl: p.place, dt: +p.diedAt.toFixed(1),
   };
 }
@@ -677,9 +806,9 @@ function match() { return G; }
 
 return {
   TAU, COLS, ROWS, XL, YL, XN, YN, CITY, CX, CY, PRISON, PX, PY, CORR_Y, WORLD, GATE_L, GATE_R, MAX_PLAYERS, LOCKDOWN, SPEED,
-  WEAPONS, ITEMS, CREWS, SHOPS, PHASES,
+  WEAPONS, ITEMS, CREWS, SHOPS, PHASES, GRENADE, DROPS, DROP_FALL,
   clamp, dist, angDiff, lerpAngle, darken, inRect,
   buildWorld, setDoors, cellWalls, solidAt, blocksSight, pushOut,
-  createMatch, step, setInput, humanAction, humanLeft, roster, itemList, snapCommon, snapMe, match,
+  stepProj, createMatch, step, setInput, humanAction, humanLeft, roster, itemList, snapCommon, snapMe, match,
 };
 });

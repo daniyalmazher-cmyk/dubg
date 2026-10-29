@@ -226,6 +226,14 @@ body.touch .medsWrap{display:block;position:relative;flex:0 0 auto;pointer-event
 #medsPop button b{color:var(--orange);font-variant-numeric:tabular-nums}
 #medsPop button small{margin-left:auto;color:var(--muted);font-size:12px;letter-spacing:.06em}
 #medsPop button:disabled{opacity:.4}
+/* grenade: on the other side of the guns from the meds; hold and drag to aim, let go to throw */
+.grenBtn{display:none}
+body.touch .grenBtn{width:54px;min-height:48px;flex:0 0 auto;padding:0;background:var(--panel);border:1px solid var(--line);color:var(--text);font-family:var(--body);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;pointer-events:auto;touch-action:none}
+.grenBtn .gi{width:16px;height:18px;border-radius:50% 50% 45% 45%;background:#7f9a4a;box-shadow:inset -3px -3px 0 rgba(0,0,0,.3);position:relative}
+.grenBtn .gi:after{content:'';position:absolute;left:5px;top:-5px;width:6px;height:5px;background:#b9b3a3}
+.grenBtn b{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+.grenBtn.none{opacity:.4}
+.grenBtn.on{border-color:var(--orange);background:rgba(255,122,26,.25)}
 body.touch .slot.fist,body.touch .slot i,body.touch .kit{display:none}
 body.touch .slot{flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;padding:5px 10px;min-height:48px;pointer-events:auto}
 body.touch .slot .wn{font-size:17px;max-width:100%}
@@ -314,12 +322,13 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
       <div class="slot" id="s0"><i>1</i><span class="wn">Empty</span><span class="am"></span></div>
       <div class="slot" id="s1"><i>2</i><span class="wn">Empty</span><span class="am"></span></div>
       <div class="slot fist" id="s2"><i>3</i><span class="wn">Fists</span></div>
+      <button type="button" class="grenBtn" id="grenBtn" aria-label="Grenade"><span class="gi"></span><b id="grenN">0</b></button>
     </div>
     <div class="bars">
       <div class="bar armor"><div id="armorFill" style="width:0"></div></div>
       <div class="bar hp"><div id="hpFill"></div><span id="hpNum">100</span></div>
     </div>
-    <div class="kit"><span>Bandage <b id="nb">0</b></span><span>Medkit <b id="nm">0</b></span><span>Ammo <b id="na">0</b></span></div>
+    <div class="kit"><span>Bandage <b id="nb">0</b></span><span>Medkit <b id="nm">0</b></span><span>Ammo <b id="na">0</b></span><span>Grenades <b id="ng">0</b></span></div>
   </div>
   <div id="mapBox">
     <canvas id="mini" width="210" height="210"></canvas>
@@ -377,7 +386,7 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
         <div>Hit the shops<span>Neon sign means open. Boarded means sealed.</span></div>
         <div>Survive<span>Stay inside the circle</span></div>
       </div>
-      <div class="note touchHelp">Left thumb moves. Right thumb aims, and pushing it all the way out shoots (or switch to fire buttons in Settings). Tap a gun at the bottom to hold it, tap it again to put it away. The red cross heals. Tap the alive counter to see every player.</div>
+      <div class="note touchHelp">Left thumb moves. Right thumb aims, and pushing it all the way out shoots (or switch to fire buttons in Settings). Tap a gun at the bottom to hold it, tap it again to put it away. The red cross heals. Hold the grenade and drag to aim, let go to throw. Tap the alive counter to see every player.</div>
       <div class="keys">
         <kbd>WASD</kbd><span>Move</span>
         <kbd>Mouse</kbd><span>Aim and shoot</span>
@@ -385,6 +394,7 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
         <kbd>R</kbd><span>Reload</span>
         <kbd>1 2 3</kbd><span>Switch weapon</span>
         <kbd>F</kbd><span>Heal</span>
+        <kbd>G</kbd><span>Hold to aim a grenade, let go to throw</span>
         <kbd>Esc</kbd><span>Settings</span>
         <kbd>M</kbd><span>Mute</span>
         <kbd>Tab</kbd><span>Players</span>
@@ -519,6 +529,7 @@ function newState(state, seed) {
     state, seed, time: 0, lockT: D.LOCKDOWN, liveTime: 0, alive: 0, winner: -1, players: new Map(), list: [], items: new Map(), me: null,
     zone: { cur: { x: WORLD.w / 2, y: WORLD.h / 2, r: 99999 }, next: null, mode: 'wait', t: 0 },
     tracers: [], particles: [], corpses: [], feed: [], cam: { x: CX, y: CY }, view: null, msg: '', msgT: 0,
+    projs: new Map(), booms: [], drops: [], shake: 0, aimG: null,
     meData: null, local: null, spec: null, death: null, localCd: 0, sendT: 0, errT: 0, overShown: false,
   };
   D.setDoors(state !== 'lockdown');
@@ -563,6 +574,7 @@ function onSnap(s) {
       if (d > 60) { M.errT += 1 / 15; if (M.errT > 0.4 || d > 250) { M.local.x = s.me.x; M.local.y = s.me.y; M.errT = 0; } } else M.errT = 0;
     }
   }
+  M.drops = s.dr || [];
   for (const e of s.ev) handleEvent(e);
   if (s.st === 'over' && !M.overShown) { M.overShown = true; setTimeout(showEnd, 1500); }
 }
@@ -600,6 +612,20 @@ function handleEvent(e) {
     }
   } else if (k === 'iadd') M.items.set(e[1], { id: e[1], type: e[2], x: e[3], y: e[4] });
   else if (k === 'idel') M.items.delete(e[1]);
+  else if (k === 'proj') {
+    const [, id, kind, x, y, vx, vy, owner] = e, P = M.players.get(owner);
+    M.projs.set(id, { k: kind, x, y, vx, vy, t: 0, left: WEAPONS.rpg.range, dead: false });
+    if (kind === 'r') { if (P) P.flash = 0.1; sound('rocket', { x, y }); }
+  } else if (k === 'throw') { const P = M.players.get(e[1]); if (P) { P.punch = 0.2; sound('punch', P); } }
+  else if (k === 'boom') {
+    const [, id, x, y, R] = e; M.projs.delete(id);
+    M.booms.push({ x, y, R, t: 0 });
+    for (let i = 0; i < 26; i++) burst(x, y, i % 3 ? '#ff9a3c' : '#4a4440', 380);
+    const v = viewer(), d = Math.hypot(x - v.x, y - v.y);
+    M.shake = Math.max(M.shake, clamp(1 - d / 900, 0, 1) * 14);
+    sound('boom', { x, y });
+  } else if (k === 'drop') { M.msg = 'Airdrop incoming'; M.msgT = 2.5; }
+  else if (k === 'crate') { for (let i = 0; i < 16; i++) burst(e[1], e[2], i % 2 ? '#c8a96a' : '#ff4b3a', 220); if (M.local) sound('pickup', { x: e[1], y: e[2] }); }
   else if (k === 'got') { if (e[1] === M.me && M.local) sound('pickup', M.local); }
 }
 function burst(x, y, c, sp) { const a = Math.random() * TAU, s = sp * (0.3 + Math.random() * 0.7); M.particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0.25 + Math.random() * 0.35, max: 0.6, c, s: 1.5 + Math.random() * 2 }); }
@@ -633,12 +659,43 @@ function localFire(me) {
   M.localCd = W.rate;
   if (!slot) { me.punch = 0.15; sound('punch', me); return; }
   me.flash = 0.06;
+  if (W.proj) return;   // the rocket itself arrives from the server
   const mx = me.x + Math.cos(me.ang) * (W.len + 6), my = me.y + Math.sin(me.ang) * (W.len + 6);
   for (let i = 0; i < (W.pellets || 1); i++) {
     const a = me.ang + (Math.random() - 0.5) * 2 * W.spread;
     M.tracers.push({ x: mx, y: my, vx: Math.cos(a) * W.speed, vy: Math.sin(a) * W.speed, left: W.range });
   }
   sound('shot', me, W);
+}
+
+// ---------- grenades ----------
+// keyboard: hold G, the grenade lands where the mouse is. Touch: hold the grenade button and drag;
+// the drag direction aims and its length sets the distance. A quick tap throws straight ahead.
+function startGrenade(mode, e) {
+  const md = M && M.meData, me = meP();
+  if (!inMatch() || !me || !me.alive || !md || !md.gr || M.aimG) return;
+  M.aimG = { mode, id: e ? e.pointerId : null, ox: e ? e.clientX : 0, oy: e ? e.clientY : 0, dx: 0, dy: 0, a: me.ang, d: 260 };
+  $('grenBtn').classList.add('on');
+}
+function aimGrenade(me) {
+  const g = M.aimG; if (!g) return;
+  if (g.mode === 'key') { const mw = mouseWorld(); g.a = Math.atan2(mw.y - me.y, mw.x - me.x); g.d = Math.hypot(mw.x - me.x, mw.y - me.y); }
+  else { const l = Math.hypot(g.dx, g.dy); if (l > 14) { g.a = Math.atan2(g.dy, g.dx); g.d = D.GRENADE.minD + (D.GRENADE.maxD - D.GRENADE.minD) * clamp((l - 14) / 100, 0, 1); } }
+  g.d = clamp(g.d, D.GRENADE.minD, D.GRENADE.maxD);
+  me.ang = g.a;
+}
+function endGrenade(cancel) {
+  const g = M && M.aimG; if (!g) return;
+  M.aimG = null; $('grenBtn').classList.remove('on');
+  if (!cancel) act('throw', [+g.a.toFixed(3), Math.round(g.d)]);
+}
+// where a grenade thrown now would come to rest (same physics as the server)
+function grenadePath(me, a, d) {
+  const G = D.GRENADE, o = { k: 'g', x: me.x + Math.cos(a) * 18, y: me.y + Math.sin(a) * 18, vx: Math.cos(a) * d * G.drag, vy: Math.sin(a) * d * G.drag, t: 0 };
+  if (D.solidAt(o.x, o.y)) { o.x = me.x; o.y = me.y; }
+  const pts = [o.x, o.y];
+  for (let t = 0; t < G.fuse; t += 1 / 30) { D.stepProj(o, 1 / 30); pts.push(o.x, o.y); }
+  return pts;
 }
 
 function update(dt) {
@@ -669,6 +726,7 @@ function update(dt) {
       if (am > 0.25) me.ang = Math.atan2(a.y, a.x); else if (btns && fa != null) me.ang = fa; else if (m && !(btns && touch.fire.size)) me.ang = Math.atan2(my, mx);
       mouse.down = btns ? touch.fire.size > 0 : am >= 0.9;
     } else { const mw = mouseWorld(); me.ang = Math.atan2(mw.y - me.y, mw.x - me.x); }
+    aimGrenade(me);
     M.localCd -= dt;
     localFire(me);
     M.sendT -= dt;
@@ -684,6 +742,14 @@ function update(dt) {
     }
     if (dead) M.tracers.splice(i, 1);
   }
+  for (const [id, o] of M.projs) {
+    if (!o.dead && D.stepProj(o, dt)) o.dead = true;
+    if (o.k === 'r' && !o.dead && Math.random() < 0.8) M.particles.push({ x: o.x, y: o.y, vx: (Math.random() - 0.5) * 30, vy: (Math.random() - 0.5) * 30, life: 0.5, max: 0.5, c: 'rgba(200,200,200,.6)', s: 4 });
+    if (o.t > 4) M.projs.delete(id);   // its explosion never arrived
+  }
+  for (const b of M.booms) b.t += dt;
+  M.booms = M.booms.filter(b => b.t < 0.6);
+  M.shake = Math.max(0, M.shake - dt * 30);
   for (let i = M.particles.length - 1; i >= 0; i--) {
     const p = M.particles[i]; p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.9; p.vy *= 0.9;
     if (p.life <= 0) M.particles.splice(i, 1);
@@ -704,6 +770,7 @@ function update(dt) {
   else if (tgt === me) { lx += (mouse.x - VW / 2) / ZOOM * 0.18; ly += (mouse.y - VH / 2) / ZOOM * 0.18; }
   const k = Math.min(1, dt * 8);
   M.cam.x += (lx - M.cam.x) * k; M.cam.y += (ly - M.cam.y) * k;
+  if (M.shake > 0 && !calm) { M.cam.x += (Math.random() - 0.5) * M.shake; M.cam.y += (Math.random() - 0.5) * M.shake; }
 }
 
 // ---------- render ----------
@@ -832,8 +899,21 @@ function drawWorld() {
   }
 }
 
+function drawCrate(x, y, k) {
+  ctx.save(); ctx.translate(x, y); ctx.scale(k, k);
+  ctx.fillStyle = '#3f4a2c'; ctx.fillRect(-15, -15, 30, 30);
+  ctx.fillStyle = '#ff4b3a'; ctx.fillRect(-15, -3, 30, 6); ctx.fillRect(-3, -15, 6, 30);
+  ctx.strokeStyle = 'rgba(0,0,0,.5)'; ctx.lineWidth = 2; ctx.strokeRect(-15, -15, 30, 30);
+  ctx.restore();
+}
 function drawItem(it) {
   const d = ITEMS[it.type], t = M.time;
+  if (d.kind === 'crate') {
+    // a column of red smoke so people can find it
+    for (let i = 0; i < 5; i++) { const f = (t * 0.4 + i / 5) % 1; ctx.fillStyle = `rgba(255,75,58,${0.28 * (1 - f)})`; ctx.beginPath(); ctx.arc(it.x + Math.sin(t + i) * 8 + f * 30, it.y - f * 60, 10 + f * 22, 0, TAU); ctx.fill(); }
+    drawCrate(it.x, it.y, 1);
+    return;
+  }
   ctx.save(); ctx.translate(it.x, it.y);
   ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.beginPath(); ctx.arc(0, 0, 13, 0, TAU); ctx.fill();
   ctx.globalAlpha = 0.45 + 0.4 * (0.5 + 0.5 * Math.sin(t * 3 + it.x * 0.1));
@@ -842,6 +922,8 @@ function drawItem(it) {
   if (d.kind === 'gun') { const L = WEAPONS[it.type].len; ctx.rotate(-0.5); ctx.fillRect(-L / 2, -2.5, L, 5); ctx.fillRect(-L / 2 + 2, 0, 4, 7); }
   else if (d.kind === 'ammo') { for (let i = -1; i <= 1; i++) ctx.fillRect(i * 5 - 1.5, -5, 3, 10); }
   else if (it.type === 'band') { ctx.fillRect(-7, -3, 14, 6); ctx.fillStyle = '#c9c0ad'; ctx.fillRect(-2, -3, 4, 6); }
+  else if (it.type === 'gren') { ctx.beginPath(); ctx.ellipse(0, 1, 5.5, 6.5, 0, 0, TAU); ctx.fill(); ctx.fillStyle = '#b9b3a3'; ctx.fillRect(-2, -8, 4, 3); }
+  else if (it.type === 'rocket') { for (const ox of [-4, 4]) { ctx.fillRect(ox - 2, -4, 4, 10); ctx.beginPath(); ctx.moveTo(ox - 2, -4); ctx.lineTo(ox, -9); ctx.lineTo(ox + 2, -4); ctx.fill(); } }
   else if (it.type === 'med') { ctx.fillStyle = '#f1ede4'; ctx.fillRect(-7, -7, 14, 14); ctx.fillStyle = d.color; ctx.fillRect(-1.8, -5, 3.6, 10); ctx.fillRect(-5, -1.8, 10, 3.6); }
   else { ctx.beginPath(); ctx.moveTo(-7, -6); ctx.lineTo(7, -6); ctx.lineTo(6, 6); ctx.lineTo(0, 8); ctx.lineTo(-6, 6); ctx.closePath(); ctx.fill(); }
   ctx.restore();
@@ -900,8 +982,14 @@ function drawPlayer(p) {
   if (g) {
     W = WEAPONS[g];
     if (g === 'shotgun') { ctx.fillStyle = '#5a3a22'; ctx.fillRect(2, -3, 11, 6); }
-    ctx.fillStyle = '#0c0d0e'; ctx.fillRect(8, -2.5, W.len + 4, 5);
-    ctx.fillStyle = '#3a3d41'; ctx.fillRect(8, -2.5, 7, 5);
+    if (g === 'rpg') {
+      ctx.fillStyle = '#4b5a2e'; ctx.fillRect(-6, -4, W.len + 10, 8);
+      ctx.fillStyle = '#2a3119'; ctx.fillRect(10, 3, 4, 6);
+      ctx.fillStyle = '#9fd356'; ctx.beginPath(); ctx.moveTo(W.len + 4, -5); ctx.lineTo(W.len + 13, 0); ctx.lineTo(W.len + 4, 5); ctx.closePath(); ctx.fill();
+    } else {
+      ctx.fillStyle = '#0c0d0e'; ctx.fillRect(8, -2.5, W.len + 4, 5);
+      ctx.fillStyle = '#3a3d41'; ctx.fillRect(8, -2.5, 7, 5);
+    }
     if (g === 'rifle' || g === 'smg') { ctx.fillStyle = '#0c0d0e'; ctx.fillRect(14, 2, 4, 6); }
     h1 = [11, -2]; h2 = [Math.max(17, W.len * 0.72), 1.5];
   } else { const pf = p.punch > 0 || (p.flags & 4) ? 7 : 0; h1 = [11 + pf, -8]; h2 = [11, 8]; }
@@ -1043,6 +1131,7 @@ function render(dt) {
     ctx.strokeStyle = 'rgba(255,236,170,.9)'; ctx.lineWidth = 2.2;
     ctx.beginPath(); ctx.moveTo(b.x - b.vx * 0.018, b.y - b.vy * 0.018); ctx.lineTo(b.x, b.y); ctx.stroke();
   }
+  drawProjs();
   for (const p of M.particles) { ctx.globalAlpha = clamp(p.life / p.max, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(p.x - p.s / 2, p.y - p.s / 2, p.s, p.s); }
   ctx.globalAlpha = 1;
   ctx.textAlign = 'center';
@@ -1073,6 +1162,7 @@ function render(dt) {
   if (fogOn) drawFog(vw);
   drawLights(t);
   drawSigns(t);
+  drawSky(t);
   const zn = M.zone;
   if (fogOn) {
     ctx.save(); ctx.beginPath(); ctx.rect(M.view.x0 - 50, M.view.y0 - 50, M.view.x1 - M.view.x0 + 100, M.view.y1 - M.view.y0 + 100);
@@ -1106,6 +1196,54 @@ function render(dt) {
   }
 }
 
+function drawProjs() {
+  for (const o of M.projs.values()) {
+    if (o.k === 'g') {
+      ctx.fillStyle = '#7f9a4a'; ctx.beginPath(); ctx.arc(o.x, o.y, 4.5, 0, TAU); ctx.fill();
+      // blinks faster as the fuse runs down
+      if (Math.sin(o.t * (8 + o.t * 14)) > 0) { ctx.fillStyle = '#ff4b3a'; ctx.beginPath(); ctx.arc(o.x, o.y, 1.8, 0, TAU); ctx.fill(); }
+    } else if (!o.dead) {
+      const a = Math.atan2(o.vy, o.vx);
+      ctx.save(); ctx.translate(o.x, o.y); ctx.rotate(a);
+      ctx.fillStyle = '#ffb347'; ctx.beginPath(); ctx.arc(-10, 0, 4 + Math.random() * 2, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#9fd356'; ctx.fillRect(-8, -2.5, 12, 5); ctx.beginPath(); ctx.moveTo(4, -3.5); ctx.lineTo(10, 0); ctx.lineTo(4, 3.5); ctx.fill();
+      ctx.restore();
+    }
+  }
+  for (const b of M.booms) {
+    const k = b.t / 0.6, r = b.R * (0.35 + 0.65 * Math.sqrt(k));
+    const gr = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, r);
+    gr.addColorStop(0, `rgba(255,240,190,${0.9 * (1 - k)})`); gr.addColorStop(0.45, `rgba(255,140,40,${0.7 * (1 - k)})`); gr.addColorStop(1, 'rgba(80,40,20,0)');
+    ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, TAU); ctx.fill();
+  }
+  // grenade aim: the path it will take and the blast it will make
+  const me = meP();
+  if (M.aimG && me && me.alive) {
+    const pts = grenadePath(me, M.aimG.a, M.aimG.d), ex = pts[pts.length - 2], ey = pts[pts.length - 1];
+    ctx.setLineDash([5, 6]); ctx.strokeStyle = 'rgba(255,255,255,.75)'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(pts[0], pts[1]); for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = 'rgba(255,75,58,.18)'; ctx.strokeStyle = 'rgba(255,75,58,.8)';
+    ctx.beginPath(); ctx.arc(ex, ey, D.GRENADE.blast, 0, TAU); ctx.fill(); ctx.stroke();
+  }
+}
+// airdrops on the way down: a growing crate under a parachute over a smoke marker on the ground
+function drawSky(t) {
+  for (const [, x, y, left] of M.drops) {
+    if (!inView(x - 120, y - 120, 240, 240)) continue;
+    const k = clamp(1 - left / D.DROP_FALL, 0, 1);
+    ctx.strokeStyle = `rgba(255,75,58,${0.5 + 0.3 * Math.sin(t * 6)})`; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(x, y, 26, 0, TAU); ctx.stroke();
+    ctx.fillStyle = `rgba(0,0,0,${0.15 + 0.35 * k})`; ctx.beginPath(); ctx.arc(x, y, 8 + 12 * k, 0, TAU); ctx.fill();
+    const sc = 2.4 - 1.4 * k, cy = y - (1 - k) * 90;
+    ctx.save(); ctx.translate(x, cy); ctx.scale(sc, sc);
+    ctx.fillStyle = '#e8e2d4'; ctx.beginPath(); ctx.arc(0, -24, 22, Math.PI, 0); ctx.fill();
+    ctx.fillStyle = '#ff4b3a'; ctx.beginPath(); ctx.arc(0, -24, 22, Math.PI * 1.33, Math.PI * 1.67); ctx.lineTo(0, -24); ctx.fill();
+    ctx.strokeStyle = 'rgba(232,226,212,.7)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(-21, -24); ctx.lineTo(-8, -6); ctx.moveTo(21, -24); ctx.lineTo(8, -6); ctx.stroke();
+    ctx.restore();
+    drawCrate(x, cy, sc * 0.55);
+  }
+}
+
 // ---------- minimap ----------
 let miniBase = null;
 function buildMiniBase() {
@@ -1125,6 +1263,12 @@ function drawMini() {
   mctx.save(); mctx.beginPath(); mctx.rect(0, 0, S, S); mctx.arc(z.cur.x * s, z.cur.y * s, Math.max(0.1, z.cur.r * s), 0, TAU);
   mctx.fillStyle = 'rgba(40,92,210,.4)'; mctx.fill('evenodd'); mctx.restore();
   if (z.next) { mctx.strokeStyle = '#fff'; mctx.lineWidth = 1.5 * DPR; mctx.beginPath(); mctx.arc(z.next.x * s, z.next.y * s, Math.max(0.1, z.next.r * s), 0, TAU); mctx.stroke(); }
+  // airdrops: falling ones blink, landed crates stay solid
+  const blink = Math.sin(M.time * 8) > 0;
+  mctx.fillStyle = '#ff4b3a'; mctx.strokeStyle = '#fff'; mctx.lineWidth = 1.5 * DPR;
+  const box = (x, y) => { const h = 4 * DPR; mctx.fillRect(x * s - h, y * s - h, h * 2, h * 2); mctx.strokeRect(x * s - h, y * s - h, h * 2, h * 2); };
+  for (const [, x, y] of M.drops) if (blink) box(x, y);
+  for (const it of M.items.values()) if (it.type === 'crate') box(it.x, it.y);
   const p = viewer();
   if (z.next && Math.hypot(p.x - z.next.x, p.y - z.next.y) > z.next.r) {
     mctx.setLineDash([3 * DPR, 3 * DPR]); mctx.strokeStyle = 'rgba(255,255,255,.7)'; mctx.lineWidth = DPR; mctx.beginPath(); mctx.moveTo(p.x * s, p.y * s); mctx.lineTo(z.next.x * s, z.next.y * s); mctx.stroke(); mctx.setLineDash([]);
@@ -1162,14 +1306,15 @@ function updateHud() {
     for (let i = 0; i < 2; i++) {
       const el = $('s' + i), g = md.s[i];
       setText(el.querySelector('.wn'), g ? WEAPONS[g[0]].name : 'Empty');
-      setText(el.querySelector('.am'), g ? (md.c === i && md.r > 0 ? 'reloading' : `${g[1]} / ${md.am}`) : '');
+      setText(el.querySelector('.am'), g ? (md.c === i && md.r > 0 ? 'reloading' : `${g[1]} / ${g[0] === 'rpg' ? md.rk : md.am}`) : '');
       el.classList.toggle('on', md.c === i); el.classList.toggle('empty', !g);
     }
     $('s2').classList.toggle('on', md.c === -1);
     $('hpFill').style.width = Math.max(0, me.hp) + '%'; $('hpFill').classList.toggle('low', me.hp < 30);
     setText($('hpNum'), String(Math.max(0, me.hp)));
     $('armorFill').style.width = me.armor + '%';
-    setText($('nb'), String(md.b)); setText($('nm'), String(md.m)); setText($('na'), String(md.am));
+    setText($('nb'), String(md.b)); setText($('nm'), String(md.m)); setText($('na'), String(md.am)); setText($('ng'), String(md.gr || 0));
+    setText($('grenN'), String(md.gr || 0)); $('grenBtn').classList.toggle('none', !md.gr);
     $('healBar').hidden = !md.h; if (md.h) $('healFill').style.width = (md.h[1] / md.h[2] * 100) + '%';
     if (touch.on) {
       setText($('medsN'), String(md.b + md.m)); setText($('pb'), String(md.b)); setText($('pm'), String(md.m));
@@ -1425,12 +1570,14 @@ function initAudio() {
 function applyVolume() { if (master) master.gain.value = muted ? 0 : S.vol / 70; }
 function sound(kind, src, W) {
   if (!AC || muted || !M) return;
-  const v = viewer(), d = Math.hypot(src.x - v.x, src.y - v.y);
-  if (d > 1000) return;
-  const vol = Math.pow(1 - d / 1000, 2) * (kind === 'shot' ? 0.32 : 0.2);
+  const v = viewer(), d = Math.hypot(src.x - v.x, src.y - v.y), far = kind === 'boom' ? 1800 : 1000;
+  if (d > far) return;
+  const vol = Math.pow(1 - d / far, 2) * (kind === 'boom' ? 0.9 : kind === 'shot' || kind === 'rocket' ? 0.32 : 0.2);
   const t = AC.currentTime, n = AC.createBufferSource(), f = AC.createBiquadFilter(), g = AC.createGain();
   n.buffer = noiseBuf; f.type = 'lowpass';
-  if (kind === 'shot') { f.frequency.value = W.name === 'Shotgun' ? 900 : W.name === 'Rifle' ? 2200 : W.name === 'Pistol' ? 1700 : 1400; g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + (W.name === 'Shotgun' ? 0.35 : 0.16)); }
+  if (kind === 'boom') { n.loop = true; f.frequency.setValueAtTime(900, t); f.frequency.exponentialRampToValueAtTime(120, t + 1.1); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 1.2); n.connect(f); f.connect(g); g.connect(master); n.start(t); n.stop(t + 1.25); return; }
+  if (kind === 'rocket') { f.frequency.value = 700; g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.38); }
+  else if (kind === 'shot') { f.frequency.value = W.name === 'Shotgun' ? 900 : W.name === 'Rifle' ? 2200 : W.name === 'Pistol' ? 1700 : 1400; g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + (W.name === 'Shotgun' ? 0.35 : 0.16)); }
   else if (kind === 'punch') { f.frequency.value = 400; g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.08); }
   else { f.frequency.value = 3000; g.gain.setValueAtTime(0.06, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.05); }
   n.connect(f); f.connect(g); g.connect(master); n.start(t); n.stop(t + 0.4);
@@ -1459,6 +1606,7 @@ function onKey(code) {
   else if (code === 'Digit2') send({ t: 'act', a: 'slot', v: 1 });
   else if (code === 'Digit3') send({ t: 'act', a: 'slot', v: -1 });
   else if (code === 'KeyQ') send({ t: 'act', a: 'cycle' });
+  else if (code === 'KeyG') startGrenade('key');
 }
 addEventListener('keydown', e => {
   if (e.target && e.target.tagName === 'INPUT' && e.code !== 'Escape') return;
@@ -1467,8 +1615,8 @@ addEventListener('keydown', e => {
   if (!e.repeat) onKey(e.code);
   if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
 });
-addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Tab') showBoard(false); });
-addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouse.down = false; showBoard(false); });
+addEventListener('keyup', e => { keys[e.code] = false; if (e.code === 'Tab') showBoard(false); if (e.code === 'KeyG' && M && M.aimG && M.aimG.mode === 'key') endGrenade(false); });
+addEventListener('blur', () => { for (const k in keys) keys[k] = false; mouse.down = false; showBoard(false); endGrenade(true); });
 addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
 cv.addEventListener('mousedown', e => { if (touch.on) return; if (e.button === 0) { mouse.down = true; mouse.clicked = true; clicks++; } initAudio(); });
 addEventListener('mouseup', e => { if (e.button === 0) mouse.down = false; });
@@ -1487,7 +1635,7 @@ function releaseStick(side) {
   const el = stickEl(side); el.classList.remove('live', 'fire'); el.style.left = el.style.top = ''; el.firstChild.style.transform = '';
   if (side === 'aim') mouse.down = false;
 }
-function resetSticks() { releaseStick('move'); releaseStick('aim'); showMeds(false); touch.fire.clear(); for (const id of ['fireL', 'fireR']) { $(id).classList.remove('on'); $(id).firstChild.style.transform = ''; } }
+function resetSticks() { releaseStick('move'); releaseStick('aim'); showMeds(false); endGrenade(true); touch.fire.clear(); for (const id of ['fireL', 'fireR']) { $(id).classList.remove('on'); $(id).firstChild.style.transform = ''; } }
 cv.addEventListener('pointerdown', e => {
   if (e.pointerType !== 'touch') { if (touch.on) setTouch(false); return; }
   if (!touch.on) setTouch(true);
@@ -1500,6 +1648,8 @@ cv.addEventListener('pointerdown', e => {
 });
 addEventListener('pointermove', e => {
   if (e.pointerType === 'mouse') { if (touch.on && (e.movementX || e.movementY)) setTouch(false); return; }
+  const g = M && M.aimG;
+  if (g && g.id === e.pointerId) { g.dx = e.clientX - g.ox; g.dy = e.clientY - g.oy; }
   const f = touch.fire.get(e.pointerId);
   if (f) {
     // hold a fire button and drag: aim the way you drag (the icon follows your thumb a little)
@@ -1535,6 +1685,8 @@ for (const id of ['fireL', 'fireR']) {
   for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(ev, e => { if (!touch.fire.delete(e.pointerId)) return; if (![...touch.fire.values()].some(f => f.el === el)) el.classList.remove('on'); el.firstChild.style.transform = ''; });
 }
 $('reloadBtn').addEventListener('pointerdown', e => { e.preventDefault(); act('reload'); });
+$('grenBtn').addEventListener('pointerdown', e => { if (!touch.on) return; e.preventDefault(); showMeds(false); startGrenade('touch', e); });
+for (const ev of ['pointerup', 'pointercancel']) addEventListener(ev, e => { const g = M && M.aimG; if (g && g.mode === 'touch' && g.id === e.pointerId) endGrenade(ev === 'pointercancel'); });
 $('prompt').addEventListener('pointerdown', e => { e.preventDefault(); act('pickup'); });
 $('aliveStat').addEventListener('pointerdown', e => { if (!touch.on) return; e.preventDefault(); showBoard($('board').hidden); });
 $('menuBtn').addEventListener('click', () => { resetSticks(); openSettings(); });
