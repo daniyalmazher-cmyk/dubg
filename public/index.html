@@ -664,7 +664,8 @@ function update(dt) {
       // twin-stick: aim with the right stick, otherwise face where you walk.
       // Shooting is either the right stick pushed to the edge, or the fire buttons (Settings)
       const a = touch.aim, am = a ? Math.hypot(a.x, a.y) : 0, btns = S.fire === 'button';
-      if (am > 0.25) me.ang = Math.atan2(a.y, a.x); else if (m && !(btns && touch.fire.size)) me.ang = Math.atan2(my, mx);
+      let fa = null; for (const f of touch.fire.values()) if (f.a != null) fa = f.a;   // dragging a fire button aims too
+      if (am > 0.25) me.ang = Math.atan2(a.y, a.x); else if (btns && fa != null) me.ang = fa; else if (m && !(btns && touch.fire.size)) me.ang = Math.atan2(my, mx);
       mouse.down = btns ? touch.fire.size > 0 : am >= 0.9;
     } else { const mw = mouseWorld(); me.ang = Math.atan2(mw.y - me.y, mw.x - me.x); }
     M.localCd -= dt;
@@ -1472,7 +1473,7 @@ cv.addEventListener('wheel', () => { if (inMatch()) onKey('KeyQ'); }, { passive:
 addEventListener('resize', resize);
 
 // ---------- touch controls ----------
-const touch = { on: matchMedia('(pointer: coarse)').matches, move: null, aim: null, fire: new Set() };
+const touch = { on: matchMedia('(pointer: coarse)').matches, move: null, aim: null, fire: new Map() };   // fire: pointerId -> { el, ox, oy, a } for each finger on a fire button
 const STICK_R = 56;
 function setTouch(on) { touch.on = on; document.body.classList.toggle('touch', on); resize(); }
 setTouch(touch.on);
@@ -1482,7 +1483,7 @@ function releaseStick(side) {
   const el = stickEl(side); el.classList.remove('live', 'fire'); el.style.left = el.style.top = ''; el.firstChild.style.transform = '';
   if (side === 'aim') mouse.down = false;
 }
-function resetSticks() { releaseStick('move'); releaseStick('aim'); showMeds(false); touch.fire.clear(); for (const id of ['fireL', 'fireR']) $(id).classList.remove('on'); }
+function resetSticks() { releaseStick('move'); releaseStick('aim'); showMeds(false); touch.fire.clear(); for (const id of ['fireL', 'fireR']) { $(id).classList.remove('on'); $(id).firstChild.style.transform = ''; } }
 cv.addEventListener('pointerdown', e => {
   if (e.pointerType !== 'touch') { if (touch.on) setTouch(false); return; }
   if (!touch.on) setTouch(true);
@@ -1495,6 +1496,14 @@ cv.addEventListener('pointerdown', e => {
 });
 addEventListener('pointermove', e => {
   if (e.pointerType === 'mouse') { if (touch.on && (e.movementX || e.movementY)) setTouch(false); return; }
+  const f = touch.fire.get(e.pointerId);
+  if (f) {
+    // hold a fire button and drag: aim the way you drag (the icon follows your thumb a little)
+    let dx = e.clientX - f.ox, dy = e.clientY - f.oy; const d = Math.hypot(dx, dy);
+    if (d > 14) f.a = Math.atan2(dy, dx);
+    if (d > 34) { dx *= 34 / d; dy *= 34 / d; }
+    f.el.firstChild.style.transform = `translate(${dx}px,${dy}px)`;
+  }
   for (const side of ['move', 'aim']) {
     const st = touch[side]; if (!st || st.id !== e.pointerId) continue;
     let dx = e.clientX - st.ox, dy = e.clientY - st.oy;
@@ -1518,8 +1527,8 @@ $('medsPop').addEventListener('pointerdown', e => { const b = e.target.closest('
 // fire buttons: held = keep shooting; each finger is tracked so both can be used at once
 for (const id of ['fireL', 'fireR']) {
   const el = $(id);
-  el.addEventListener('pointerdown', e => { e.preventDefault(); initAudio(); showMeds(false); touch.fire.add(e.pointerId); el.classList.add('on'); if (!mouse.down) { clicks++; mouse.clicked = true; } });
-  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(ev, e => { touch.fire.delete(e.pointerId); el.classList.remove('on'); });
+  el.addEventListener('pointerdown', e => { e.preventDefault(); initAudio(); showMeds(false); touch.fire.set(e.pointerId, { el, ox: e.clientX, oy: e.clientY, a: null }); el.classList.add('on'); if (!mouse.down) { clicks++; mouse.clicked = true; } });
+  for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(ev, e => { if (!touch.fire.delete(e.pointerId)) return; if (![...touch.fire.values()].some(f => f.el === el)) el.classList.remove('on'); el.firstChild.style.transform = ''; });
 }
 $('reloadBtn').addEventListener('pointerdown', e => { e.preventDefault(); act('reload'); });
 $('prompt').addEventListener('pointerdown', e => { e.preventDefault(); act('pickup'); });
