@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <title>DUBG</title>
 <meta name="theme-color" content="#0e0f10">
 <meta name="mobile-web-app-capable" content="yes">
@@ -31,7 +31,7 @@
   --tag:'Permanent Marker','Comic Sans MS',cursive;
 }
 *{box-sizing:border-box}
-html,body{height:100%;margin:0}
+html,body{height:100%;margin:0;overscroll-behavior:none;touch-action:manipulation}
 body{background:var(--ink);color:var(--text);font-family:var(--body);font-size:14px;overflow:hidden;user-select:none;-webkit-user-select:none}
 [hidden]{display:none!important}
 #game{position:fixed;inset:0;width:100%;height:100%;display:block;cursor:crosshair;background:var(--ink);touch-action:none}
@@ -196,7 +196,7 @@ body.mini-small #mini{width:140px;height:140px}
 /* touch controls: only shown when body.touch is set (phone or tablet) */
 body{-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none}
 #hud{touch-action:none}
-.stick,#touchBtns,#menuBtn,.touchHelp,.touchOnly,#rotate{display:none}
+.stick,#menuBtn,.touchHelp,.touchOnly,#rotate{display:none}
 body.touch .keys,body.touch .mouseOnly{display:none}
 body.touch .touchHelp,body.touch .touchOnly{display:block}
 body.touch .stick{display:block;position:absolute;width:124px;height:124px;margin:-62px 0 0 -62px;border-radius:50%;border:2px solid rgba(237,231,218,.25);background:rgba(0,0,0,.25);pointer-events:none;opacity:.5}
@@ -208,9 +208,30 @@ body.touch .stick.am{left:calc(100% - 104px - env(safe-area-inset-right,0px));to
 body.touch .stick.live b{display:none}
 .stick.fire{border-color:var(--danger);box-shadow:0 0 0 4px rgba(255,77,61,.25)}
 .stick.fire i{background:var(--danger)}
-body.touch #touchBtns{display:flex;gap:10px;position:absolute;right:calc(14px + env(safe-area-inset-right,0px));top:calc(136px + env(safe-area-inset-top,0px));pointer-events:auto}
-#touchBtns button{width:58px;height:58px;border-radius:50%;padding:0;font-family:var(--body);font-weight:700;font-size:13px;text-transform:uppercase;letter-spacing:.06em;background:rgba(14,15,16,.72);color:var(--text);border:1px solid var(--line)}
-#touchBtns button:active{background:var(--orange);color:#111}
+/* bottom centre on phones: [meds] [gun 1] [gun 2] over the health bar; tap a gun to hold it, tap it again to put it away */
+.medsWrap,#reloadBtn{display:none}
+body.touch .medsWrap{display:block;position:relative;flex:0 0 auto;pointer-events:auto}
+.medsBtn{width:54px;height:100%;min-height:48px;padding:0;background:var(--panel);border:1px solid var(--line);color:var(--text);font-family:var(--body);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px}
+.medsBtn .cross{width:18px;height:18px;background:linear-gradient(#ff5a4e,#ff5a4e) center/100% 6px no-repeat,linear-gradient(#ff5a4e,#ff5a4e) center/6px 100% no-repeat}
+.medsBtn b{font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1}
+.medsBtn.open{border-color:var(--orange)}
+#medsPop{position:absolute;bottom:calc(100% + 6px);left:0;display:flex;flex-direction:column;gap:5px;width:170px}
+#medsPop button{font-family:var(--body);font-size:17px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;background:rgba(14,15,16,.94);color:var(--text);border:1px solid var(--line);padding:10px 12px;display:flex;align-items:baseline;gap:6px;text-align:left}
+#medsPop button b{color:var(--orange);font-variant-numeric:tabular-nums}
+#medsPop button small{margin-left:auto;color:var(--muted);font-size:12px;letter-spacing:.06em}
+#medsPop button:disabled{opacity:.4}
+body.touch .slot.fist,body.touch .slot i,body.touch .kit{display:none}
+body.touch .slot{flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;padding:5px 10px;min-height:48px;pointer-events:auto}
+body.touch .slot .wn{font-size:17px;max-width:100%}
+body.touch .slot .am{margin-left:0;font-size:14px}
+body.touch .slot.empty .wn{color:var(--muted)}
+body.touch .bc{width:min(380px,calc(100vw - 430px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)));min-width:260px;bottom:calc(8px + env(safe-area-inset-bottom,0px));gap:5px}
+body.touch .slots{align-items:stretch}
+body.touch .bar.hp{height:15px}
+body.touch #hpNum{line-height:15px;font-size:12px}
+body.touch #reloadBtn{display:grid;place-items:center;position:absolute;right:calc(34px + env(safe-area-inset-right,0px));bottom:calc(200px + env(safe-area-inset-bottom,0px));width:62px;height:62px;border-radius:50%;padding:0;background:rgba(14,15,16,.72);color:var(--text);border:2px solid rgba(237,231,218,.35);pointer-events:auto}
+body.touch #reloadBtn:active{background:var(--orange);color:#111}
+#reloadBtn.busy svg{animation:sp .8s linear infinite}
 body.touch #menuBtn{display:block;position:absolute;top:calc(14px + env(safe-area-inset-top,0px));right:calc(136px + env(safe-area-inset-right,0px));pointer-events:auto;font-family:var(--body);font-weight:700;font-size:14px;letter-spacing:.08em;text-transform:uppercase;padding:8px 12px;background:rgba(14,15,16,.72);color:var(--text);border:1px solid var(--line)}
 body.touch #mini,body.touch.mini-small #mini{top:calc(14px + env(safe-area-inset-top,0px));bottom:auto;width:110px;height:110px}
 body.touch .tr{display:none}
@@ -219,12 +240,31 @@ body.touch .stat{padding:2px 8px 4px}
 body.touch .stat b{font-size:20px}
 body.touch #aliveStat{pointer-events:auto}
 body.touch .bc{width:min(360px,calc(100vw - 340px));min-width:240px}
-body.touch .slot{pointer-events:auto}
 body.touch #prompt{pointer-events:auto;font-size:18px;padding:10px 18px;border-color:var(--orange)}
 body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
 #rotate{position:fixed;inset:0;z-index:30;background:var(--ink);place-items:center;text-align:center;padding:24px;font-family:var(--display);font-size:30px;line-height:1.1}
 #rotate span{display:block;font-family:var(--body);font-size:17px;color:var(--muted);margin-top:10px;font-weight:600}
 @media (orientation:portrait){body.touch.playing #rotate{display:grid}}
+@media (max-height:560px),(max-width:620px){
+  .overlay{padding:8px max(8px,env(safe-area-inset-right,0px)) 8px max(8px,env(safe-area-inset-left,0px))}
+  .panel{max-height:calc(100dvh - 16px)}
+  .hazard{height:8px}
+  .inner{padding:12px 16px 14px;gap:10px}
+  #homeScreen .pitch,#homeScreen .flow,#homeScreen .keys,#homeScreen .touchHelp,#homeScreen .spray{display:none!important}
+  .logo{font-size:46px}
+  .sub{font-size:11px;margin-top:2px}
+  .cols{gap:16px}
+  .col{gap:8px}
+  label.lbl{margin-bottom:4px;font-size:11px}
+  input[type=text]{font-size:18px;padding:8px 10px}
+  button.play{font-size:26px;padding:12px 20px}
+  button.ghost{padding:9px 14px;font-size:15px}
+  .srv{padding:7px 10px}
+  .srv b{font-size:16px}
+  .note{font-size:14px}
+  .h2{font-size:26px} .code{font-size:40px} .qcount{font-size:56px} .big{font-size:44px} .res b{font-size:28px} .pitch{font-size:17px}
+  .set{padding:7px 0;font-size:17px}
+}
 @media (max-width:620px){
   .flow{grid-template-columns:1fr 1fr}
   .cols{grid-template-columns:1fr}
@@ -257,6 +297,9 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
   <div class="bc" id="meHud">
     <div id="healBar" hidden><div id="healFill"></div></div>
     <div class="slots">
+      <div class="medsWrap"><button type="button" class="medsBtn" id="medsBtn" aria-label="Heal"><span class="cross"></span><b id="medsN">0</b></button>
+        <div id="medsPop" hidden><button type="button" data-h="band">Bandage <b id="pb">0</b><small>+25 HP</small></button><button type="button" data-h="med">Medkit <b id="pm">0</b><small>Full HP</small></button></div>
+      </div>
       <div class="slot" id="s0"><i>1</i><span class="wn">Empty</span><span class="am"></span></div>
       <div class="slot" id="s1"><i>2</i><span class="wn">Empty</span><span class="am"></span></div>
       <div class="slot fist" id="s2"><i>3</i><span class="wn">Fists</span></div>
@@ -271,7 +314,7 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
   <div id="board" hidden></div>
   <div id="moveStick" class="stick mv"><i></i><b>Move</b></div>
   <div id="aimStick" class="stick am"><i></i><b>Aim · push to shoot</b></div>
-  <div id="touchBtns"><button type="button" data-a="cycle">Swap</button><button type="button" data-a="heal">Heal</button><button type="button" data-a="reload">Reload</button></div>
+  <button id="reloadBtn" type="button" aria-label="Reload"><svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.34-5.66"/><path d="M20 4v5h-5"/></svg></button>
   <button id="menuBtn" type="button">Menu</button>
 </div>
 
@@ -318,7 +361,7 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
         <div>Hit the shops<span>Neon sign means open. Boarded means sealed.</span></div>
         <div>Survive<span>Stay inside the circle</span></div>
       </div>
-      <div class="note touchHelp">Left thumb moves. Right thumb aims, and pushing it all the way out shoots. Tap the pick-up prompt to grab a gun. Tap the alive counter to see every player.</div>
+      <div class="note touchHelp">Left thumb moves. Right thumb aims, and pushing it all the way out shoots. Tap a gun at the bottom to hold it, tap it again to put it away. The red cross heals. Tap the alive counter to see every player.</div>
       <div class="keys">
         <kbd>WASD</kbd><span>Move</span>
         <kbd>Mouse</kbd><span>Aim and shoot</span>
@@ -440,8 +483,8 @@ function resize() {
   DPR = Math.min(2, window.devicePixelRatio || 1);
   VW = innerWidth; VH = innerHeight;
   cv.width = Math.round(VW * DPR); cv.height = Math.round(VH * DPR);
-  // zoomed in so the (small) players stay a good size on screen and the city feels big
-  ZOOM = 1.35 * Math.max(0.55, Math.min(1.45, Math.min(VW, VH) / 720));
+  // zoomed in so the (small) players stay a good size on screen and the city feels big; phones closer still
+  ZOOM = 1.35 * (document.body.classList.contains('touch') ? Math.max(0.7, Math.min(1.25, Math.min(VW, VH) / 460)) : Math.max(0.55, Math.min(1.45, Math.min(VW, VH) / 720)));
   const ms = mini.clientWidth || 210;
   mini.width = Math.round(ms * DPR); mini.height = Math.round(ms * DPR);
   if (M) buildMiniBase();
@@ -641,7 +684,9 @@ function update(dt) {
   }
   if (!tgt) return;
   let lx = tgt.x, ly = tgt.y;
-  if (tgt === me) { lx += (mouse.x - VW / 2) / ZOOM * 0.18; ly += (mouse.y - VH / 2) / ZOOM * 0.18; }
+  // lean the camera toward where you aim; on phones keep the player above the bottom HUD
+  if (tgt === me && touch.on) { const a = touch.aim; if (a) { lx += a.x * 70; ly += a.y * 70; } ly += 40 / ZOOM; }
+  else if (tgt === me) { lx += (mouse.x - VW / 2) / ZOOM * 0.18; ly += (mouse.y - VH / 2) / ZOOM * 0.18; }
   const k = Math.min(1, dt * 8);
   M.cam.x += (lx - M.cam.x) * k; M.cam.y += (ly - M.cam.y) * k;
 }
@@ -1178,7 +1223,7 @@ function updateHud() {
       const el = $('s' + i), g = md.s[i];
       setText(el.querySelector('.wn'), g ? WEAPONS[g[0]].name : 'Empty');
       setText(el.querySelector('.am'), g ? (md.c === i && md.r > 0 ? 'reloading' : `${g[1]} / ${md.am}`) : '');
-      el.classList.toggle('on', md.c === i);
+      el.classList.toggle('on', md.c === i); el.classList.toggle('empty', !g);
     }
     $('s2').classList.toggle('on', md.c === -1);
     $('hpFill').style.width = Math.max(0, me.hp) + '%'; $('hpFill').classList.toggle('low', me.hp < 30);
@@ -1186,6 +1231,12 @@ function updateHud() {
     $('armorFill').style.width = me.armor + '%';
     setText($('nb'), String(md.b)); setText($('nm'), String(md.m)); setText($('na'), String(md.am));
     $('healBar').hidden = !md.h; if (md.h) $('healFill').style.width = (md.h[1] / md.h[2] * 100) + '%';
+    if (touch.on) {
+      setText($('medsN'), String(md.b + md.m)); setText($('pb'), String(md.b)); setText($('pm'), String(md.m));
+      const pop = $('medsPop').children; pop[0].disabled = !md.b || me.hp >= 75; pop[1].disabled = !md.m || me.hp >= 100;
+      const g = md.c >= 0 ? md.s[md.c] : null;
+      $('reloadBtn').hidden = !g || !me.alive; $('reloadBtn').classList.toggle('busy', md.r > 0);
+    }
   }
   let it = null;
   if (me && me.alive && M.local) { let bd = 40; for (const i of M.items.values()) { if (ITEMS[i.type].kind !== 'gun') continue; const d = Math.hypot(i.x - me.x, i.y - me.y); if (d < bd) { bd = d; it = i; } } }
@@ -1481,7 +1532,7 @@ addEventListener('resize', resize);
 // ---------- touch controls ----------
 const touch = { on: matchMedia('(pointer: coarse)').matches, move: null, aim: null };
 const STICK_R = 56;
-function setTouch(on) { touch.on = on; document.body.classList.toggle('touch', on); }
+function setTouch(on) { touch.on = on; document.body.classList.toggle('touch', on); resize(); }
 setTouch(touch.on);
 function stickEl(side) { return $(side === 'move' ? 'moveStick' : 'aimStick'); }
 function releaseStick(side) {
@@ -1489,11 +1540,11 @@ function releaseStick(side) {
   const el = stickEl(side); el.classList.remove('live', 'fire'); el.style.left = el.style.top = ''; el.firstChild.style.transform = '';
   if (side === 'aim') mouse.down = false;
 }
-function resetSticks() { releaseStick('move'); releaseStick('aim'); }
+function resetSticks() { releaseStick('move'); releaseStick('aim'); showMeds(false); }
 cv.addEventListener('pointerdown', e => {
   if (e.pointerType !== 'touch') { if (touch.on) setTouch(false); return; }
   if (!touch.on) setTouch(true);
-  e.preventDefault(); initAudio();
+  e.preventDefault(); initAudio(); showMeds(false);
   if (!inMatch()) return;
   const side = e.clientX < VW / 2 ? 'move' : 'aim';
   if (touch[side]) return;
@@ -1512,11 +1563,18 @@ addEventListener('pointermove', e => {
   }
 });
 for (const ev of ['pointerup', 'pointercancel']) addEventListener(ev, e => { for (const side of ['move', 'aim']) if (touch[side] && touch[side].id === e.pointerId) releaseStick(side); });
-$('touchBtns').addEventListener('pointerdown', e => { const a = e.target.dataset && e.target.dataset.a; if (a) { e.preventDefault(); const me = meP(); if (me && me.alive) send({ t: 'act', a }); } });
+const act = (a, v) => { const me = meP(); if (me && me.alive) send({ t: 'act', a, v }); };
+// tap a gun to hold it; tap the one you're holding to put it away
 ['s0', 's1', 's2'].forEach((id, i) => $(id).addEventListener('pointerdown', e => {
-  if (!touch.on) return; e.preventDefault(); const me = meP(); if (me && me.alive) send({ t: 'act', a: 'slot', v: i < 2 ? i : -1 });
+  if (!touch.on) return; e.preventDefault(); showMeds(false);
+  const md = M && M.meData, held = md && md.c === i;
+  act('slot', i < 2 && !held ? i : -1);
 }));
-$('prompt').addEventListener('pointerdown', e => { e.preventDefault(); const me = meP(); if (me && me.alive) send({ t: 'act', a: 'pickup' }); });
+function showMeds(on) { $('medsPop').hidden = !on; $('medsBtn').classList.toggle('open', on); }
+$('medsBtn').addEventListener('pointerdown', e => { e.preventDefault(); showMeds($('medsPop').hidden); });
+$('medsPop').addEventListener('pointerdown', e => { const b = e.target.closest('button'); if (!b) return; e.preventDefault(); if (!b.disabled) act('heal', b.dataset.h); showMeds(false); });
+$('reloadBtn').addEventListener('pointerdown', e => { e.preventDefault(); act('reload'); });
+$('prompt').addEventListener('pointerdown', e => { e.preventDefault(); act('pickup'); });
 $('aliveStat').addEventListener('pointerdown', e => { if (!touch.on) return; e.preventDefault(); showBoard($('board').hidden); });
 $('menuBtn').addEventListener('click', () => { resetSticks(); openSettings(); });
 // phones: go fullscreen and landscape when the player starts something
