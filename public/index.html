@@ -233,11 +233,12 @@ body.touch .slot{flex-direction:column;align-items:flex-start;justify-content:ce
 body.touch .slot .wn{font-size:17px;max-width:100%}
 body.touch .slot .am{margin-left:0;font-size:14px}
 body.touch .slot.empty .wn{color:var(--muted)}
-body.touch .bc{width:min(380px,calc(100vw - 430px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)));min-width:260px;bottom:calc(8px + env(safe-area-inset-bottom,0px));gap:5px}
+body.touch .bc{width:min(380px,calc(100vw - 440px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)));min-width:260px;bottom:calc(8px + env(safe-area-inset-bottom,0px));gap:5px}
 body.touch .slots{align-items:stretch}
 body.touch .bar.hp{height:15px}
 body.touch #hpNum{line-height:15px;font-size:12px}
-body.touch #reloadBtn{display:grid;place-items:center;position:absolute;right:calc(34px + env(safe-area-inset-right,0px));bottom:calc(200px + env(safe-area-inset-bottom,0px));width:62px;height:62px;border-radius:50%;padding:0;background:rgba(14,15,16,.72);color:var(--text);border:2px solid rgba(237,231,218,.35);pointer-events:auto}
+/* reload sits up and to the left of the aim stick, clear of the minimap (which ends 132px from the right) */
+body.touch #reloadBtn{display:grid;place-items:center;position:absolute;right:calc(140px + env(safe-area-inset-right,0px));bottom:calc(140px + env(safe-area-inset-bottom,0px));width:56px;height:56px;border-radius:50%;padding:0;background:rgba(14,15,16,.72);color:var(--text);border:2px solid rgba(237,231,218,.35);pointer-events:auto}
 body.touch #reloadBtn:active{background:var(--orange);color:#111}
 #reloadBtn.busy svg{animation:sp .8s linear infinite}
 body.touch #menuBtn{display:block;position:absolute;top:calc(14px + env(safe-area-inset-top,0px));right:calc(136px + env(safe-area-inset-right,0px));pointer-events:auto;font-family:var(--body);font-weight:700;font-size:14px;letter-spacing:.08em;text-transform:uppercase;padding:8px 12px;background:rgba(14,15,16,.72);color:var(--text);border:1px solid var(--line)}
