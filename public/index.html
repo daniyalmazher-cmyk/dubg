@@ -587,7 +587,11 @@ function onSnap(s) {
   M.zone = { cur: { x: z[0], y: z[1], r: z[2] }, next: z[5] >= 0 ? { x: z[3], y: z[4], r: z[5] } : null, mode: z[6], t: z[7] };
   for (const a of s.p) {
     const P = M.players.get(a[0]); if (!P) continue;
+    const was = P.flags;
     P.hp = a[4]; P.armor = a[5]; P.alive = !!a[6]; P.gun = a[7] || null; P.flags = a[8];
+    // reloading started: play that gun's reload; it stops if they switch weapons halfway
+    if ((P.flags & 2) && !(was & 2) && P.gun) P.rl = playSfx('reload_' + P.gun, P, 700, 0.55);
+    else if (!(P.flags & 2) && (was & 2) && P.rl) { try { P.rl.stop(); } catch (e) {} P.rl = null; }
     P.buf.push({ t: now, x: a[1], y: a[2], ang: a[3] }); if (P.buf.length > 10) P.buf.shift();
     if (!P.init) { P.x = a[1]; P.y = a[2]; P.ang = a[3]; P.init = true; }
   }
@@ -1872,7 +1876,13 @@ function initAudio() {
   } catch (e) { AC = null; }
 }
 // ---------- recorded sound effects (public/sounds); until one loads, the synthesized sound plays instead ----------
-const SFX_FILES = { boom: ['bomb_explosion'], punch: ['fist_sound'], zattack: ['zombie_attack1', 'zombie_attack2'], zgroan: ['zombie_default1', 'zombie_default2', 'zombie_default3'] };
+const SFX_FILES = {
+  boom: ['bomb_explosion'], punch: ['fist_sound'], zattack: ['zombie_attack1', 'zombie_attack2'], zgroan: ['zombie_default1', 'zombie_default2', 'zombie_default3'],
+  shot_pistol: ['pistol_shot1', 'pistol_shot2', 'pistol_shot3'], shot_smg: ['smg_shot1', 'smg_shot2'], shot_shotgun: ['shotgun_shot'], shot_rifle: ['rifle_shot'],
+  reload_pistol: ['pistol_reload'], reload_smg: ['smg_reload'], reload_shotgun: ['shotgun_reload'], reload_rifle: ['rifle_reload'],
+};
+// how loud each gun is, next to the others
+const SHOT_VOL = { pistol: 0.45, smg: 0.38, shotgun: 0.6, rifle: 0.45 };
 const SFX = {};   // kind -> decoded recordings
 let groaning = 0; // zombie groans playing right now
 function loadSfx() {
@@ -1901,6 +1911,7 @@ function applyVolume() { if (master) master.gain.value = muted ? 0 : S.vol / 70;
 function sound(kind, src, W) {
   if (!AC || muted || !M) return;
   if ((kind === 'boom' || kind === 'punch') && hasSfx(kind)) { playSfx(kind, src, kind === 'boom' ? 1800 : 1000, kind === 'boom' ? 1 : 0.7); return; }
+  if (kind === 'shot') { const g = W.name.toLowerCase(); if (hasSfx('shot_' + g)) { playSfx('shot_' + g, src, 1000, SHOT_VOL[g] || 0.4); return; } }
   const v = viewer(), d = Math.hypot(src.x - v.x, src.y - v.y), far = kind === 'boom' ? 1800 : 1000;
   if (d > far) return;
   const vol = Math.pow(1 - d / far, 2) * (kind === 'boom' ? 0.9 : kind === 'shot' || kind === 'rocket' ? 0.32 : 0.2);
