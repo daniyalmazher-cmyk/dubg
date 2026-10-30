@@ -190,6 +190,10 @@ button.play:active:not(:disabled){transform:translateY(3px);box-shadow:0 2px 0 #
 .seg button{font-family:var(--body);font-weight:700;font-size:15px;text-transform:uppercase;letter-spacing:.08em;padding:7px 14px;background:transparent;color:var(--muted);border:1px solid var(--line)}
 .seg button+button{border-left:0}
 .seg button.on{background:var(--orange);color:#111;border-color:var(--orange)}
+.seg.mode{margin-bottom:8px}
+.seg.mode button{flex:1;padding:9px 10px;font-size:16px}
+.seg.mode button[data-v=zombie].on{background:#7fae3a;border-color:#7fae3a}
+.seg button:disabled{opacity:.5}
 body.mini-small #mapBox{width:150px}
 .plist{display:flex;flex-direction:column;border-top:1px solid var(--line)}
 .plist div{display:flex;align-items:center;gap:10px;padding:8px 2px;border-bottom:1px solid var(--line);font-size:19px;font-weight:700}
@@ -364,7 +368,7 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
         </div>
         <button id="settingsBtn" class="ghost" type="button">Settings</button>
       </div>
-      <div class="pitch">30 dawgs locked up in county. The power cuts out. Last dawg standing runs the city.</div>
+      <div class="pitch" id="pitch">30 dawgs locked up in county. The power cuts out. Last dawg standing runs the city.</div>
       <div class="cols">
         <div class="col">
           <div>
@@ -379,6 +383,7 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
         </div>
         <div class="col">
           <label class="lbl">Play</label>
+          <div class="seg mode" id="modeSeg"><button type="button" data-v="br">Battle royale</button><button type="button" data-v="zombie">Zombies</button></div>
           <button id="findBtn" class="play" type="button" disabled>Find match</button>
           <div class="or">or play with your crew</div>
           <button id="createBtn" class="ghost" type="button" disabled>Create private room</button>
@@ -389,13 +394,19 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
           <div class="err" id="homeErr" role="alert" hidden></div>
         </div>
       </div>
-      <div class="flow">
+      <div class="flow" id="flowZ" hidden>
+        <div>Hold the mall<span>Your crew starts by the fountain</span></div>
+        <div>Board it up<span>Hold B at a doorway between waves</span></div>
+        <div>Loot the stores<span>Shelves refill after every wave</span></div>
+        <div>Survive<span>Every 5th wave a boss comes</span></div>
+      </div>
+      <div class="flow" id="flowBR">
         <div>Locked up<span>Everyone starts in a cell</span></div>
         <div>Break out<span>Doors open, hit the streets</span></div>
         <div>Hit the shops<span>Neon sign means open. Boarded means sealed.</span></div>
         <div>Survive<span>Stay inside the circle</span></div>
       </div>
-      <div class="note touchHelp">Left thumb moves. Right thumb aims, and pushing it all the way out shoots (or switch to fire buttons in Settings). Tap a gun at the bottom to hold it, tap it again to put it away. The red cross heals. Hold the grenade and drag to aim, let go to throw. Tap the alive counter to see every player.</div>
+      <div class="note touchHelp">Left thumb moves. Right thumb aims, and pushing it all the way out shoots (or switch to fire buttons in Settings). Tap a gun at the bottom to hold it, tap it again to put it away. The red cross heals. Hold the grenade and drag to aim, let go to throw. In Zombies, hold the board-up prompt at a doorway. Tap the alive counter to see every player.</div>
       <div class="keys">
         <kbd>WASD</kbd><span>Move</span>
         <kbd>Mouse</kbd><span>Aim and shoot</span>
@@ -404,6 +415,7 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
         <kbd>1 2 3</kbd><span>Switch weapon</span>
         <kbd>F</kbd><span>Heal</span>
         <kbd>G</kbd><span>Hold to aim a grenade, let go to throw</span>
+        <kbd>B</kbd><span>Hold at a doorway to board it up (Zombies)</span>
         <kbd>Esc</kbd><span>Settings</span>
         <kbd>M</kbd><span>Mute</span>
         <kbd>Tab</kbd><span>Players</span>
@@ -440,6 +452,7 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
           <button id="copyLinkBtn" class="ghost" type="button">Copy invite link</button>
         </div>
       </div>
+      <div class="seg mode" id="roomModeSeg"><button type="button" data-v="br">Battle royale</button><button type="button" data-v="zombie">Zombies</button></div>
       <div class="plist" id="roomList"></div>
       <label class="set chk" id="botsRow"><span>Fill empty spots with bots</span><input type="checkbox" id="botsChk"></label>
       <div class="note" id="roomNote"></div>
@@ -478,7 +491,7 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
       <div class="big" id="endTitle">Eliminated</div>
       <div class="pitch" id="endLine"></div>
       <div class="res" id="endRes">
-        <div><b id="endRank">#1</b><span>Place</span></div>
+        <div><b id="endRank">#1</b><span id="endRankLbl">Place</span></div>
         <div><b id="endKills">0</b><span>Kills</span></div>
         <div><b id="endTime">0:00</b><span>Survived</span></div>
       </div>
@@ -528,13 +541,15 @@ function resize() {
 
 // ---------- client match state ----------
 let walls, buildings, boarded, trees, blocks, doors, cars, cells, specks, lights, cracks, potholes, puddles, patches, manholes, trash, tags, tires;
+let stores, barricades, blood, roads, pits;
 let M = null;
-function loadWorld(seed) {
-  ({ walls, buildings, boarded, trees, blocks, doors, cars, cells, specks, lights, cracks, potholes, puddles, patches, manholes, trash, tags, tires } = D.buildWorld(seed));
+function loadWorld(seed, mode) {
+  ({ walls, buildings, boarded, trees, blocks, doors, cars, cells, specks, lights, cracks, potholes, puddles, patches, manholes, trash, tags, tires, stores, barricades, blood, roads, pits } = D.buildWorld(seed, mode));
 }
-function newState(state, seed) {
-  loadWorld(seed);
+function newState(state, seed, mode) {
+  loadWorld(seed, mode);
   M = {
+    mode: mode === 'zombie' ? 'zombie' : 'br', zombies: new Map(), zw: null, groanT: 0,
     state, seed, time: 0, lockT: D.LOCKDOWN, liveTime: 0, alive: 0, winner: -1, players: new Map(), list: [], items: new Map(), me: null,
     zone: { cur: { x: WORLD.w / 2, y: WORLD.h / 2, r: 99999 }, next: null, mode: 'wait', t: 0 },
     tracers: [], particles: [], corpses: [], feed: [], cam: { x: CX, y: CY }, view: null, msg: '', msgT: 0,
@@ -547,7 +562,7 @@ function newState(state, seed) {
 function menuState() { newState('menu', 4242); }
 
 function onMatch(m) {
-  newState(m.st, m.seed);
+  newState(m.st, m.seed, m.mode);
   M.me = m.you;
   for (const r of m.roster) {
     const P = { id: r.id, name: r.name, bot: r.bot, crew: CREWS[r.crew] || CREWS[0], look: { ...r.look, hood: darken(r.look.hoodie, 0.7) },
@@ -584,6 +599,19 @@ function onSnap(s) {
     }
   }
   M.drops = s.dr || [];
+  if (s.zb) {
+    const live = new Set();
+    for (const a of s.zb) {
+      let Z = M.zombies.get(a[0]);
+      if (!Z) { Z = { id: a[0], x: a[1], y: a[2], ang: a[3], buf: [], hurt: 0, atk: 0, boss: !!a[5] }; M.zombies.set(a[0], Z); }
+      Z.hp = a[4]; if (a[6] && Z.atk <= 0) Z.atk = 0.3;
+      Z.buf.push({ t: now, x: a[1], y: a[2], ang: a[3] }); if (Z.buf.length > 10) Z.buf.shift();
+      live.add(a[0]);
+    }
+    for (const id of M.zombies.keys()) if (!live.has(id)) M.zombies.delete(id);
+    M.zw = s.zw;
+    s.bc.forEach((hp, i) => { const b = barricades[i]; if (b) { b.hp = hp; b.open = hp <= 0; } });
+  }
   for (const e of s.ev) handleEvent(e);
   if (s.st === 'over' && !M.overShown) { M.overShown = true; setTimeout(showEnd, 1500); }
 }
@@ -611,11 +639,11 @@ function handleEvent(e) {
     V.place = place;
     M.corpses.push({ x, y, ang: V.ang, tint: V.look.hoodie, skin: V.look.skin });
     for (let i = 0; i < 14; i++) burst(x, y, '#a3271f', 140);
-    const left = wname === 'left';
-    M.feed.unshift({ k: K ? K.name : left ? '' : 'Zone', v: V.name, w: left ? 'left the game' : K ? wname : 'gassed', me: kid === M.me || vid === M.me, t: 6 });
+    const left = wname === 'left', bit = kid === -2;
+    M.feed.unshift({ k: K ? K.name : left ? '' : bit ? wname : 'Zone', v: V.name, w: left ? 'left the game' : K ? wname : bit ? (wname === 'Boss' ? 'crushed' : 'bit') : 'gassed', me: kid === M.me || vid === M.me, t: 6 });
     M.feed.length = Math.min(M.feed.length, 5);
     if (vid === M.me) {
-      M.death = { place, by: K ? `${K.name} (${wname})` : 'the zone' };
+      M.death = { place, by: K ? `${K.name} (${wname})` : bit ? (wname === 'Boss' ? 'the boss' : 'a zombie') : 'the zone' };
       M.spec = K && K.alive ? K : null;
       setTimeout(showEnd, 1300);
     }
@@ -636,6 +664,30 @@ function handleEvent(e) {
   } else if (k === 'drop') { M.msg = 'Airdrop incoming'; M.msgT = 2.5; }
   else if (k === 'crate') { for (let i = 0; i < 16; i++) burst(e[1], e[2], i % 2 ? '#c8a96a' : '#ff4b3a', 220); if (M.local) sound('pickup', { x: e[1], y: e[2] }); }
   else if (k === 'got') { if (e[1] === M.me && M.local) sound('pickup', M.local); }
+  else if (k === 'zhit') { const Z = M.zombies.get(e[1]); if (Z) Z.hurt = 0.15; for (let i = 0; i < 4; i++) burst(e[2], e[3], '#55702a', 150); }
+  else if (k === 'zdie') {
+    const [, id, x, y, kid, boss] = e, Z = M.zombies.get(id), K = M.players.get(kid);
+    M.zombies.delete(id);
+    M.corpses.push({ x, y, ang: Z ? Z.ang : 0, zombie: id, boss: !!boss });
+    if (M.corpses.length > 160) M.corpses.shift();
+    for (let i = 0; i < (boss ? 40 : 12); i++) burst(x, y, i % 2 ? '#6b1a14' : '#4f6b22', boss ? 280 : 150);
+    if (K) K.kills++;
+    if (boss) { M.feed.unshift({ k: K ? K.name : '', v: 'the Boss', w: 'dropped', me: kid === M.me, t: 6 }); M.msg = '<small>It dropped a crate</small>Boss down!'; M.msgT = 3; sound('boom', { x, y }); }
+  } else if (k === 'zatk') { const Z = M.zombies.get(e[1]); if (Z) { Z.atk = 0.35; sound(Z.boss ? 'smash' : 'bite', Z); } }
+  else if (k === 'bar') {
+    const [, i, hp] = e, b = barricades[i]; if (!b) return;
+    const was = b.hp, cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+    b.hp = hp; b.open = hp <= 0;
+    if (hp < was) { for (let j = 0; j < 8; j++) burst(cx, cy, '#8a6a42', 180); sound(hp ? 'thud' : 'smash', { x: cx, y: cy }); }
+    else sound('nail', { x: cx, y: cy });
+  }
+  else if (k === 'wave') { M.msg = `<small>${e[2] ? 'Something big is coming' : 'Here they come'}</small>Wave ${e[1]}`; M.msgT = 3; alarm(); }
+  else if (k === 'clear') { M.msg = `<small>Board up and restock</small>Wave ${e[1]} cleared`; M.msgT = 3; }
+  else if (k === 'boss') { M.msg = '<small>Shoot it from behind the barricades</small>BOSS INCOMING'; M.msgT = 3.5; const Z = M.zombies.get(e[1]); sound('roar', Z || viewer()); }
+  else if (k === 'revive') {
+    const P = M.players.get(e[1]); if (P) P.init = false;
+    if (e[1] === M.me) { M.local = null; M.death = null; M.spec = null; M.msg = 'Back on your feet'; M.msgT = 2; if (!$('endScreen').hidden) { showScreen(null); cv.focus(); } }
+  }
 }
 function burst(x, y, c, sp) { const a = Math.random() * TAU, s = sp * (0.3 + Math.random() * 0.7); M.particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0.25 + Math.random() * 0.35, max: 0.6, c, s: 1.5 + Math.random() * 2 }); }
 
@@ -718,6 +770,13 @@ function update(dt) {
     P.flash -= dt; P.hurt -= dt; P.punch -= dt;
     if (P !== me) interp(P, rt);
   }
+  for (const Z of M.zombies.values()) { Z.hurt -= dt; Z.atk -= dt; interp(Z, rt); }
+  // now and then one of the nearby dead groans
+  if (M.zombies.size && (M.groanT -= dt) <= 0) {
+    M.groanT = 1.2 + Math.random() * 2.5;
+    const v = viewer(), near = [...M.zombies.values()].filter(Z => Math.hypot(Z.x - v.x, Z.y - v.y) < 700);
+    if (near.length) groan(near[Math.floor(Math.random() * near.length)]);
+  }
   if (me && me.alive && M.local) {
     const md = M.meData;
     let mx = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
@@ -739,7 +798,7 @@ function update(dt) {
     M.localCd -= dt;
     localFire(me);
     M.sendT -= dt;
-    if (M.sendT <= 0) { M.sendT = 1 / 30; send({ t: 'in', x: +me.x.toFixed(1), y: +me.y.toFixed(1), a: +me.ang.toFixed(3), f: mouse.down ? 1 : 0, c: clicks }); }
+    if (M.sendT <= 0) { M.sendT = 1 / 30; send({ t: 'in', x: +me.x.toFixed(1), y: +me.y.toFixed(1), a: +me.ang.toFixed(3), f: mouse.down ? 1 : 0, c: clicks, b: keys.KeyB || touch.build != null ? 1 : 0 }); }
   } else if (me) interp(me, rt);
   for (let i = M.tracers.length - 1; i >= 0; i--) {
     const b = M.tracers[i], sp = Math.hypot(b.vx, b.vy), steps = Math.max(1, Math.ceil(sp * dt / 12)), sl = sp * dt / steps;
@@ -747,7 +806,8 @@ function update(dt) {
     for (let s = 0; s < steps; s++) {
       b.x += b.vx * dt / steps; b.y += b.vy * dt / steps; b.left -= sl;
       if (b.left <= 0) { dead = true; break; }
-      if (D.solidAt(b.x, b.y)) { dead = true; for (let k = 0; k < 4; k++) burst(b.x, b.y, '#d9cfb8', 120); break; }
+      const w = D.solidAt(b.x, b.y);
+      if (w && w.kind !== 'barricade') { dead = true; for (let k = 0; k < 4; k++) burst(b.x, b.y, '#d9cfb8', 120); break; }
     }
     if (dead) M.tracers.splice(i, 1);
   }
@@ -898,13 +958,134 @@ function drawWorld() {
     }
     ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(b.door.x, b.door.y, b.door.w, b.door.h);
   }
+}
+function drawCorpses() {
   for (const c of M.corpses) {
-    if (!inView(c.x - 24, c.y - 24, 48, 48)) continue;
-    ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(c.ang);
-    ctx.fillStyle = 'rgba(100,14,12,.6)'; ctx.beginPath(); ctx.ellipse(-4, 2, 20, 13, 0.3, 0, TAU); ctx.fill();
-    ctx.fillStyle = c.tint; ctx.beginPath(); ctx.ellipse(-2, 0, 8.5, 13.5, 0, 0, TAU); ctx.fill();
-    ctx.fillStyle = c.skin; ctx.beginPath(); ctx.arc(-10, 2, 6, 0, TAU); ctx.fill();
+    const sc = c.boss ? 5 : 1;
+    if (!inView(c.x - 24 * sc, c.y - 24 * sc, 48 * sc, 48 * sc)) continue;
+    ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(c.ang); ctx.scale(sc, sc);
+    ctx.fillStyle = c.zombie != null ? 'rgba(70,20,12,.55)' : 'rgba(100,14,12,.6)'; ctx.beginPath(); ctx.ellipse(-4, 2, 20, 13, 0.3, 0, TAU); ctx.fill();
+    const z = c.zombie != null ? zlook(c.zombie, c.boss) : null;
+    ctx.fillStyle = z ? z.cloth : c.tint; ctx.beginPath(); ctx.ellipse(-2, 0, z && c.boss ? 11 : 8.5, z && c.boss ? 15.5 : 13.5, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = z ? z.skin : c.skin; ctx.beginPath(); ctx.arc(-10, 2, 6, 0, TAU); ctx.fill();
     ctx.restore();
+  }
+}
+
+// ---------- zombie map ----------
+const ZSIGN = { gun: '#ff4b3a', pharmacy: '#5ce08a', sports: '#4aa8ff', grocery: '#ffc94a' };
+const ZFLOOR = { gun: '#3a302a', pharmacy: '#43504f', sports: '#363d4a', grocery: '#48463a' };
+function drawZWorld() {
+  const W = D.ZW, Mm = D.MALL, t = M.time;
+  ctx.fillStyle = '#0d0f0b'; ctx.fillRect(-600, -600, W.w + 1200, W.h + 1200);
+  ctx.fillStyle = '#1f241a'; ctx.fillRect(0, 0, W.w, W.h);
+  ctx.fillStyle = '#273020';
+  for (const s of specks) if (inView(s.x - 8, s.y - 8, 16, 16)) { ctx.beginPath(); ctx.arc(s.x, s.y, s.r * 1.6, 0, TAU); ctx.fill(); }
+  // roads in, the main two paved, the corner paths just trampled dirt
+  ctx.lineCap = 'round';
+  roads.forEach(([x0, y0, x1, y1], i) => { ctx.strokeStyle = i < 2 ? '#222326' : '#2f2b22'; ctx.lineWidth = i < 2 ? 110 : 70; ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); });
+  ctx.save(); ctx.strokeStyle = 'rgba(214,180,70,.14)'; ctx.lineWidth = 3; ctx.setLineDash([22, 26]); ctx.beginPath();
+  for (const [x0, y0, x1, y1] of roads.slice(0, 2)) { ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); }
+  ctx.stroke(); ctx.restore();
+  // the parking lot with faded bays
+  const L = { x: Mm.x - 230, y: Mm.y - 230, w: Mm.w + 460, h: Mm.h + 460 };
+  ctx.fillStyle = '#212225'; ctx.fillRect(L.x, L.y, L.w, L.h);
+  ctx.strokeStyle = 'rgba(220,220,210,.12)'; ctx.lineWidth = 2; ctx.beginPath();
+  for (let x = L.x + 40; x < L.x + L.w - 30; x += 40) { ctx.moveTo(x, L.y + 30); ctx.lineTo(x, L.y + 110); ctx.moveTo(x, L.y + L.h - 30); ctx.lineTo(x, L.y + L.h - 110); }
+  for (let y = L.y + 150; y < L.y + L.h - 140; y += 40) { ctx.moveTo(L.x + 30, y); ctx.lineTo(L.x + 110, y); ctx.moveTo(L.x + L.w - 30, y); ctx.lineTo(L.x + L.w - 110, y); }
+  ctx.stroke();
+  for (const q of potholes) if (inView(q.x - 14, q.y - 14, 28, 28)) { ctx.fillStyle = '#0f1011'; ctx.beginPath(); ctx.ellipse(q.x, q.y, q.rx, q.ry, q.a, 0, TAU); ctx.fill(); }
+  ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.lineWidth = 1.4; ctx.beginPath();
+  for (const c of cracks) { if (!inView(c.x - 120, c.y - 120, 240, 240)) continue; ctx.moveTo(c.pts[0], c.pts[1]); for (let i = 2; i < c.pts.length; i += 2) ctx.lineTo(c.pts[i], c.pts[i + 1]); }
+  ctx.stroke();
+  // the breaches the horde pours out of
+  for (const p of pits) {
+    if (!inView(p.x - 200, p.y - 200, 400, 400)) continue;
+    const g = ctx.createRadialGradient(p.x, p.y, 10, p.x, p.y, 190);
+    g.addColorStop(0, `rgba(110,150,50,${0.22 + 0.06 * Math.sin(t * 2 + p.a)})`); g.addColorStop(1, 'rgba(110,150,50,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, 190, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#0b0c09'; ctx.beginPath(); ctx.ellipse(p.x, p.y, p.r, p.r * 0.7, p.a, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(150,158,165,.4)'; ctx.lineWidth = 3;
+    for (let k = 0; k < 7; k++) { const a = p.a + k * 0.9; ctx.beginPath(); ctx.moveTo(p.x + Math.cos(a) * 80, p.y + Math.sin(a) * 80); ctx.lineTo(p.x + Math.cos(a + 0.3) * 110, p.y + Math.sin(a + 0.3) * 110); ctx.stroke(); }
+  }
+  for (const b of blood) if (inView(b.x - 30, b.y - 30, 60, 60)) { ctx.fillStyle = 'rgba(90,14,10,.55)'; ctx.beginPath(); ctx.ellipse(b.x, b.y, b.rx, b.ry, b.a, 0, TAU); ctx.fill(); }
+  for (const d of trash) if (inView(d.x - 6, d.y - 6, 12, 12)) { ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.a); ctx.fillStyle = d.c; ctx.globalAlpha = 0.7; ctx.fillRect(-d.w / 2, -d.h / 2, d.w, d.h); ctx.restore(); }
+  // the mall: cracked tile, the four stores and their neon
+  if (inView(Mm.x, Mm.y, Mm.w, Mm.h)) {
+    ctx.fillStyle = '#3d3c38'; ctx.fillRect(Mm.x, Mm.y, Mm.w, Mm.h);
+    ctx.strokeStyle = 'rgba(0,0,0,.2)'; ctx.lineWidth = 1; ctx.beginPath();
+    for (let x = Mm.x + 40; x < Mm.x + Mm.w; x += 40) { ctx.moveTo(x, Mm.y); ctx.lineTo(x, Mm.y + Mm.h); }
+    for (let y = Mm.y + 40; y < Mm.y + Mm.h; y += 40) { ctx.moveTo(Mm.x, y); ctx.lineTo(Mm.x + Mm.w, y); }
+    ctx.stroke();
+    for (const b of blood) if (inRect(Mm, b.x, b.y)) { ctx.fillStyle = 'rgba(90,14,10,.6)'; ctx.beginPath(); ctx.ellipse(b.x, b.y, b.rx, b.ry, b.a, 0, TAU); ctx.fill(); }
+    ctx.save(); ctx.font = '54px "Black Ops One", Impact, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = 'rgba(255,255,255,.05)';
+    ctx.fillText('EASTGATE MALL', Mm.x + Mm.w / 2, Mm.y + Mm.h / 2 + 230);
+    ctx.font = '34px "Permanent Marker", cursive'; ctx.fillStyle = 'rgba(184,38,31,.45)'; ctx.translate(Mm.x + Mm.w / 2 - 170, Mm.y + Mm.h / 2 - 215); ctx.rotate(-0.1); ctx.fillText('SAFE ZONE', 0, 0);
+    ctx.restore();
+    for (const st of stores) {
+      ctx.fillStyle = ZFLOOR[st.kind]; ctx.fillRect(st.x, st.y, st.w, st.h);
+      // shelves along the back wall
+      ctx.fillStyle = '#1c1a17'; const by = st.front === 'bottom' ? st.y + 14 : st.y + st.h - 30;
+      for (let x = st.x + 18; x < st.x + st.w - 40; x += 62) ctx.fillRect(x, by, 48, 16);
+      const sy = st.front === 'bottom' ? st.y + st.h - 34 : st.y + 34, on = Math.sin(t * 7 + st.x) + Math.sin(t * 19 + st.y) > -1.4 ? 1 : 0.25;
+      ctx.save(); ctx.font = '700 22px "Barlow Condensed", "Arial Narrow", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.globalAlpha = 0.4 + 0.6 * on; ctx.shadowColor = ZSIGN[st.kind]; ctx.shadowBlur = 18 * on; ctx.fillStyle = ZSIGN[st.kind];
+      ctx.fillText(st.name, st.x + st.w / 2, sy); ctx.restore();
+    }
+  }
+  for (const tg of tags) {
+    if (!inView(tg.x - 120, tg.y - 40, 240, 80)) continue;
+    ctx.save(); ctx.translate(tg.x, tg.y); ctx.rotate(tg.a); ctx.globalAlpha = 0.55;
+    ctx.font = `${tg.size}px "Permanent Marker", cursive`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillText(tg.text, 2, 2); ctx.fillStyle = tg.c; ctx.fillText(tg.text, 0, 0);
+    ctx.restore();
+  }
+}
+// planks nailed across a doorway, one per hit it can still take
+function drawBarricade(b) {
+  const hz = b.w > b.h, cx = b.x + b.w / 2, cy = b.y + b.h / 2, len = (hz ? b.w : b.h) + 8;
+  ctx.fillStyle = 'rgba(10,10,10,.55)'; ctx.fillRect(b.x, b.y, b.w, b.h);
+  ctx.save(); ctx.translate(cx, cy); if (!hz) ctx.rotate(Math.PI / 2);
+  if (!b.hp) {
+    ctx.fillStyle = '#4a3622'; ctx.fillRect(-len / 2, -4, 12, 5); ctx.fillRect(len / 2 - 14, 1, 14, 5);
+  }
+  for (let i = 0; i < b.hp; i++) {
+    ctx.save(); ctx.translate(0, -8 + i * 4); ctx.rotate((i % 2 ? 1 : -1) * (0.08 + i * 0.03));
+    ctx.fillStyle = i % 2 ? '#7a5a36' : '#8e6a40'; ctx.fillRect(-len / 2, -3, len, 6);
+    ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(-len / 2, 2, len, 1);
+    ctx.fillStyle = '#c9c3b5'; ctx.fillRect(-len / 2 + 4, -1, 2, 2); ctx.fillRect(len / 2 - 6, -1, 2, 2);
+    ctx.restore();
+  }
+  ctx.restore();
+}
+// every zombie keeps the same rotten look for its whole life (and as a corpse)
+function zlook(id, boss) {
+  return { skin: boss ? '#6f8a4a' : ['#7d9a5a', '#8aa06a', '#6e8a58', '#93a37a'][id % 4], cloth: boss ? '#3a3226' : ['#3b3a33', '#4a3a2e', '#2f3a40', '#5a4a3a', '#3a4030', '#5e1d1d'][id % 6] };
+}
+function drawZombie(Z) {
+  const sc = Z.boss ? 5 : 1, t = M.time, L = zlook(Z.id, Z.boss), bite = Z.atk > 0;
+  ctx.save(); ctx.translate(Z.x, Z.y);
+  ctx.fillStyle = 'rgba(0,0,0,.38)'; ctx.beginPath(); ctx.ellipse(3 * sc, 4 * sc, 14 * sc, 13 * sc, 0, 0, TAU); ctx.fill();
+  ctx.rotate(Z.ang + Math.sin(t * 5 + Z.id) * 0.1); ctx.scale(sc, sc);
+  // arms out in front, snapping together when it bites
+  const reach = bite ? 21 : 16, sp = bite ? 3 : 8, sway = Math.sin(t * 6 + Z.id * 1.7) * 2;
+  ctx.lineCap = 'round'; ctx.strokeStyle = L.cloth; ctx.lineWidth = 5.5;
+  ctx.beginPath(); ctx.moveTo(1, -9); ctx.lineTo(reach + sway, -sp); ctx.moveTo(1, 9); ctx.lineTo(reach - 2 - sway, sp); ctx.stroke();
+  ctx.fillStyle = L.skin; for (const [hx, hy] of [[reach + sway, -sp], [reach - 2 - sway, sp]]) { ctx.beginPath(); ctx.arc(hx, hy, 3.6, 0, TAU); ctx.fill(); }
+  ctx.fillStyle = L.cloth; ctx.beginPath(); ctx.ellipse(-1, 0, Z.boss ? 11.5 : 8.5, Z.boss ? 16 : 13.5, 0, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.lineWidth = 1.5; ctx.stroke();
+  ctx.fillStyle = '#6b1a14'; ctx.beginPath(); ctx.arc(-3, 5, 3.2, 0, TAU); ctx.fill();
+  ctx.fillStyle = L.skin; ctx.beginPath(); ctx.arc(-4, -6, 2.6, 0, TAU); ctx.fill();
+  ctx.beginPath(); ctx.arc(2, 0, Z.boss ? 7.4 : 6.4, 0, TAU); ctx.fill();
+  ctx.fillStyle = 'rgba(30,40,20,.5)'; ctx.beginPath(); ctx.arc(0, -2.5, 2.4, 0, TAU); ctx.fill();
+  ctx.fillStyle = Z.boss ? '#ff3a2a' : '#e8e26a'; ctx.beginPath(); ctx.arc(6, -2.4, 1.2, 0, TAU); ctx.arc(6, 2.4, 1.2, 0, TAU); ctx.fill();
+  if (Z.hurt > 0) { ctx.fillStyle = `rgba(255,255,255,${Math.min(0.6, Z.hurt * 3)})`; ctx.beginPath(); ctx.ellipse(-1, 0, 9, 14, 0, 0, TAU); ctx.fill(); }
+  ctx.restore();
+  // health: always over the boss, over the others once they're hurt
+  if (Z.boss || Z.hp < 100) {
+    const w = Z.boss ? 130 : 26, y = Z.y - (Z.boss ? 92 : 22);
+    ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(Z.x - w / 2 - 1, y - 1, w + 2, Z.boss ? 7 : 5);
+    ctx.fillStyle = Z.boss ? '#ff3a2a' : '#9ac04a'; ctx.fillRect(Z.x - w / 2, y, w * Z.hp / 100, Z.boss ? 5 : 3);
   }
 }
 
@@ -951,6 +1132,22 @@ function drawWalls() {
       ctx.fillStyle = '#7d848a';
       if (w.w > w.h) for (let x = w.x; x <= w.x + w.w; x += 30) ctx.fillRect(x - 2, w.y - 1, 4, 6);
       else for (let y = w.y; y <= w.y + w.h; y += 30) ctx.fillRect(w.x - 1, y - 2, 6, 4);
+    } else if (w.kind === 'barricade') drawBarricade(w);
+    else if (w.kind === 'counter') {
+      ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(w.x + 3, w.y + 4, w.w, w.h);
+      ctx.fillStyle = '#5a4634'; ctx.fillRect(w.x, w.y, w.w, w.h); ctx.fillStyle = '#7a6248'; ctx.fillRect(w.x, w.y, w.w, 4);
+      ctx.fillStyle = '#2a2420'; for (let x = w.x + 20; x < w.x + w.w - 10; x += 45) ctx.fillRect(x, w.y + 7, 14, 7);
+    } else if (w.kind === 'fountain') {
+      const cx = w.x + w.w / 2, cy = w.y + w.h / 2;
+      ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.arc(cx + 4, cy + 5, w.w / 2 + 6, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#6a6e70'; ctx.beginPath(); ctx.arc(cx, cy, w.w / 2 + 6, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#26302c'; ctx.beginPath(); ctx.arc(cx, cy, w.w / 2 - 4, 0, TAU); ctx.fill();
+      ctx.fillStyle = 'rgba(70,90,40,.6)'; ctx.beginPath(); ctx.ellipse(cx - 8, cy + 6, 18, 10, 0.4, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#7d8183'; ctx.beginPath(); ctx.arc(cx, cy, 10, 0, TAU); ctx.fill();
+    } else if (w.kind === 'planter') {
+      const cx = w.x + w.w / 2, cy = w.y + w.h / 2;
+      ctx.fillStyle = '#4a4038'; ctx.fillRect(w.x, w.y, w.w, w.h); ctx.fillStyle = '#2a221c'; ctx.fillRect(w.x + 4, w.y + 4, w.w - 8, w.h - 8);
+      ctx.strokeStyle = '#5a4a2c'; ctx.lineWidth = 2; ctx.beginPath(); for (let k = 0; k < 6; k++) { const a = k * 1.05 + 0.3; ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(a) * 16, cy + Math.sin(a) * 16); } ctx.stroke();
     } else if (w.kind === 'barrel') {
       const cx = w.x + 9, cy = w.y + 9;
       ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.beginPath(); ctx.arc(cx + 3, cy + 4, 10, 0, TAU); ctx.fill();
@@ -1129,12 +1326,14 @@ function render(dt) {
   const z = ZOOM, cam = M.cam, t = M.time;
   M.view = { x0: cam.x - VW / 2 / z - 40, x1: cam.x + VW / 2 / z + 40, y0: cam.y - VH / 2 / z - 40, y1: cam.y + VH / 2 / z + 40 };
   ctx.setTransform(DPR * z, 0, 0, DPR * z, DPR * (VW / 2 - cam.x * z), DPR * (VH / 2 - cam.y * z));
-  drawWorld();
+  if (M.mode === 'zombie') drawZWorld(); else drawWorld();
+  drawCorpses();
   for (const it of M.items.values()) if (inView(it.x - 14, it.y - 14, 28, 28)) drawItem(it);
   drawWalls();
   const vw = viewer(), fogOn = M.state !== 'menu';
   for (const p of M.list) p.seen = p.alive && p.init && inView(p.x - 40, p.y - 40, 80, 80) && (!fogOn || p === vw || canSee(vw, p));
   for (const p of M.list) if (p.seen) drawPlayer(p);
+  for (const Z of M.zombies.values()) if (inView(Z.x - 100, Z.y - 100, 200, 200) && (!fogOn || canSee(vw, Z))) drawZombie(Z);
   ctx.lineCap = 'round';
   for (const b of M.tracers) {
     ctx.strokeStyle = 'rgba(255,236,170,.9)'; ctx.lineWidth = 2.2;
@@ -1170,10 +1369,10 @@ function render(dt) {
   }
   if (fogOn) drawFog(vw);
   drawLights(t);
-  drawSigns(t);
+  if (M.mode !== 'zombie') drawSigns(t);
   drawSky(t);
   const zn = M.zone;
-  if (fogOn) {
+  if (fogOn && M.mode !== 'zombie') {
     ctx.save(); ctx.beginPath(); ctx.rect(M.view.x0 - 50, M.view.y0 - 50, M.view.x1 - M.view.x0 + 100, M.view.y1 - M.view.y0 + 100);
     ctx.arc(zn.cur.x, zn.cur.y, Math.max(0.1, zn.cur.r), 0, TAU);
     ctx.fillStyle = 'rgba(40,92,210,.3)'; ctx.fill('evenodd');
@@ -1196,11 +1395,11 @@ function render(dt) {
   vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,.6)');
   ctx.fillStyle = vg; ctx.fillRect(0, 0, VW, VH);
   const me = meP(), md = M.meData;
-  if (me && me.alive && md && (md.r > 0 || md.h)) {
+  if (me && me.alive && md && (md.r > 0 || md.h || md.bd > 0)) {
     const sx = VW / 2 + (me.x - cam.x) * z, sy = VH / 2 + (me.y - cam.y) * z;
     const g = myGun();
-    const k = md.h ? md.h[1] / md.h[2] : g ? 1 - md.r / WEAPONS[g[0]].reload : 0;
-    ctx.strokeStyle = md.h ? '#7fe08a' : '#ede7da'; ctx.lineWidth = 3;
+    const k = md.bd > 0 ? md.bd / D.ZOMBIE.buildRate : md.h ? md.h[1] / md.h[2] : g ? 1 - md.r / WEAPONS[g[0]].reload : 0;
+    ctx.strokeStyle = md.bd > 0 ? '#c9a46a' : md.h ? '#7fe08a' : '#ede7da'; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(sx, sy, 26 * z, -Math.PI / 2, -Math.PI / 2 + TAU * clamp(k, 0, 1)); ctx.stroke();
   }
 }
@@ -1259,6 +1458,17 @@ let miniBase = null;
 function buildMiniBase() {
   const S = mini.width; miniBase = document.createElement('canvas'); miniBase.width = miniBase.height = S;
   const c = miniBase.getContext('2d'), s = S / Math.max(WORLD.w, WORLD.h);
+  if (M.mode === 'zombie') {
+    const Mm = D.MALL;
+    c.fillStyle = '#1f241a'; c.fillRect(0, 0, S, S);
+    c.lineCap = 'round'; roads.forEach(([x0, y0, x1, y1], i) => { c.strokeStyle = i < 2 ? '#2c2d30' : '#3a352a'; c.lineWidth = (i < 2 ? 110 : 70) * s; c.beginPath(); c.moveTo(x0 * s, y0 * s); c.lineTo(x1 * s, y1 * s); c.stroke(); });
+    c.fillStyle = '#2a2b2e'; c.fillRect((Mm.x - 230) * s, (Mm.y - 230) * s, (Mm.w + 460) * s, (Mm.h + 460) * s);
+    c.fillStyle = '#5c5a52'; c.fillRect(Mm.x * s, Mm.y * s, Mm.w * s, Mm.h * s);
+    for (const st of stores) { c.fillStyle = darken(ZSIGN[st.kind], 0.55); c.fillRect(st.x * s, st.y * s, st.w * s, st.h * s); }
+    c.fillStyle = '#444'; for (const b of boarded) c.fillRect(b.x * s, b.y * s, b.w * s, b.h * s);
+    c.fillStyle = 'rgba(130,170,60,.5)'; for (const p of pits) { c.beginPath(); c.arc(p.x * s, p.y * s, 110 * s, 0, TAU); c.fill(); }
+    return;
+  }
   c.fillStyle = C.dirt; c.fillRect(0, 0, S, S);
   c.fillStyle = C.asphalt; c.fillRect(CITY.x * s, CITY.y * s, CITY.w * s, CITY.h * s);
   for (const k of blocks) { c.fillStyle = k.park ? '#3a3328' : C.side; c.fillRect(k.x * s, k.y * s, k.w * s, k.h * s); }
@@ -1269,6 +1479,19 @@ function buildMiniBase() {
 function drawMini() {
   const S = mini.width, s = S / Math.max(WORLD.w, WORLD.h);
   mctx.drawImage(miniBase, 0, 0);
+  if (M.mode === 'zombie') {
+    // doorways: green when boarded up, red when open
+    for (const b of barricades) { mctx.fillStyle = b.hp >= D.ZOMBIE.barHp ? '#7fe08a' : b.hp ? '#ffc94a' : '#ff4b3a'; mctx.fillRect((b.x - 6) * s, (b.y - 6) * s, Math.max(3 * DPR, (b.w + 12) * s), Math.max(3 * DPR, (b.h + 12) * s)); }
+    mctx.fillStyle = '#c43a2c';
+    for (const Z of M.zombies.values()) { mctx.beginPath(); mctx.arc(Z.x * s, Z.y * s, (Z.boss ? 4 : 1.8) * DPR, 0, TAU); mctx.fill(); }
+    for (const it of M.items.values()) if (it.type === 'crate') { mctx.fillStyle = '#ff4b3a'; mctx.fillRect(it.x * s - 4 * DPR, it.y * s - 4 * DPR, 8 * DPR, 8 * DPR); }
+    mctx.fillStyle = '#e8e2d4';
+    for (const P of M.list) if (P.alive && P.id !== M.me) { mctx.beginPath(); mctx.arc(P.x * s, P.y * s, 2.6 * DPR, 0, TAU); mctx.fill(); }
+    const p = viewer();
+    mctx.fillStyle = '#ff7a1a'; mctx.strokeStyle = '#fff'; mctx.lineWidth = 1.5 * DPR;
+    mctx.beginPath(); mctx.arc(p.x * s, p.y * s, 3.5 * DPR, 0, TAU); mctx.fill(); mctx.stroke();
+    return;
+  }
   const z = M.zone;
   mctx.save(); mctx.beginPath(); mctx.rect(0, 0, S, S); mctx.arc(z.cur.x * s, z.cur.y * s, Math.max(0.1, z.cur.r * s), 0, TAU);
   mctx.fillStyle = 'rgba(40,92,210,.4)'; mctx.fill('evenodd'); mctx.restore();
@@ -1297,6 +1520,22 @@ function updateHud() {
   $('pingStat').hidden = !S.ping; $('fpsStat').hidden = !S.fps;
   if (S.fps) setText($('fps'), String(Math.round(fps)));
   const pe = $('ping'); setText(pe, net.ping ? String(net.ping) : '--'); pe.className = !net.ping ? '' : net.ping < 90 ? 'good' : net.ping < 160 ? 'ok' : 'bad';
+  if (M.mode === 'zombie') zombieHud(me); else zoneHud(me, z);
+  let center = '';
+  if (M.state === 'lockdown') center = `<small>Power failure in Cell Block D</small>Doors open in ${Math.ceil(M.lockT)}`;
+  else if (M.msgT > 0) center = M.msg;
+  else if ((!me || !me.alive) && M.spec && M.spec.alive && $('endScreen').hidden) center = `<small>Spectating</small>${esc(M.spec.name)}`;
+  setHtml($('center'), center);
+  myHud(me, md);
+}
+function zombieHud(me) {
+  const zw = M.zw || [0, 0, D.ZOMBIE.prep, 0], fight = zw[1] === 1;
+  setText($('zoneLbl'), fight ? `Wave ${zw[0]}` : zw[0] ? `Wave ${zw[0] + 1} in` : 'First wave in');
+  setText($('zoneTime'), fight ? `${zw[3]} left` : fmtTime(zw[2]));
+  $('zoneFill').style.width = (fight ? 100 : (1 - zw[2] / (zw[0] ? D.ZOMBIE.rest : D.ZOMBIE.prep)) * 100) + '%';
+  $('zoneBox').classList.toggle('closing', fight); $('zoneBox').classList.remove('out');
+}
+function zoneHud(me, z) {
   // zone timer: the bar shows how far through the current phase we are (the next circle's size tells which phase)
   const phase = M.state === 'lockdown' ? 'lock' : M.state === 'live' ? z.mode : 'over', left = Math.max(0, M.state === 'lockdown' ? M.lockT : z.t);
   const ph = z.next && D.PHASES.find(p => p.r === z.next.r);
@@ -1307,11 +1546,8 @@ function updateHud() {
   setText($('zoneLbl'), lbl); setText($('zoneTime'), timed ? fmtTime(left) : '');
   $('zoneFill').style.width = (timed ? (1 - left / Math.max(total, left, 0.001)) * 100 : 100) + '%';
   $('zoneBox').classList.toggle('closing', phase === 'shrink' || phase === 'final'); $('zoneBox').classList.toggle('out', !!out);
-  let center = '';
-  if (M.state === 'lockdown') center = `<small>Power failure in Cell Block D</small>Doors open in ${Math.ceil(M.lockT)}`;
-  else if (M.msgT > 0) center = M.msg;
-  else if ((!me || !me.alive) && M.spec && M.spec.alive && $('endScreen').hidden) center = `<small>Spectating</small>${esc(M.spec.name)}`;
-  setHtml($('center'), center);
+}
+function myHud(me, md) {
   if (me && md) {
     for (let i = 0; i < 2; i++) {
       const el = $('s' + i), g = md.s[i];
@@ -1333,10 +1569,16 @@ function updateHud() {
       $('reloadBtn').hidden = !g || !me.alive; $('reloadBtn').classList.toggle('busy', md.r > 0);
     }
   }
-  let it = null;
-  if (me && me.alive && M.local) { let bd = 40; for (const i of M.items.values()) { if (ITEMS[i.type].kind !== 'gun') continue; const d = Math.hypot(i.x - me.x, i.y - me.y); if (d < bd) { bd = d; it = i; } } }
-  $('prompt').hidden = !it;
-  if (it) setHtml($('prompt'), touch.on ? `Tap to pick up ${ITEMS[it.type].label}` : `<kbd>E</kbd>Pick up ${ITEMS[it.type].label}`);
+  let it = null, bar = null;
+  if (me && me.alive && M.local) {
+    let bd = 40; for (const i of M.items.values()) { if (ITEMS[i.type].kind !== 'gun') continue; const d = Math.hypot(i.x - me.x, i.y - me.y); if (d < bd) { bd = d; it = i; } }
+    // a doorway in reach that isn't fully boarded (same 60 as the server)
+    if (M.mode === 'zombie') { let rd = 56; for (const b of barricades) { const d = Math.hypot(clamp(me.x, b.x, b.x + b.w) - me.x, clamp(me.y, b.y, b.y + b.h) - me.y); if (d < rd && b.hp < D.ZOMBIE.barHp) { rd = d; bar = b; } } }
+  }
+  const pr = $('prompt');
+  pr.hidden = !it && !bar; pr.dataset.mode = bar ? 'build' : 'pickup';
+  if (bar) setHtml(pr, (touch.on ? 'Hold to board up' : '<kbd>B</kbd>Hold to board up') + ` (${bar.hp}/${D.ZOMBIE.barHp})`);
+  else if (it) setHtml(pr, touch.on ? `Tap to pick up ${ITEMS[it.type].label}` : `<kbd>E</kbd>Pick up ${ITEMS[it.type].label}`);
   setHtml($('feed'), M.feed.map(f => `<div class="${f.me ? 'me' : ''}">${esc(f.k)}<i>${esc(f.w)}</i>${esc(f.v)}</div>`).join(''));
 }
 
@@ -1348,10 +1590,11 @@ function renderBoard(dt) {
   const rows = M.list.slice().sort((a, b) => (b.alive - a.alive) || (b.kills - a.kills) || (a.alive ? 0 : a.place - b.place) || a.name.localeCompare(b.name));
   const row = (p, i) => `<div class="pr ${p.alive ? '' : 'dead'} ${p.id === M.me ? 'me' : ''}"><span class="pos">${i + 1}</span>`
     + `<span class="n"><i style="background:${p.crew.c}"></i><span>${esc(p.name)}</span>${p.bot ? '<em>BOT</em>' : ''}</span>`
-    + `<span class="k">${p.kills}</span><span class="st ${p.alive ? 'al' : ''}">${p.alive ? 'Alive' : p.place ? '#' + p.place : 'Out'}</span></div>`;
+    + `<span class="k">${p.kills}</span><span class="st ${p.alive ? 'al' : ''}">${p.alive ? 'Alive' : M.mode === 'zombie' ? 'Down' : p.place ? '#' + p.place : 'Out'}</span></div>`;
   const hd = '<div class="hd"><span></span><span>Player</span><span class="k">Kills</span><span class="k">Status</span></div>';
   const half = Math.ceil(rows.length / 2), humans = M.list.filter(p => !p.bot).length;
-  setHtml($('board'), `<div class="bh"><b>Players</b><span>${M.alive} alive · ${humans} real · ${M.list.length - humans} bots</span></div>`
+  const info = M.mode === 'zombie' ? `${M.alive} alive · wave ${M.zw ? M.zw[0] : 0}` : `${M.alive} alive · ${humans} real · ${M.list.length - humans} bots`;
+  setHtml($('board'), `<div class="bh"><b>Players</b><span>${info}</span></div>`
     + `<div class="cols2"><div>${hd}${rows.slice(0, half).map(row).join('')}</div><div>${hd}${rows.slice(half).map((p, i) => row(p, i + half)).join('')}</div></div>`);
 }
 
@@ -1363,6 +1606,7 @@ function showEnd() {
   const over = M.state === 'over';
   if (me && me.alive && !won) return;
   if (!me && !over) return;
+  if (M.mode === 'zombie') return zombieEnd(me, over);
   $('endTitle').textContent = won ? 'Top Dawg!' : me ? 'Eliminated' : `${W ? W.name : 'Nobody'} won`;
   $('endTitle').className = 'big ' + (won ? 'win' : me ? 'lose' : 'win');
   $('endLine').textContent = won ? 'Last dawg standing. The city is yours.'
@@ -1370,12 +1614,13 @@ function showEnd() {
     : `Taken out by ${M.death ? M.death.by : 'someone'}.` + (over && W ? ` ${W.name} won the match.` : '');
   $('endRes').hidden = !me;
   if (me) {
+    $('endRankLbl').textContent = 'Place';
     $('endRank').textContent = '#' + (won ? 1 : M.death ? M.death.place : '?');
     $('endKills').textContent = M.meData ? M.meData.k : 0;
     $('endTime').textContent = fmtTime(won ? M.liveTime : (M.meData ? M.meData.dt : 0));
     if (!M.tracked) {
       M.tracked = true;
-      track('match_end', { place: won ? 1 : M.death ? M.death.place : 0, kills: M.meData ? M.meData.k : 0, won: won ? 1 : 0, killed_by: won ? '' : M.death ? M.death.by.replace(/^.*\(|\)$/g, '') : '' });
+      track('match_end', { game: 'br', place: won ? 1 : M.death ? M.death.place : 0, kills: M.meData ? M.meData.k : 0, won: won ? 1 : 0, killed_by: won ? '' : M.death ? M.death.by.replace(/^.*\(|\)$/g, '') : '' });
     }
   }
   const inRoom = !!net.room;
@@ -1384,6 +1629,25 @@ function showEnd() {
     : 'Jump into another match, or stay and watch.';
   $('leaveBtn').textContent = inRoom ? 'Back to room' : 'Back to home';
   $('againBtn').hidden = inRoom;
+  $('specBtn').hidden = over;
+  showScreen('endScreen');
+}
+
+function zombieEnd(me, over) {
+  const wave = M.zw ? M.zw[0] : 0, md = M.meData;
+  $('endTitle').textContent = over ? 'Overrun' : "You're down";
+  $('endTitle').className = 'big lose';
+  $('endLine').textContent = over ? `Your crew held out until wave ${wave}.` : 'Your crew is still fighting. You get back up when the next wave starts.';
+  $('endRes').hidden = !me;
+  $('endRankLbl').textContent = 'Wave';
+  $('endRank').textContent = String(wave);
+  $('endKills').textContent = md ? md.k : 0;
+  $('endTime').textContent = fmtTime(over ? M.liveTime : (md ? md.dt : 0));
+  if (over && !M.tracked) { M.tracked = true; track('match_end', { game: 'zombie', wave, kills: md ? md.k : 0 }); }
+  const inRoom = !!net.room;
+  $('endNote').textContent = over ? `Back to the ${inRoom ? 'room' : 'home screen'} in a few seconds.` : 'Watch your crew until then.';
+  $('leaveBtn').textContent = inRoom ? 'Back to room' : 'Back to home';
+  $('againBtn').hidden = inRoom || !over;
   $('specBtn').hidden = over;
   showScreen('endScreen');
 }
@@ -1442,6 +1706,7 @@ function renderQueue(q) {
   $('qDots').innerHTML = dots;
   $('qNote').textContent = q.full ? 'Every match slot on this server is busy. You start as soon as one frees up.'
     : q.n >= q.max ? 'Match found. Dropping you in…'
+    : q.mode === 'zombie' ? `Starts when ${q.max} survivors are in, or in ${q.left}s with whoever is here.`
     : `Starts when ${q.max} dawgs are in, or in ${q.left}s with whoever is here. Bots fill the rest of the ${D.MAX_PLAYERS} spots.`;
 }
 function renderRoom(r) {
@@ -1452,11 +1717,13 @@ function renderRoom(r) {
     const tag = p.playing ? '<span class="tagx live">In match</span>' : p.cid === r.owner ? '<span class="tagx host">Room boss</span>' : '';
     return `<div><span class="${you ? 'you' : ''}">${esc(p.name)}${you ? ' (you)' : ''}</span>${tag}</div>`;
   }).join('');
-  const n = r.players.length, bots = D.MAX_PLAYERS - n, playing = r.players.filter(p => p.playing).length;
+  const n = r.players.length, bots = D.MAX_PLAYERS - n, playing = r.players.filter(p => p.playing).length, zm = r.mode === 'zombie';
   $('botsChk').checked = r.bots; $('botsChk').disabled = !amOwner || r.live;
+  $('botsRow').hidden = zm;
+  for (const b of $('roomModeSeg').children) { b.classList.toggle('on', b.dataset.v === r.mode); b.disabled = !amOwner || r.live; }
   $('roomNote').textContent = r.live
     ? `Match in progress. ${playing} still playing. Everyone comes back here when it ends.`
-    : `${n} of ${r.max} in the room. ` + (r.bots ? `${bots} bots fill the rest. ` : n < 2 ? 'Bots are off, so you need at least 2 players. ' : 'Bots are off: just your crew. ')
+    : `${n} of ${r.max} in the room. ` + (zm ? 'Your crew against the horde, no bots. ' : r.bots ? `${bots} bots fill the rest. ` : n < 2 ? 'Bots are off, so you need at least 2 players. ' : 'Bots are off: just your crew. ')
       + (amOwner ? 'Share the code, then start when your crew is in.' : `Waiting for ${owner ? owner.name : 'the room boss'} to start.`);
   $('startBtn').hidden = !amOwner || r.live;
 }
@@ -1522,7 +1789,7 @@ function connect(s) {
       net.room = m; renderRoom(m);
       if (net.where === 'home') { net.where = 'room'; showScreen('roomScreen'); }
     }
-    else if (m.t === 'match') { net.where = 'match'; onMatch(m); track('match_start', { mode: m.room ? 'room' : 'public', humans: m.roster.filter(r => !r.bot).length, touch: touch.on ? 1 : 0 }); }
+    else if (m.t === 'match') { net.where = 'match'; onMatch(m); track('match_start', { game: m.mode || 'br', mode: m.room ? 'room' : 'public', humans: m.roster.filter(r => !r.bot).length, touch: touch.on ? 1 : 0 }); }
     else if (m.t === 'ended') exitMatch();
     else if (m.t === 'home') { if (net.where !== 'match') goHome(); }
     else if (m.t === 'err') showErr(m.msg);
@@ -1538,8 +1805,23 @@ function playerName() {
   initAudio(); showErr(''); goFull();
   return n;
 }
-$('findBtn').addEventListener('click', () => { const name = playerName(); if (name) { send({ t: 'queue', name }); track('find_match'); } });
-$('createBtn').addEventListener('click', () => { const name = playerName(); if (name) { send({ t: 'create', name }); track('create_room'); } });
+// which game the home screen buttons start
+let MODE = 'br';
+try { if (localStorage.getItem('dubg-mode') === 'zombie') MODE = 'zombie'; } catch (e) {}
+const PITCH = {
+  br: '30 dawgs locked up in county. The power cuts out. Last dawg standing runs the city.',
+  zombie: 'The dead took the city. Your crew holds the old mall. Board up the doors and see how many waves you last.',
+};
+function setMode(m) {
+  MODE = m; try { localStorage.setItem('dubg-mode', m); } catch (e) {}
+  for (const b of $('modeSeg').children) b.classList.toggle('on', b.dataset.v === m);
+  $('pitch').textContent = PITCH[m]; $('flowBR').hidden = m === 'zombie'; $('flowZ').hidden = m !== 'zombie';
+}
+setMode(MODE);
+$('modeSeg').addEventListener('click', e => { const v = e.target.dataset && e.target.dataset.v; if (v) setMode(v); });
+$('roomModeSeg').addEventListener('click', e => { const v = e.target.dataset && e.target.dataset.v; if (v && !e.target.disabled) send({ t: 'roomMode', mode: v }); });
+$('findBtn').addEventListener('click', () => { const name = playerName(); if (name) { send({ t: 'queue', name, mode: MODE }); track('find_match', { game: MODE }); } });
+$('createBtn').addEventListener('click', () => { const name = playerName(); if (name) { send({ t: 'create', name, mode: MODE }); track('create_room', { game: MODE }); } });
 $('joinForm').addEventListener('submit', e => {
   e.preventDefault();
   const code = $('codeInput').value.trim().toUpperCase();
@@ -1557,7 +1839,8 @@ $('leaveBtn').addEventListener('click', leaveMatch);
 $('leaveHud').addEventListener('click', leaveMatch);
 $('quitBtn').addEventListener('click', () => { settingsBack = null; leaveMatch(); });
 $('againBtn').addEventListener('click', () => {
-  send({ t: 'leave' }); send({ t: 'queue', name: $('nameInput').value.trim() }); track('play_again');
+  const mode = M && M.mode || MODE;
+  send({ t: 'leave' }); send({ t: 'queue', name: $('nameInput').value.trim(), mode }); track('play_again', { game: mode });
   if (M && M.state !== 'menu') { menuState(); $('hud').hidden = true; }
   net.where = 'queue'; showScreen('queueScreen');
 });
@@ -1595,8 +1878,24 @@ function sound(kind, src, W) {
   if (kind === 'rocket') { f.frequency.value = 700; g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.38); }
   else if (kind === 'shot') { f.frequency.value = W.name === 'Shotgun' ? 900 : W.name === 'Rifle' ? 2200 : W.name === 'Pistol' ? 1700 : 1400; g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + (W.name === 'Shotgun' ? 0.35 : 0.16)); }
   else if (kind === 'punch') { f.frequency.value = 400; g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.08); }
+  else if (kind === 'bite' || kind === 'thud') { f.frequency.value = kind === 'bite' ? 520 : 380; g.gain.setValueAtTime(vol * 1.6, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.14); }
+  else if (kind === 'smash') { f.frequency.setValueAtTime(1400, t); f.frequency.exponentialRampToValueAtTime(200, t + 0.35); g.gain.setValueAtTime(vol * 2.2, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.38); }
+  else if (kind === 'nail') { f.type = 'highpass'; f.frequency.value = 2500; g.gain.setValueAtTime(vol * 1.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.06); }
+  else if (kind === 'roar') { groan(src, 2.4); return; }
   else { f.frequency.value = 3000; g.gain.setValueAtTime(0.06, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.05); }
   n.connect(f); f.connect(g); g.connect(master); n.start(t); n.stop(t + 0.4);
+}
+// a zombie's groan: a low rough tone that sags in pitch (bigger and longer for the boss)
+function groan(src, big) {
+  if (!AC || muted || !M) return;
+  const v = viewer(), d = Math.hypot(src.x - v.x, src.y - v.y), far = big ? 2400 : 750;
+  if (d > far) return;
+  const k = big || (src.boss ? 1.8 : 1), t = AC.currentTime, dur = 0.5 * k + Math.random() * 0.3;
+  const o = AC.createOscillator(), f = AC.createBiquadFilter(), g = AC.createGain();
+  o.type = 'sawtooth'; o.frequency.setValueAtTime((110 + Math.random() * 50) / k, t); o.frequency.exponentialRampToValueAtTime((60 + Math.random() * 20) / k, t + dur);
+  f.type = 'lowpass'; f.frequency.value = 520;
+  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(Math.pow(1 - d / far, 2) * 0.16 * Math.min(k, 1.6), t + 0.08); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+  o.connect(f); f.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.05);
 }
 function alarm() {
   if (!AC || muted) return;
@@ -1641,7 +1940,7 @@ cv.addEventListener('wheel', () => { if (inMatch()) onKey('KeyQ'); }, { passive:
 addEventListener('resize', resize);
 
 // ---------- touch controls ----------
-const touch = { on: matchMedia('(pointer: coarse)').matches, move: null, aim: null, fire: new Map() };   // fire: pointerId -> { el, ox, oy, a } for each finger on a fire button
+const touch = { on: matchMedia('(pointer: coarse)').matches, move: null, aim: null, fire: new Map(), build: null };   // fire: pointerId -> { el, ox, oy, a } for each finger on a fire button
 const STICK_R = 56;
 function setTouch(on) { touch.on = on; document.body.classList.toggle('touch', on); resize(); }
 setTouch(touch.on);
@@ -1651,7 +1950,7 @@ function releaseStick(side) {
   const el = stickEl(side); el.classList.remove('live', 'fire'); el.style.left = el.style.top = ''; el.firstChild.style.transform = '';
   if (side === 'aim') mouse.down = false;
 }
-function resetSticks() { releaseStick('move'); releaseStick('aim'); showMeds(false); endGrenade(true); touch.fire.clear(); for (const id of ['fireL', 'fireR']) { $(id).classList.remove('on'); $(id).firstChild.style.transform = ''; } }
+function resetSticks() { touch.build = null; releaseStick('move'); releaseStick('aim'); showMeds(false); endGrenade(true); touch.fire.clear(); for (const id of ['fireL', 'fireR']) { $(id).classList.remove('on'); $(id).firstChild.style.transform = ''; } }
 cv.addEventListener('pointerdown', e => {
   if (e.pointerType !== 'touch') { if (touch.on) setTouch(false); return; }
   if (!touch.on) setTouch(true);
@@ -1703,7 +2002,8 @@ for (const id of ['fireL', 'fireR']) {
 $('reloadBtn').addEventListener('pointerdown', e => { e.preventDefault(); act('reload'); });
 $('grenBtn').addEventListener('pointerdown', e => { if (!touch.on) return; e.preventDefault(); showMeds(false); startGrenade('touch', e); });
 for (const ev of ['pointerup', 'pointercancel']) addEventListener(ev, e => { const g = M && M.aimG; if (g && g.mode === 'touch' && g.id === e.pointerId) endGrenade(ev === 'pointercancel'); });
-$('prompt').addEventListener('pointerdown', e => { e.preventDefault(); act('pickup'); });
+$('prompt').addEventListener('pointerdown', e => { e.preventDefault(); if ($('prompt').dataset.mode === 'build') touch.build = e.pointerId; else act('pickup'); });
+for (const ev of ['pointerup', 'pointercancel']) addEventListener(ev, e => { if (touch.build === e.pointerId) touch.build = null; });
 $('aliveStat').addEventListener('pointerdown', e => { if (!touch.on) return; e.preventDefault(); showBoard($('board').hidden); });
 $('menuBtn').addEventListener('click', () => { resetSticks(); openSettings(); });
 // phones: go fullscreen and landscape when the player starts something

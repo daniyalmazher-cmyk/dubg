@@ -13,7 +13,8 @@ const END_DELAY = 12000;                                     // results screen b
 const QUEUE_SIZE = +process.env.QUEUE_SIZE || 10;            // real players per public match
 const QUEUE_WAIT = (+process.env.QUEUE_WAIT || 20) * 1000;   // start with whoever is queued after this long
 const MAX_MATCHES = +process.env.MAX_MATCHES || 12;          // keep a small server from being overloaded
-const ROOM_MAX = D.MAX_PLAYERS;
+const MODES = { br: { size: QUEUE_SIZE, max: D.MAX_PLAYERS }, zombie: { size: D.ZMAX, max: D.ZMAX } };
+const modeOf = m => m === 'zombie' ? 'zombie' : 'br';
 
 // ---------- static files ----------
 const FILES = {
@@ -35,12 +36,12 @@ const server = http.createServer((req, res) => {
 
 // ---------- state ----------
 // client: { cid, ws, name, queued, room, match, pid }
-// room:   { code, owner, members: [client], match, bots }
-// match:  { id, E, seed, tick, endAt, room }
+// room:   { code, owner, members: [client], match, bots, mode }
+// match:  { id, E, seed, tick, endAt, room, mode }
 const wss = new WebSocketServer({ server, maxPayload: 4096 });
 const clients = new Map();   // ws -> client
-const queue = [];            // clients waiting for a public match, oldest first
-let queueDeadline = 0;
+// clients waiting for a public match, oldest first; one queue per mode
+const queues = { br: { list: [], deadline: 0 }, zombie: { list: [], deadline: 0 } };
 const rooms = new Map();     // code -> room
 const matches = new Set();
 let nextCid = 1, nextMatch = 1;
@@ -68,17 +69,17 @@ function newCode() {
 }
 
 // ---------- matches ----------
-function startMatch(humans, room) {
-  const m = { id: nextMatch++, E: D.instance(), seed: Math.floor(Math.random() * 1e9), tick: 0, endAt: 0, room };
-  m.E.createMatch(uniqueNames(humans), m.seed, { bots: room ? room.bots : true });
+function startMatch(humans, room, mode) {
+  const m = { id: nextMatch++, E: D.instance(), seed: Math.floor(Math.random() * 1e9), tick: 0, endAt: 0, room, mode };
+  m.E.createMatch(uniqueNames(humans), m.seed, { bots: room ? room.bots : true, mode });
   matches.add(m);
   const roster = m.E.roster(), items = m.E.itemList(), st = m.E.match().state;
   humans.forEach((c, pid) => {
     c.match = m; c.pid = pid;
-    send(c, { t: 'match', seed: m.seed, you: pid, roster, items, st, room: room ? room.code : null });
+    send(c, { t: 'match', seed: m.seed, mode, you: pid, roster, items, st, room: room ? room.code : null });
   });
   if (room) { room.match = m; roomUpdate(room); }
-  console.log(`match ${m.id} started (${room ? 'room ' + room.code : 'public'}): ${humans.length} players, ${m.E.match().players.length - humans.length} bots`);
+  console.log(`match ${m.id} started (${mode}, ${room ? 'room ' + room.code : 'public'}): ${humans.length} players, ${m.E.match().players.length - humans.length} bots`);
 }
 const inMatch = m => [...clients.values()].filter(c => c.match === m);
 function leaveMatch(c) {
@@ -98,21 +99,28 @@ function endMatch(m) {
 
 // ---------- public queue ----------
 function queueUpdate() {
-  const left = queue.length ? Math.max(0, Math.ceil((queueDeadline - Date.now()) / 1000)) : 0;
-  for (const c of queue) send(c, { t: 'queue', n: queue.length, max: QUEUE_SIZE, left, full: matches.size >= MAX_MATCHES });
+  for (const [mode, q] of Object.entries(queues)) {
+    const left = q.list.length ? Math.max(0, Math.ceil((q.deadline - Date.now()) / 1000)) : 0;
+    for (const c of q.list) send(c, { t: 'queue', mode, n: q.list.length, max: MODES[mode].size, left, full: matches.size >= MAX_MATCHES });
+  }
 }
 function unqueue(c) {
-  const i = queue.indexOf(c); if (i < 0) return;
-  queue.splice(i, 1); c.queued = false;
-  if (!queue.length) queueDeadline = 0;
+  for (const q of Object.values(queues)) {
+    const i = q.list.indexOf(c); if (i < 0) continue;
+    q.list.splice(i, 1); c.queued = false;
+    if (!q.list.length) q.deadline = 0;
+  }
   queueUpdate();
 }
 function pumpQueue() {
-  while (queue.length && matches.size < MAX_MATCHES && (queue.length >= QUEUE_SIZE || Date.now() >= queueDeadline)) {
-    const group = queue.splice(0, QUEUE_SIZE);
-    for (const c of group) c.queued = false;
-    queueDeadline = queue.length ? Date.now() + QUEUE_WAIT : 0;
-    startMatch(group, null);
+  for (const [mode, q] of Object.entries(queues)) {
+    const size = MODES[mode].size;
+    while (q.list.length && matches.size < MAX_MATCHES && (q.list.length >= size || Date.now() >= q.deadline)) {
+      const group = q.list.splice(0, size);
+      for (const c of group) c.queued = false;
+      q.deadline = q.list.length ? Date.now() + QUEUE_WAIT : 0;
+      startMatch(group, null, mode);
+    }
   }
   queueUpdate();
 }
@@ -120,7 +128,7 @@ function pumpQueue() {
 // ---------- private rooms ----------
 function roomUpdate(r) {
   const msg = {
-    t: 'room', code: r.code, owner: r.owner.cid, max: ROOM_MAX, live: !!r.match, bots: r.bots,
+    t: 'room', code: r.code, owner: r.owner.cid, max: MODES[r.mode].max, live: !!r.match, bots: r.bots, mode: r.mode,
     players: r.members.map(c => ({ cid: c.cid, name: c.name, playing: !!r.match && c.match === r.match })),
   };
   for (const c of r.members) send(c, msg);
@@ -148,13 +156,15 @@ wss.on('connection', ws => {
     const me = c.match ? c.match.E.match().players[c.pid] : null;
     const free = !c.queued && !c.room && !c.match;
     switch (m.t) {
-      case 'queue':
+      case 'queue': {
         if (!free) return;
+        const q = queues[modeOf(m.mode)];
         c.name = cleanName(m.name);
-        c.queued = true; queue.push(c);
-        if (!queueDeadline) queueDeadline = Date.now() + QUEUE_WAIT;
+        c.queued = true; q.list.push(c);
+        if (!q.deadline) q.deadline = Date.now() + QUEUE_WAIT;
         pumpQueue();
         break;
+      }
       case 'unqueue':
         unqueue(c);
         send(c, { t: 'home' });
@@ -162,7 +172,7 @@ wss.on('connection', ws => {
       case 'create': {
         if (!free) return;
         c.name = cleanName(m.name);
-        const r = { code: newCode(), owner: c, members: [c], match: null, bots: true };
+        const r = { code: newCode(), owner: c, members: [c], match: null, bots: true, mode: modeOf(m.mode) };
         rooms.set(r.code, r); c.room = r;
         console.log(`room ${r.code} opened`);
         roomUpdate(r);
@@ -172,7 +182,7 @@ wss.on('connection', ws => {
         if (!free) return;
         const r = rooms.get(String(m.code || '').toUpperCase().trim());
         if (!r) { send(c, { t: 'err', msg: 'No room with that code. Check it and try again.' }); return; }
-        if (r.members.length >= ROOM_MAX) { send(c, { t: 'err', msg: 'That room is full.' }); return; }
+        if (r.members.length >= MODES[r.mode].max) { send(c, { t: 'err', msg: 'That room is full.' }); return; }
         c.name = cleanName(m.name);
         r.members.push(c); c.room = r;
         roomUpdate(r);
@@ -181,6 +191,13 @@ wss.on('connection', ws => {
       case 'roomBots':
         if (c.room && c.room.owner === c && !c.room.match) { c.room.bots = !!m.on; roomUpdate(c.room); }
         break;
+      case 'roomMode': {
+        const r = c.room, mode = modeOf(m.mode);
+        if (!r || r.owner !== c || r.match) return;
+        if (r.members.length > MODES[mode].max) { send(c, { t: 'err', msg: `Zombie mode takes ${D.ZMAX} players at most. This room has ${r.members.length}.` }); roomUpdate(r); return; }
+        r.mode = mode; roomUpdate(r);
+        break;
+      }
       case 'leaveRoom':
         leaveRoom(c);
         break;
@@ -188,8 +205,8 @@ wss.on('connection', ws => {
         const r = c.room;
         if (!r || r.owner !== c || r.match) return;
         if (matches.size >= MAX_MATCHES) { send(c, { t: 'err', msg: 'The server is busy right now. Try again in a minute.' }); return; }
-        if (!r.bots && r.members.length < 2) { send(c, { t: 'err', msg: 'With bots off you need at least 2 players. Turn bots on to play solo.' }); return; }
-        startMatch(r.members.slice(), r);
+        if (r.mode === 'br' && !r.bots && r.members.length < 2) { send(c, { t: 'err', msg: 'With bots off you need at least 2 players. Turn bots on to play solo.' }); return; }
+        startMatch(r.members.slice(), r, r.mode);
         break;
       }
       case 'leave':
@@ -213,7 +230,7 @@ wss.on('connection', ws => {
   });
 });
 
-function stats() { return { t: 'stats', online: clients.size, live: matches.size, queued: queue.length }; }
+function stats() { return { t: 'stats', online: clients.size, live: matches.size, queued: queues.br.list.length + queues.zombie.list.length }; }
 setInterval(() => { const s = JSON.stringify(stats()); for (const c of clients.values()) if (!c.match) send(c, s); }, 2000);
 setInterval(pumpQueue, 1000);
 
