@@ -478,6 +478,7 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
       <div class="h2">Settings</div>
       <div>
         <label class="set" for="volIn"><span>Volume<b id="volOut">70</b></span><input type="range" id="volIn" min="0" max="100" step="5"></label>
+        <label class="set" for="musicIn"><span>Menu music<b id="musicOut">60</b></span><input type="range" id="musicIn" min="0" max="100" step="5"></label>
         <label class="set" for="fovIn"><span>Field of view<b id="fovOut">100%</b></span><input type="range" id="fovIn" min="70" max="140" step="5"></label>
         <div class="set touchOnly"><span>Shooting</span><div class="seg" id="fireSeg"><button type="button" data-v="stick">Push stick</button><button type="button" data-v="button">Fire button</button></div></div>
         <div class="set"><span>Minimap</span><div class="seg" id="miniSeg"><button type="button" data-v="large">Large</button><button type="button" data-v="small">Small</button></div></div>
@@ -682,7 +683,7 @@ function handleEvent(e) {
     for (let i = 0; i < (boss ? 40 : 12); i++) burst(x, y, i % 2 ? '#6b1a14' : '#4f6b22', boss ? 280 : 150);
     if (K) K.kills++;
     if (boss) { M.feed.unshift({ k: K ? K.name : '', v: 'the Boss', w: 'dropped', me: kid === M.me, t: 6 }); M.msg = '<small>It dropped a crate</small>Boss down!'; M.msgT = 3; sound('boom', { x, y }); }
-  } else if (k === 'zatk') { const Z = M.zombies.get(e[1]); if (Z) { Z.atk = 0.35; sound(Z.boss ? 'smash' : 'bite', Z); } }
+  } else if (k === 'zatk') { const Z = M.zombies.get(e[1]); if (Z) { Z.atk = 0.35; sound(Z.boss ? 'smash' : 'bite', Z); if (Math.random() < 0.6) groan(Z, 'growl'); } }
   else if (k === 'bar') {
     const [, i, hp] = e, b = barricades[i]; if (!b) return;
     const was = b.hp, cx = b.x + b.w / 2, cy = b.y + b.h / 2;
@@ -784,7 +785,7 @@ function update(dt) {
   if (M.zombies.size && (M.groanT -= dt) <= 0) {
     M.groanT = 1.2 + Math.random() * 2.5;
     const v = viewer(), near = [...M.zombies.values()].filter(Z => Math.hypot(Z.x - v.x, Z.y - v.y) < 700);
-    if (near.length) groan(near[Math.floor(Math.random() * near.length)]);
+    if (near.length) groan(near[Math.floor(Math.random() * near.length)], 'groan');
   }
   if (me && me.alive && M.local) {
     const md = M.meData;
@@ -1801,11 +1802,12 @@ function zombieEnd(me, over) {
 }
 
 // ---------- settings ----------
-const S = { vol: 70, mini: 'large', ping: true, fps: false, fire: 'stick', fov: 100 };
+const S = { vol: 70, music: 60, mini: 'large', ping: true, fps: false, fire: 'stick', fov: 100 };
 try { Object.assign(S, JSON.parse(localStorage.getItem('dubg-settings') || '{}')); } catch (e) {}
 function saveSettings() { try { localStorage.setItem('dubg-settings', JSON.stringify(S)); } catch (e) {} }
 function applySettings() {
   $('volIn').value = S.vol; $('volOut').textContent = S.vol;
+  $('musicIn').value = S.music; $('musicOut').textContent = S.music;
   $('fovIn').value = S.fov; $('fovOut').textContent = S.fov + '%';
   for (const b of $('miniSeg').children) b.classList.toggle('on', b.dataset.v === S.mini);
   $('pingChk').checked = S.ping; $('fpsChk').checked = S.fps;
@@ -1816,6 +1818,7 @@ function applySettings() {
   applyVolume(); resize();
 }
 $('volIn').addEventListener('input', () => { S.vol = +$('volIn').value; $('volOut').textContent = S.vol; applyVolume(); saveSettings(); });
+$('musicIn').addEventListener('input', () => { S.music = +$('musicIn').value; $('musicOut').textContent = S.music; initAudio(); musicLevel(); saveSettings(); });
 // field of view: higher shows more of the map, applied live so it can be tuned mid-match
 $('fovIn').addEventListener('input', () => { S.fov = +$('fovIn').value; $('fovOut').textContent = S.fov + '%'; resize(); saveSettings(); });
 $('miniSeg').addEventListener('click', e => { const v = e.target.dataset && e.target.dataset.v; if (v) { S.mini = v; applySettings(); saveSettings(); } });
@@ -2011,8 +2014,12 @@ function initAudio() {
     master = AC.createGain(); master.connect(AC.destination); applyVolume();
     noiseBuf = AC.createBuffer(1, AC.sampleRate * 0.4, AC.sampleRate);
     const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    rasp = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 512 - 1; rasp[i] = Math.tanh(x * 6) * 0.9; }
   } catch (e) { AC = null; }
 }
+let rasp = null;
+// browsers only allow sound after the player touches the page; the first touch or key starts the menu music
+for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => { initAudio(); if (AC && AC.state === 'suspended') AC.resume(); }, { capture: true });
 // 70 on the slider is the original mix
 function applyVolume() { if (master) master.gain.value = muted ? 0 : S.vol / 70; }
 function sound(kind, src, W) {
@@ -2029,21 +2036,107 @@ function sound(kind, src, W) {
   else if (kind === 'bite' || kind === 'thud') { f.frequency.value = kind === 'bite' ? 520 : 380; g.gain.setValueAtTime(vol * 1.6, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.14); }
   else if (kind === 'smash') { f.frequency.setValueAtTime(1400, t); f.frequency.exponentialRampToValueAtTime(200, t + 0.35); g.gain.setValueAtTime(vol * 2.2, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.38); }
   else if (kind === 'nail') { f.type = 'highpass'; f.frequency.value = 2500; g.gain.setValueAtTime(vol * 1.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.06); }
-  else if (kind === 'roar') { groan(src, 2.4); return; }
+  else if (kind === 'roar') { groan(src, 'roar'); return; }
   else { f.frequency.value = 3000; g.gain.setValueAtTime(0.06, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.05); }
   n.connect(f); f.connect(g); g.connect(master); n.start(t); n.stop(t + 0.4);
 }
-// a zombie's groan: a low rough tone that sags in pitch (bigger and longer for the boss)
-function groan(src, big) {
+// A zombie's voice. A throat buzz that wobbles unevenly, breath noise, a wet gurgle, and distortion
+// for the rasp, all pushed through two vowel filters that open from "uuuh" to "aaargh".
+// mood: 'groan' (long, idle), 'growl' (short and angry, when it bites), 'roar' (the boss arriving)
+function groan(src, mood) {
   if (!AC || muted || !M) return;
-  const v = viewer(), d = Math.hypot(src.x - v.x, src.y - v.y), far = big ? 2400 : 750;
+  const v = viewer(), d = Math.hypot(src.x - v.x, src.y - v.y), big = mood === 'roar' || src.boss, far = mood === 'roar' ? 2400 : big ? 1200 : 800;
   if (d > far) return;
-  const k = big || (src.boss ? 1.8 : 1), t = AC.currentTime, dur = 0.5 * k + Math.random() * 0.3;
-  const o = AC.createOscillator(), f = AC.createBiquadFilter(), g = AC.createGain();
-  o.type = 'sawtooth'; o.frequency.setValueAtTime((110 + Math.random() * 50) / k, t); o.frequency.exponentialRampToValueAtTime((60 + Math.random() * 20) / k, t + dur);
-  f.type = 'lowpass'; f.frequency.value = 520;
-  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(Math.pow(1 - d / far, 2) * 0.16 * Math.min(k, 1.6), t + 0.08); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
-  o.connect(f); f.connect(g); g.connect(master); o.start(t); o.stop(t + dur + 0.05);
+  const t = AC.currentTime, rnd = (a, b) => a + Math.random() * (b - a);
+  const dur = mood === 'growl' ? rnd(0.35, 0.55) : mood === 'roar' ? 2.4 : rnd(0.9, 1.6);
+  const vol = Math.pow(1 - d / far, 1.6) * (mood === 'roar' ? 0.9 : big ? 0.6 : 0.42);
+  const f0 = (big ? rnd(42, 55) : rnd(70, 105)) * (mood === 'growl' ? 1.25 : 1);
+  const nodes = [];
+  const osc = (type, f) => { const o = AC.createOscillator(); o.type = type; o.frequency.value = f; nodes.push(o); return o; };
+  const gain = g => { const n = AC.createGain(); n.gain.value = g; return n; };
+  const filt = (type, f, q) => { const n = AC.createBiquadFilter(); n.type = type; n.frequency.value = f; n.Q.value = q; return n; };
+  // throat: two detuned saws, pitch rising then sagging, shaken by two uneven wobbles
+  const v1 = osc('sawtooth', f0), v2 = osc('sawtooth', f0 * 1.013);
+  for (const o of [v1, v2]) { o.frequency.setValueAtTime(f0 * 0.9, t); o.frequency.linearRampToValueAtTime(f0 * 1.08, t + dur * 0.25); o.frequency.linearRampToValueAtTime(f0 * 0.72, t + dur); }
+  const w1 = osc('triangle', rnd(5, 9)), w2 = osc('square', rnd(13, 21)), wg1 = gain(f0 * 0.06), wg2 = gain(f0 * 0.035);
+  w1.connect(wg1); w2.connect(wg2); for (const o of [v1, v2]) { wg1.connect(o.frequency); wg2.connect(o.frequency); }
+  const throat = gain(0.5), shaper = AC.createWaveShaper(); shaper.curve = rasp;
+  v1.connect(throat); v2.connect(throat); throat.connect(shaper);
+  // breath and spit
+  const breath = AC.createBufferSource(); breath.buffer = noiseBuf; breath.loop = true; nodes.push(breath);
+  const bg = gain(mood === 'growl' ? 0.55 : 0.35), bf = filt('bandpass', 1400, 0.8); breath.connect(bf); bf.connect(bg);
+  // the gurgle: the whole voice flutters in volume, faster when it's angry
+  const voice = gain(0.7), flutter = osc('sine', mood === 'growl' ? rnd(28, 40) : rnd(14, 24)), fg = gain(0.3);
+  flutter.connect(fg); fg.connect(voice.gain);
+  shaper.connect(voice); bg.connect(voice);
+  // vowel: two formant filters opening up, plus the chest underneath
+  const out = gain(0), f1 = filt('bandpass', 380, 5), f2 = filt('bandpass', 950, 7), chest = filt('lowpass', 260, 0.7);
+  f1.frequency.setValueAtTime(big ? 300 : 380, t); f1.frequency.linearRampToValueAtTime(big ? 520 : 720, t + dur * 0.4); f1.frequency.linearRampToValueAtTime(big ? 380 : 460, t + dur);
+  f2.frequency.setValueAtTime(big ? 800 : 950, t); f2.frequency.linearRampToValueAtTime(big ? 1000 : 1250, t + dur * 0.4); f2.frequency.linearRampToValueAtTime(900, t + dur);
+  voice.connect(f1); voice.connect(f2); voice.connect(chest);
+  const g1 = gain(1.6), g2 = gain(0.9), g3 = gain(big ? 1.1 : 0.6);
+  f1.connect(g1); f2.connect(g2); chest.connect(g3); g1.connect(out); g2.connect(out); g3.connect(out);
+  out.gain.setValueAtTime(0.0001, t); out.gain.linearRampToValueAtTime(vol, t + (mood === 'growl' ? 0.04 : 0.15));
+  out.gain.setValueAtTime(vol, t + dur * 0.6); out.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  out.connect(master);
+  for (const n of nodes) { n.start(t); n.stop(t + dur + 0.05); }
+}
+
+// ---------- menu music ----------
+// A slow, dark loop written in code: A minor, Am F C G, a heavy 808, trap hats and a lonely bell on top.
+const MU = { bus: null, on: false, next: 0, step: 0, timer: 0 };
+const BPM = 82, STEP = 60 / BPM / 4;
+const CHORDS = [[57, 60, 64], [53, 57, 60], [48, 55, 64], [55, 59, 62]], ROOTS = [33, 29, 36, 31];
+// bell notes: [bar, sixteenth, midi, sixteenths long]
+const BELL = [[0, 0, 76, 3], [0, 3, 72, 3], [0, 6, 69, 6], [1, 0, 77, 3], [1, 3, 76, 3], [1, 6, 72, 6], [2, 0, 76, 3], [2, 3, 79, 3], [2, 6, 76, 4], [2, 10, 72, 4], [3, 0, 74, 4], [3, 4, 71, 4], [3, 8, 67, 6]];
+const midi = m => 440 * Math.pow(2, (m - 69) / 12);
+function musicLevel() { if (MU.bus) MU.bus.gain.setTargetAtTime(MU.on ? S.music / 100 * 0.5 : 0, AC.currentTime, 0.4); }
+function updateMusic() {
+  if (!AC || AC.state !== 'running') return;
+  const want = !inMatch() && S.music > 0;
+  if (!MU.bus) { MU.bus = AC.createGain(); MU.bus.gain.value = 0; MU.bus.connect(master); }
+  if (want !== MU.on) {
+    MU.on = want; musicLevel();
+    if (want) { MU.next = AC.currentTime + 0.1; MU.step = 0; clearInterval(MU.timer); MU.timer = setInterval(scheduleMusic, 50); }
+    else setTimeout(() => { if (!MU.on) clearInterval(MU.timer); }, 1500);
+  }
+}
+function scheduleMusic() {
+  if (!AC) return;
+  if (MU.next < AC.currentTime) MU.next = AC.currentTime + 0.05;   // fell behind (the tab was hidden): pick up from now
+  while (MU.next < AC.currentTime + 0.2) { musicStep(MU.step, MU.next); MU.next += STEP; MU.step++; }
+}
+function mNote(type, f, t, len, vol, filter) {
+  const o = AC.createOscillator(), g = AC.createGain(); o.type = type; o.frequency.value = f;
+  g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(vol, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+  if (filter) { o.connect(filter); filter.connect(g); } else o.connect(g);
+  g.connect(MU.bus); o.start(t); o.stop(t + len + 0.05); return o;
+}
+function mNoise(t, len, vol, type, f, q) {
+  const n = AC.createBufferSource(), fl = AC.createBiquadFilter(), g = AC.createGain();
+  n.buffer = noiseBuf; fl.type = type; fl.frequency.value = f; fl.Q.value = q || 1;
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+  n.connect(fl); fl.connect(g); g.connect(MU.bus); n.start(t); n.stop(t + len + 0.02);
+}
+function musicStep(s, t) {
+  const bar = Math.floor(s / 16) % 4, i = s % 16, round = Math.floor(s / 64);
+  // kick: on the one, pushed by a late double
+  if (i === 0 || i === 7 || i === 10) { const o = mNote('sine', 150, t, 0.4, 0.9); o.frequency.setValueAtTime(150, t); o.frequency.exponentialRampToValueAtTime(42, t + 0.12); }
+  // clap on two and four
+  if (i === 4 || i === 12) { mNoise(t, 0.2, 0.5, 'bandpass', 1500, 0.9); mNoise(t + 0.012, 0.14, 0.35, 'bandpass', 2200, 1.2); }
+  // hats: eighths, rolling into the last bar
+  if (i % 2 === 0 || (bar === 3 && i >= 12)) mNoise(t, i % 4 === 2 ? 0.05 : 0.03, bar === 3 && i >= 12 ? 0.16 : i % 4 === 2 ? 0.2 : 0.12, 'highpass', 7500);
+  // 808: the root, held, with a second hit before the bar ends
+  if (i === 0 || i === 10) { const f = midi(ROOTS[bar]), o = mNote('sine', f, t, i ? 0.9 : 1.6, 0.75); o.frequency.setValueAtTime(f * 1.5, t); o.frequency.exponentialRampToValueAtTime(f, t + 0.06); }
+  // pad: the chord, soft and wide, swelling in across each bar
+  if (i === 0) for (const m of CHORDS[bar]) for (const det of [-7, 7]) {
+    const o = AC.createOscillator(), lp = AC.createBiquadFilter(), g = AC.createGain(), len = STEP * 16;
+    o.type = 'sawtooth'; o.frequency.value = midi(m); o.detune.value = det; lp.type = 'lowpass'; lp.frequency.value = 700;
+    g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.035, t + len * 0.4); g.gain.linearRampToValueAtTime(0.0001, t + len);
+    o.connect(lp); lp.connect(g); g.connect(MU.bus); o.start(t); o.stop(t + len + 0.05);
+  }
+  // the bell only comes in from the second time round, so the loop builds
+  if (round % 2 === 1) for (const [b, at, m, len] of BELL) if (b === bar && at === i) { mNote('triangle', midi(m), t, len * STEP * 1.6, 0.16); mNote('sine', midi(m + 12), t, len * STEP, 0.04); }
 }
 function alarm() {
   if (!AC || muted) return;
@@ -2176,6 +2269,7 @@ function frame(now) {
   try {
     update(dt);
     render(dt);
+    updateMusic();
     if (inMatch()) { updateHud(); drawMini(); if (!$('board').hidden) renderBoard(dt); }
   } catch (e) { if (frameErr++ < 5) console.error('DUBG frame error', e); }
   if (inMatch() !== playing) { playing = inMatch(); document.body.classList.toggle('playing', playing); if (!playing) resetSticks(); }
