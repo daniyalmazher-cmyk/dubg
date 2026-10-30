@@ -550,7 +550,7 @@ function loadWorld(seed, mode) {
 function newState(state, seed, mode) {
   loadWorld(seed, mode);
   M = {
-    mode: mode === 'zombie' ? 'zombie' : 'br', zombies: new Map(), zw: null, groanT: 0,
+    mode: mode === 'zombie' ? 'zombie' : 'br', zombies: new Map(), zw: null,
     state, seed, time: 0, lockT: D.LOCKDOWN, liveTime: 0, alive: 0, winner: -1, players: new Map(), list: [], items: new Map(), me: null,
     zone: { cur: { x: WORLD.w / 2, y: WORLD.h / 2, r: 99999 }, next: null, mode: 'wait', t: 0 },
     tracers: [], particles: [], corpses: [], feed: [], cam: { x: CX, y: CY }, view: null, msg: '', msgT: 0,
@@ -674,7 +674,7 @@ function handleEvent(e) {
     for (let i = 0; i < (boss ? 40 : 12); i++) burst(x, y, i % 2 ? '#6b1a14' : '#4f6b22', boss ? 280 : 150);
     if (K) K.kills++;
     if (boss) { M.feed.unshift({ k: K ? K.name : '', v: 'the Boss', w: 'dropped', me: kid === M.me, t: 6 }); M.msg = '<small>It dropped a crate</small>Boss down!'; M.msgT = 3; sound('boom', { x, y }); }
-  } else if (k === 'zatk') { const Z = M.zombies.get(e[1]); if (Z) { Z.atk = 0.35; sound(Z.boss ? 'smash' : 'bite', Z); if (Math.random() < 0.6) groan(Z, 'growl'); } }
+  } else if (k === 'zatk') { const Z = M.zombies.get(e[1]); if (Z) { Z.atk = 0.35; sound(Z.boss ? 'smash' : 'bite', Z); } }
   else if (k === 'bar') {
     const [, i, hp] = e, b = barricades[i]; if (!b) return;
     const was = b.hp, cx = b.x + b.w / 2, cy = b.y + b.h / 2;
@@ -684,7 +684,7 @@ function handleEvent(e) {
   }
   else if (k === 'wave') { M.msg = `<small>${e[2] ? 'Something big is coming' : 'Here they come'}</small>Wave ${e[1]}`; M.msgT = 3; alarm(); }
   else if (k === 'clear') { M.msg = `<small>Board up and restock</small>Wave ${e[1]} cleared`; M.msgT = 3; }
-  else if (k === 'boss') { M.msg = '<small>Shoot it from behind the barricades</small>BOSS INCOMING'; M.msgT = 3.5; const Z = M.zombies.get(e[1]); sound('roar', Z || viewer()); }
+  else if (k === 'boss') { M.msg = '<small>Shoot it from behind the barricades</small>BOSS INCOMING'; M.msgT = 3.5; }
   else if (k === 'revive') {
     const P = M.players.get(e[1]); if (P) P.init = false;
     if (e[1] === M.me) { M.local = null; M.death = null; M.spec = null; M.msg = 'Back on your feet'; M.msgT = 2; if (!$('endScreen').hidden) { showScreen(null); cv.focus(); } }
@@ -772,12 +772,6 @@ function update(dt) {
     if (P !== me) interp(P, rt);
   }
   for (const Z of M.zombies.values()) { Z.hurt -= dt; Z.atk -= dt; interp(Z, rt); }
-  // now and then one of the nearby dead groans
-  if (M.zombies.size && (M.groanT -= dt) <= 0) {
-    M.groanT = 1.2 + Math.random() * 2.5;
-    const v = viewer(), near = [...M.zombies.values()].filter(Z => Math.hypot(Z.x - v.x, Z.y - v.y) < 700);
-    if (near.length) groan(near[Math.floor(Math.random() * near.length)], 'groan');
-  }
   if (me && me.alive && M.local) {
     const md = M.meData;
     let mx = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
@@ -1080,7 +1074,7 @@ function drawZombie(Z) {
   ctx.beginPath(); ctx.arc(2, 0, Z.boss ? 7.4 : 6.4, 0, TAU); ctx.fill();
   ctx.fillStyle = 'rgba(30,40,20,.5)'; ctx.beginPath(); ctx.arc(0, -2.5, 2.4, 0, TAU); ctx.fill();
   ctx.fillStyle = Z.boss ? '#ff3a2a' : '#e8e26a'; ctx.beginPath(); ctx.arc(6, -2.4, 1.2, 0, TAU); ctx.arc(6, 2.4, 1.2, 0, TAU); ctx.fill();
-  if (Z.hurt > 0) { ctx.fillStyle = `rgba(255,255,255,${Math.min(0.6, Z.hurt * 3)})`; ctx.beginPath(); ctx.ellipse(-1, 0, 9, 14, 0, 0, TAU); ctx.fill(); }
+  if (Z.hurt > 0) { ctx.fillStyle = `rgba(255,50,35,${Math.min(0.7, Z.hurt * 4)})`; ctx.beginPath(); ctx.ellipse(-1, 0, 9, 14, 0, 0, TAU); ctx.fill(); }
   ctx.restore();
   // health: always over the boss, over the others once they're hurt
   if (Z.boss || Z.hp < 100) {
@@ -1236,7 +1230,7 @@ function drawPlayer(p) {
     ctx.fillStyle = '#1a120c'; ctx.beginPath(); ctx.arc(-0.5, 0, 5.8, 0, TAU); ctx.fill();
     ctx.fillStyle = p.crew.c; ctx.beginPath(); ctx.arc(1, 0, 6.6, -1.35, 1.35); ctx.closePath(); ctx.fill();
   }
-  if (p.hurt > 0) { ctx.fillStyle = `rgba(255,255,255,${Math.min(0.6, p.hurt * 3)})`; ctx.beginPath(); ctx.ellipse(-1, 0, 9, 14, 0, 0, TAU); ctx.fill(); }
+  if (p.hurt > 0) { ctx.fillStyle = `rgba(255,50,35,${Math.min(0.7, p.hurt * 4)})`; ctx.beginPath(); ctx.ellipse(-1, 0, 9, 14, 0, 0, TAU); ctx.fill(); }
   ctx.restore();
   if (p.id === M.me) { ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(p.x, p.y, 19, 0, TAU); ctx.stroke(); ctx.setLineDash([]); }
 }
@@ -1866,10 +1860,8 @@ function initAudio() {
     master = AC.createGain(); master.connect(AC.destination); applyVolume();
     noiseBuf = AC.createBuffer(1, AC.sampleRate * 0.4, AC.sampleRate);
     const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
-    rasp = new Float32Array(1024); for (let i = 0; i < 1024; i++) { const x = i / 512 - 1; rasp[i] = Math.tanh(x * 6) * 0.9; }
   } catch (e) { AC = null; }
 }
-let rasp = null;
 // browsers only allow sound after the player touches the page; the first touch or key starts the menu music
 for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => { initAudio(); if (AC && AC.state === 'suspended') AC.resume(); }, { capture: true });
 // 70 on the slider is the original mix
@@ -1888,52 +1880,9 @@ function sound(kind, src, W) {
   else if (kind === 'bite' || kind === 'thud') { f.frequency.value = kind === 'bite' ? 520 : 380; g.gain.setValueAtTime(vol * 1.6, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.14); }
   else if (kind === 'smash') { f.frequency.setValueAtTime(1400, t); f.frequency.exponentialRampToValueAtTime(200, t + 0.35); g.gain.setValueAtTime(vol * 2.2, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.38); }
   else if (kind === 'nail') { f.type = 'highpass'; f.frequency.value = 2500; g.gain.setValueAtTime(vol * 1.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.06); }
-  else if (kind === 'roar') { groan(src, 'roar'); return; }
   else { f.frequency.value = 3000; g.gain.setValueAtTime(0.06, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.05); }
   n.connect(f); f.connect(g); g.connect(master); n.start(t); n.stop(t + 0.4);
 }
-// A zombie's voice. A throat buzz that wobbles unevenly, breath noise, a wet gurgle, and distortion
-// for the rasp, all pushed through two vowel filters that open from "uuuh" to "aaargh".
-// mood: 'groan' (long, idle), 'growl' (short and angry, when it bites), 'roar' (the boss arriving)
-function groan(src, mood) {
-  if (!AC || muted || !M) return;
-  const v = viewer(), d = Math.hypot(src.x - v.x, src.y - v.y), big = mood === 'roar' || src.boss, far = mood === 'roar' ? 2400 : big ? 1200 : 800;
-  if (d > far) return;
-  const t = AC.currentTime, rnd = (a, b) => a + Math.random() * (b - a);
-  const dur = mood === 'growl' ? rnd(0.35, 0.55) : mood === 'roar' ? 2.4 : rnd(0.9, 1.6);
-  const vol = Math.pow(1 - d / far, 1.6) * (mood === 'roar' ? 0.9 : big ? 0.6 : 0.42);
-  const f0 = (big ? rnd(42, 55) : rnd(70, 105)) * (mood === 'growl' ? 1.25 : 1);
-  const nodes = [];
-  const osc = (type, f) => { const o = AC.createOscillator(); o.type = type; o.frequency.value = f; nodes.push(o); return o; };
-  const gain = g => { const n = AC.createGain(); n.gain.value = g; return n; };
-  const filt = (type, f, q) => { const n = AC.createBiquadFilter(); n.type = type; n.frequency.value = f; n.Q.value = q; return n; };
-  // throat: two detuned saws, pitch rising then sagging, shaken by two uneven wobbles
-  const v1 = osc('sawtooth', f0), v2 = osc('sawtooth', f0 * 1.013);
-  for (const o of [v1, v2]) { o.frequency.setValueAtTime(f0 * 0.9, t); o.frequency.linearRampToValueAtTime(f0 * 1.08, t + dur * 0.25); o.frequency.linearRampToValueAtTime(f0 * 0.72, t + dur); }
-  const w1 = osc('triangle', rnd(5, 9)), w2 = osc('square', rnd(13, 21)), wg1 = gain(f0 * 0.06), wg2 = gain(f0 * 0.035);
-  w1.connect(wg1); w2.connect(wg2); for (const o of [v1, v2]) { wg1.connect(o.frequency); wg2.connect(o.frequency); }
-  const throat = gain(0.5), shaper = AC.createWaveShaper(); shaper.curve = rasp;
-  v1.connect(throat); v2.connect(throat); throat.connect(shaper);
-  // breath and spit
-  const breath = AC.createBufferSource(); breath.buffer = noiseBuf; breath.loop = true; nodes.push(breath);
-  const bg = gain(mood === 'growl' ? 0.55 : 0.35), bf = filt('bandpass', 1400, 0.8); breath.connect(bf); bf.connect(bg);
-  // the gurgle: the whole voice flutters in volume, faster when it's angry
-  const voice = gain(0.7), flutter = osc('sine', mood === 'growl' ? rnd(28, 40) : rnd(14, 24)), fg = gain(0.3);
-  flutter.connect(fg); fg.connect(voice.gain);
-  shaper.connect(voice); bg.connect(voice);
-  // vowel: two formant filters opening up, plus the chest underneath
-  const out = gain(0), f1 = filt('bandpass', 380, 5), f2 = filt('bandpass', 950, 7), chest = filt('lowpass', 260, 0.7);
-  f1.frequency.setValueAtTime(big ? 300 : 380, t); f1.frequency.linearRampToValueAtTime(big ? 520 : 720, t + dur * 0.4); f1.frequency.linearRampToValueAtTime(big ? 380 : 460, t + dur);
-  f2.frequency.setValueAtTime(big ? 800 : 950, t); f2.frequency.linearRampToValueAtTime(big ? 1000 : 1250, t + dur * 0.4); f2.frequency.linearRampToValueAtTime(900, t + dur);
-  voice.connect(f1); voice.connect(f2); voice.connect(chest);
-  const g1 = gain(1.6), g2 = gain(0.9), g3 = gain(big ? 1.1 : 0.6);
-  f1.connect(g1); f2.connect(g2); chest.connect(g3); g1.connect(out); g2.connect(out); g3.connect(out);
-  out.gain.setValueAtTime(0.0001, t); out.gain.linearRampToValueAtTime(vol, t + (mood === 'growl' ? 0.04 : 0.15));
-  out.gain.setValueAtTime(vol, t + dur * 0.6); out.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  out.connect(master);
-  for (const n of nodes) { n.start(t); n.stop(t + dur + 0.05); }
-}
-
 // ---------- menu music ----------
 // A slow, dark loop written in code: A minor, Am F C G, a heavy 808, trap hats and a lonely bell on top.
 const MU = { bus: null, on: false, next: 0, step: 0, timer: 0 };
