@@ -632,7 +632,7 @@ function handleEvent(e) {
     const [, id, x, y, angs, type] = e;
     if (id === M.me) return;
     const W = WEAPONS[type], P = M.players.get(id);
-    for (const a of angs) M.tracers.push({ x, y, vx: Math.cos(a) * W.speed, vy: Math.sin(a) * W.speed, left: W.range });
+    for (const a of angs) M.tracers.push({ x, y, vx: Math.cos(a) * W.speed, vy: Math.sin(a) * W.speed, left: W.range, sx: x, sy: y, r0: W.range, owner: id });
     if (P) P.flash = 0.06;
     sound('shot', { x, y }, W);
   } else if (k === 'punch') {
@@ -734,7 +734,7 @@ function localFire(me) {
   const mx = me.x + Math.cos(me.ang) * (W.len + 6), my = me.y + Math.sin(me.ang) * (W.len + 6);
   for (let i = 0; i < (W.pellets || 1); i++) {
     const a = me.ang + (Math.random() - 0.5) * 2 * W.spread;
-    M.tracers.push({ x: mx, y: my, vx: Math.cos(a) * W.speed, vy: Math.sin(a) * W.speed, left: W.range });
+    M.tracers.push({ x: mx, y: my, vx: Math.cos(a) * W.speed, vy: Math.sin(a) * W.speed, left: W.range, sx: mx, sy: my, r0: W.range, owner: M.me });
   }
   sound('shot', me, W);
 }
@@ -1469,7 +1469,18 @@ function render3D(dt) {
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, VW, VH);
   // tracers and blood
   ctx.lineCap = 'round'; ctx.strokeStyle = 'rgba(255,236,170,.9)'; ctx.lineWidth = 2.2; ctx.beginPath();
-  for (const b of M.tracers) { if (!inVis(b.x, b.y)) continue; const a = P3(b.x - b.vx * 0.018, b.y - b.vy * 0.018, AH), c = P3(b.x, b.y, AH); ctx.moveTo(a.x, a.y); ctx.lineTo(c.x, c.y); }
+  for (const b of M.tracers) {
+    if (!inVis(b.x, b.y)) continue;
+    // the bullet flies along the shooter's aim line, but its trail starts at their gun barrel
+    // and bends onto that line over the first stretch
+    const P = M.players.get(b.owner), mz = P && P.muzzle, sp = Math.hypot(b.vx, b.vy), ux = b.vx / sp, uy = b.vy / sp;
+    const run = b.r0 - b.left, tail = Math.max(0, run - sp * 0.018);
+    const at = d => {
+      const x = b.sx + ux * d, y = b.sy + uy * d, k = mz ? clamp(1 - d / 140, 0, 1) : 0;
+      return P3(x + (mz ? (mz.x - b.sx) * k : 0), y + (mz ? (mz.y - b.sy) * k : 0), AH + (mz ? (mz.h - AH) * k : 0));
+    };
+    const a = at(tail), c = at(run); ctx.moveTo(a.x, a.y); ctx.lineTo(c.x, c.y);
+  }
   ctx.stroke();
   for (const p of M.particles) { if (!inVis(p.x, p.y)) continue; const q = P3(p.x, p.y, 12); ctx.globalAlpha = clamp(p.life / p.max, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(q.x - p.s, q.y - p.s, p.s * 2, p.s * 2); }
   ctx.globalAlpha = 1;

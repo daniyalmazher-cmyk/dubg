@@ -430,8 +430,13 @@ function updatePlayer(P, v, dt, visible) {
   v.vest.visible = P.armor > 0;
   // swap the gun model when they change weapons
   if (v.gunType !== P.gun) {
-    v.gunType = P.gun; v.gun.clear();
-    if (P.gun) v.gun.add(gunModel(P.gun));
+    v.gunType = P.gun; v.gun.clear(); v.tip = null;
+    if (P.gun) {
+      // a marker at the end of the barrel, so shots can start from the gun instead of the body
+      const gm = gunModel(P.gun), box = new THREE.Box3().setFromObject(gm);
+      v.tip = new THREE.Object3D(); v.tip.position.set(0, (box.min.y + box.max.y) / 2, box.max.z); gm.add(v.tip);
+      v.gun.add(gm);
+    }
   }
   v.gun.visible = !!P.gun && P.alive;
   if (!P.alive) {
@@ -487,7 +492,7 @@ function updatePlayer(P, v, dt, visible) {
 }
 const hurtMat = fogify(new THREE.MeshLambertMaterial({ color: '#ff5a4a', emissive: '#a01810' }));
 // muzzle position of a player's gun, for the muzzle flash light
-function muzzle(P) { return { x: P.x + Math.cos(P.ang) * 22, y: P.y + Math.sin(P.ang) * 22 }; }
+function muzzle(P) { return P.muzzle || { x: P.x + Math.cos(P.ang) * 22, y: P.y + Math.sin(P.ang) * 22, h: H.aim }; }
 
 // ---------- zombies: the same block figures, rotten, arms out; the boss towers over the walls ----------
 // (3x here, not the 5x of the top-down view: at 5x the tilted camera sees nothing but boss)
@@ -692,6 +697,8 @@ function frame(F) {
     let v = players.get(P.id); if (!v) { v = makePlayer(P, P.id === M.me); players.set(P.id, v); }
     const visible = P.alive ? !!P.seen : (!F.fogOn || F.canSeePt(P.x, P.y));
     updatePlayer(P, v, dt, visible);
+    // where this player's barrel ends right now (x, y on the map, h above the ground)
+    if (v.tip && P.alive) { v.tip.getWorldPosition(tmpV); P.muzzle = { x: tmpV.x, y: tmpV.z, h: tmpV.y }; } else P.muzzle = null;
     if (P.seen && P.flash > 0 && P.gun && (!flash || P === vw)) flash = P;
   }
   // zombies: dead ones topple and stay down a moment before they go
@@ -707,7 +714,7 @@ function frame(F) {
     v.rig.rotation.x = Math.PI / 2 * e; v.rig.position.y = 4 * e; v.rig.position.z = 14 * e;
     if (v.gone > 2.5) { scene.remove(v.holder); zombieViews.delete(id); }
   }
-  if (flash) { const mz = muzzle(flash); api.flashL.position.set(mz.x, H.aim, mz.y); api.flashL.intensity = 2.2; } else api.flashL.intensity = Math.max(0, api.flashL.intensity - dt * 30);
+  if (flash) { const mz = muzzle(flash); api.flashL.position.set(mz.x, mz.h, mz.y); api.flashL.intensity = 2.2; } else api.flashL.intensity = Math.max(0, api.flashL.intensity - dt * 30);
   renderer.render(scene, camera);
 }
 
