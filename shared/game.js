@@ -946,7 +946,7 @@ function heapPop(h) {
 }
 const NB = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
 function updateFlow() {
-  const f = G.flow || (G.flow = new Float32Array(FW * FH)), h = [];
+  const f = G.flow || (G.flow = new Float64Array(FW * FH)), h = [];   // not Float32: rounding makes equal-cost routes look shorter and they snowball
   f.fill(1e9);
   for (const p of G.players) if (p.alive) { const k = fIdx(p.x, p.y); f[k] = 0; heapPush(h, 0, k); }
   while (h.length) {
