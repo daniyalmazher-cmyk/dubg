@@ -516,8 +516,8 @@ function tryFire(p) {
     p.cd = W.rate; p.punch = 0.15;
     G.events.push(['punch', p.id]);
     const inReach = q => dist(p, q) < W.range + q.r && Math.abs(angDiff(Math.atan2(q.y - p.y, q.x - p.x), p.ang)) < 0.8;
-    if (G.mode === 'zombie') { for (const z of G.zombies) if (z.alive && inReach(z)) hurtZombie(z, W.dmg, p); }
-    else for (const q of G.players) if (q !== p && q.alive && inReach(q)) damage(q, W.dmg, p, 'Fists');
+    if (G.mode === 'zombie') { for (const z of G.zombies) if (z.alive && inReach(z)) { G.events.push(['zhit', z.id, Math.round(z.x), Math.round(z.y)]); hurtZombie(z, W.dmg, p); } }
+    else for (const q of G.players) if (q !== p && q.alive && inReach(q)) { G.events.push(['hit', q.id, Math.round(q.x), Math.round(q.y)]); damage(q, W.dmg, p, 'Fists'); }
     return true;
   }
   if (g.mag <= 0) { startReload(p); return false; }
@@ -595,13 +595,13 @@ function explode(o, R, wname) {
   for (const q of G.players) {
     if (!q.alive || (G.mode === 'zombie' && q !== o.owner)) continue;   // no friendly fire against the horde
     const d = Math.hypot(q.x - o.x, q.y - o.y);
-    if (d < R + q.r && los(o, q)) damage(q, d < R * BLAST_CORE ? 999 : BLAST_RIM, o.owner, wname, true);
+    if (d < R + q.r && los(o, q)) { G.events.push(['hit', q.id, Math.round(q.x), Math.round(q.y)]); damage(q, d < R * BLAST_CORE ? 999 : BLAST_RIM, o.owner, wname, true); }
   }
   // zombies: the core kills, the rim takes half; a boss only loses a quarter or a tenth of its health
   if (G.mode === 'zombie') for (const z of G.zombies) {
     if (!z.alive) continue;
     const d = Math.hypot(z.x - o.x, z.y - o.y), core = d < R * BLAST_CORE;
-    if (d < R + z.r && los(o, z)) hurtZombie(z, z.boss ? z.max * (core ? 0.25 : 0.1) : core ? z.hp : z.max * 0.5, o.owner);
+    if (d < R + z.r && los(o, z)) G.events.push(['zhit', z.id, Math.round(z.x), Math.round(z.y)]), hurtZombie(z, z.boss ? z.max * (core ? 0.25 : 0.1) : core ? z.hp : z.max * 0.5, o.owner);
   }
 }
 function updateProjs(dt) {
@@ -1029,7 +1029,7 @@ function updateZombie(z, dt) {
   if (z.cd > 0) return;
   if (td < z.r + tgt.r + ZOMBIE.reach) {
     z.cd = ZOMBIE.rate; z.atk = 0.35; z.ang = Math.atan2(tgt.y - z.y, tgt.x - z.x);
-    G.events.push(['zatk', z.id]);
+    G.events.push(['zatk', z.id], ['hit', tgt.id, Math.round(tgt.x), Math.round(tgt.y)]);
     damage(tgt, z.boss ? ZOMBIE.bossDmg : ZOMBIE.dmg, ZSRC, z.boss ? 'Boss' : 'Zombie');
     return;
   }
