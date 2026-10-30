@@ -165,7 +165,8 @@ function disposeWorld() {
   for (const g of itemViews.values()) world.group.remove(g); // their parts are shared, keep them
   world.group.traverse(o => { if (o.isMesh || o.isSprite || o.isLine) { if (o.geometry && o.geometry !== boxGeo) o.geometry.dispose(); const ms = Array.isArray(o.material) ? o.material : [o.material]; for (const m of ms) { if (m.map && m.map !== flameTex) m.map.dispose(); m.dispose(); } } });
   for (const v of players.values()) scene.remove(v.holder);
-  players.clear(); itemViews.clear();
+  for (const v of zombieViews.values()) scene.remove(v.holder);
+  players.clear(); itemViews.clear(); zombieViews.clear();
   world = null;
 }
 
@@ -174,7 +175,7 @@ function setWorld(W, ground, scale) {
   if (!renderer) return;
   disposeWorld();
   const g = new THREE.Group();
-  world = { group: g, W, roofs: [], bwalls: [], doors: [], flames: [], lights: [] };
+  world = { group: g, W, roofs: [], bwalls: [], doors: [], flames: [], lights: [], bars: [] };
   // ground
   const under = new THREE.Mesh(new THREE.PlaneGeometry(30000, 30000).rotateX(-Math.PI / 2), lambert({ color: '#1f1e1a' }));
   under.position.set(W.WORLD.w / 2, -0.5, W.WORLD.h / 2); g.add(under);
@@ -188,8 +189,14 @@ function setWorld(W, ground, scale) {
   const wallMat = solid({ color: '#3a3d42' }), capMat = solid({ color: '#61666d' });
   const loose = [];
   const byB = new Map(W.buildings.map(b => [b, []]));
-  for (const w of W.walls) if (w.kind === 'wall') { const b = W.buildings.find(b => inB(w, b)); if (b) byB.get(b).push(w); else loose.push(w); }
+  for (const w of W.walls) if (w.kind === 'wall') { const b = W.buildings.find(b => !b.mall && inB(w, b)); if (b) byB.get(b).push(w); else loose.push(w); }
   for (const [b, ws] of byB) {
+    if (b.mall) {
+      const roofMat = solid({ color: b.roof, transparent: true }), spare = new THREE.MeshBasicMaterial();
+      const roof = new THREE.Mesh(boxGeo, roofMat); roof.position.set(b.x + b.w / 2, H.wall, b.y + b.h / 2); roof.scale.set(b.w + 8, 3, b.h + 8);
+      g.add(roof); world.roofs.push({ b, mats: [spare, spare, roofMat], roof, a: 1 });
+      continue;
+    }
     const mat = solid({ color: '#3a3d42', transparent: true }), cap = solid({ color: '#61666d', transparent: true });
     const m = boxes(ws, mat, rectBox(H.wall)), c = boxes(ws, cap, rectBox(2, H.wall, 0.5));
     g.add(m, c);
@@ -240,8 +247,31 @@ function setWorld(W, ground, scale) {
       s.position.set(l.x, 34, l.y); s.scale.set(26, 34, 1); g.add(s); world.flames.push({ s, l });
     }
   }
+  // the mall: food court counters, the dry fountain, planters, and plank barricades in the doorways
+  const counters = W.walls.filter(w => w.kind === 'counter');
+  g.add(boxes(counters, solid({ color: '#5a4634' }), rectBox(24)), boxes(counters, solid({ color: '#7a6248' }), rectBox(3, 24, 1)));
+  for (const w of W.walls.filter(w => w.kind === 'fountain')) {
+    const f = new THREE.Mesh(new THREE.CylinderGeometry(w.w / 2 + 6, w.w / 2 + 8, 14, 28).translate(0, 7, 0), solid({ color: '#6a6e70' }));
+    const pool = new THREE.Mesh(new THREE.CylinderGeometry(w.w / 2 - 4, w.w / 2 - 4, 2, 28).translate(0, 14, 0), lambert({ color: '#26302c' }));
+    const spout = new THREE.Mesh(new THREE.CylinderGeometry(6, 9, 30, 12).translate(0, 15, 0), solid({ color: '#7d8183' }));
+    for (const m of [f, pool, spout]) { m.position.set(w.x + w.w / 2, 0, w.y + w.h / 2); g.add(m); }
+  }
+  const planters = W.walls.filter(w => w.kind === 'planter');
+  g.add(boxes(planters, solid({ color: '#4a4038' }), rectBox(16)), boxes(planters, solid({ color: '#5a4a2c' }), (w, o) => { o.position.set(w.x + w.w / 2, 16, w.y + w.h / 2); o.rotation.set(0.3, 0.7, 0.2); o.scale.set(3, 22, 3); }));
+  for (const b of W.barricades || []) {
+    const hz = b.w > b.h, len = (hz ? b.w : b.h) + 10, grp = new THREE.Group(), planks = [];
+    grp.position.set(b.x + b.w / 2, 0, b.y + b.h / 2); if (!hz) grp.rotation.y = Math.PI / 2;
+    for (let i = 0; i < 5; i++) {
+      const m = new THREE.Mesh(boxGeo, solid({ color: i % 2 ? '#7a5a36' : '#8e6a40' }));
+      m.position.set(0, 8 + i * 10, (i % 2 ? 2 : -2)); m.rotation.set(0, 0, (i % 2 ? 1 : -1) * (0.1 + i * 0.03)); m.scale.set(len, 7, 4);
+      grp.add(m); planks.push(m);
+    }
+    g.add(grp); world.bars.push({ b, planks });
+  }
+  for (const st of W.stores || []) world.lights.push({ x: st.x + st.w / 2, y: st.y + st.h / 2, h: 60, r: 260, color: W.ZSIGN[st.kind], base: 0.9 });
   // neon signs light up the street in their colour
   for (const b of W.buildings) {
+    if (b.mall) continue;
     const S = W.SHOPS[b.shop], d = b.door;
     let x = d.x + d.w / 2, y = d.y + d.h / 2;
     if (b.side === 'top') y = b.y - 30; else if (b.side === 'bottom') y = b.y + b.h + 30; else if (b.side === 'left') x = b.x - 30; else x = b.x + b.w + 30;
@@ -255,7 +285,7 @@ function setWorld(W, ground, scale) {
   const zn = new THREE.Line(new THREE.BufferGeometry().setFromPoints(circle), new THREE.LineBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.85 }));
   zn.position.y = 2;
   g.add(zw, zo, zn);
-  world.zone = { zw, zo, zn };
+  world.zone = { zw, zo, zn, off: W.mode === 'zombie' };
   scene.add(g);
 }
 
@@ -459,6 +489,59 @@ const hurtMat = fogify(new THREE.MeshLambertMaterial({ color: '#ff5a4a', emissiv
 // muzzle position of a player's gun, for the muzzle flash light
 function muzzle(P) { return { x: P.x + Math.cos(P.ang) * 22, y: P.y + Math.sin(P.ang) * 22 }; }
 
+// ---------- zombies: the same block figures, rotten, arms out; the boss towers over the walls ----------
+// (3x here, not the 5x of the top-down view: at 5x the tilted camera sees nothing but boss)
+const BOSS_K = 3;
+const zombieViews = new Map();
+const ZSKIN = ['#7d9a5a', '#8aa06a', '#6e8a58', '#93a37a'], ZCLOTH = ['#3b3a33', '#4a3a2e', '#2f3a40', '#5a4a3a', '#3a4030', '#5e1d1d'];
+function makeZombie(Z) {
+  const skin = Z.boss ? '#6f8a4a' : ZSKIN[Z.id % 4], cloth = Z.boss ? '#3a3226' : ZCLOTH[Z.id % 6], pants = PANTS[Z.id % PANTS.length], blood = '#6b1a14';
+  const holder = new THREE.Group(), rig = new THREE.Group(); holder.add(rig); holder.scale.setScalar(BODY * (Z.boss ? BOSS_K : 1));
+  const hips = new THREE.Group(); hips.position.y = 22; rig.add(hips);
+  const legs = [-1, 1].map(s => {
+    const leg = new THREE.Group(); leg.position.x = s * 4.2; hips.add(leg);
+    box(leg, limbBox, pants, 7.5, 18, 8, 0, 0, 0);
+    box(leg, unitBox, '#2a241e', 8, 4.5, 11, 0, -19.5, 1.5);
+    return leg;
+  });
+  const chest = new THREE.Group(); chest.position.y = 22; chest.rotation.x = 0.25; rig.add(chest);   // hunched forward
+  box(chest, unitBox, cloth, Z.boss ? 24 : 18, 19, Z.boss ? 16 : 10, 0, 9.5, 0);
+  box(chest, unitBox, blood, 7, 6, 1, -3, 7, Z.boss ? 8.2 : 5.2);       // bloodstain
+  box(chest, unitBox, skin, 5, 5, 1, 5, 13, Z.boss ? 8.2 : 5.2);        // skin through a tear
+  const arms = [-1, 1].map(s => {
+    const arm = new THREE.Group(); arm.position.set(s * (Z.boss ? 14 : 11.5), 18, 0); chest.add(arm);
+    box(arm, limbBox, s < 0 ? cloth : skin, 6, 15, 7, 0, 0, 0);
+    box(arm, unitBox, skin, 5.5, 4.5, 5.5, 0, -17, 0);
+    return arm;
+  });
+  const head = new THREE.Group(); head.position.y = 19; head.rotation.x = -0.2; chest.add(head);
+  box(head, unitBox, skin, 13, 13, 13, 0, 6.5, 1);
+  const eye = Z.boss ? '#ff3a2a' : '#e8e26a';
+  box(head, unitBox, eye, 2.4, 2.4, 1, -3, 7.5, 7.6); box(head, unitBox, eye, 2.4, 2.4, 1, 3, 7.5, 7.6);
+  box(head, unitBox, blood, 6, 2, 1, 0, 2.8, 7.6);                        // the mouth
+  box(head, unitBox, shade(skin, 0.6), 5, 3, 1, -3, 11, 7.6);             // rot
+  rig.traverse(o => { if (o.isMesh) o.userData.base = o.material; });
+  scene.add(holder);
+  return { holder, rig, hips, legs, chest, arms, lx: Z.x, ly: Z.y, mvx: 0, mvy: 0, speed: 0, phase: Z.id, hurt: false, dead: false };
+}
+function updateZombie(Z, v, dt, visible) {
+  const k = Math.min(1, dt * 10);
+  v.mvx += ((Z.x - v.lx) / Math.max(dt, 1e-3) - v.mvx) * k; v.mvy += ((Z.y - v.ly) / Math.max(dt, 1e-3) - v.mvy) * k;
+  v.speed = Math.min(300, Math.hypot(v.mvx, v.mvy)); v.lx = Z.x; v.ly = Z.y;
+  v.holder.position.set(Z.x, 0, Z.y); v.holder.rotation.y = Math.PI / 2 - Z.ang; v.holder.visible = visible;
+  // a dragging shamble: slow, uneven steps
+  v.phase += dt * v.speed * 0.05;
+  const sw = Math.sin(v.phase) * 0.6 * Math.min(1, v.speed / 80);
+  v.legs[0].rotation.x = sw; v.legs[1].rotation.x = -sw * 0.6;
+  v.rig.rotation.z = Math.sin(v.phase * 0.5) * 0.06;
+  // arms reach forward; a bite snaps them down and in
+  const bite = Z.atk > 0, t = performance.now() / 1000;
+  v.arms[0].rotation.set(-Math.PI / 2 + (bite ? 0.5 : Math.sin(t * 3 + Z.id) * 0.1), 0, bite ? 0.35 : 0);
+  v.arms[1].rotation.set(-Math.PI / 2 + (bite ? 0.5 : Math.sin(t * 3.4 + Z.id) * 0.1), 0, bite ? -0.35 : 0);
+  const hurt = Z.hurt > 0;
+  if (hurt !== v.hurt) { v.hurt = hurt; v.rig.traverse(o => { if (o.isMesh) o.material = hurt ? hurtMat : o.userData.base; }); }
+}
+
 // ---------- items: 3D pickups that float and turn above a glowing ring ----------
 const ringGeo = new THREE.RingGeometry(8, 10.5, 24).rotateX(-Math.PI / 2);
 const cylGeo = new THREE.CylinderGeometry(1, 1, 1, 10);
@@ -573,6 +656,7 @@ function frame(F) {
     const wa = 0.3 + 0.7 * r.a; r.mats[0].opacity = wa; r.mats[1].opacity = wa;
   }
   for (const d of world.doors) d.m.visible = !d.d.open;
+  for (const r of world.bars) r.planks.forEach((m, i) => { m.visible = i < r.b.hp; });
   for (const f of world.flames) { const k = 0.85 + 0.15 * Math.sin(t * 13 + f.l.ph) * Math.sin(t * 7.3 + f.l.ph * 2); f.s.scale.set(24 * k, 34 * k, 1); }
   // nearest light sources get the pooled lights
   const cx = M.cam.x, cy = M.cam.y;
@@ -589,9 +673,9 @@ function frame(F) {
   api.lantern.position.set(vw.x, 70, vw.y); api.lantern.intensity = F.fogOn ? 1.1 : 0;
   // zone
   const z = M.zone, zr = Math.max(1, Math.min(z.cur.r, 20000)), Z = world.zone;
-  Z.zw.position.set(z.cur.x, 0, z.cur.y); Z.zw.scale.set(zr, 260, zr); Z.zw.visible = F.fogOn;
-  Z.zo.position.set(z.cur.x, 1.2, z.cur.y); Z.zo.scale.set(zr, 1, zr); Z.zo.visible = F.fogOn;
-  Z.zn.visible = F.fogOn && !!z.next; if (z.next) { Z.zn.position.set(z.next.x, 2, z.next.y); Z.zn.scale.set(Math.max(1, z.next.r), 1, Math.max(1, z.next.r)); }
+  Z.zw.position.set(z.cur.x, 0, z.cur.y); Z.zw.scale.set(zr, 260, zr); Z.zw.visible = F.fogOn && !Z.off;
+  Z.zo.position.set(z.cur.x, 1.2, z.cur.y); Z.zo.scale.set(zr, 1, zr); Z.zo.visible = F.fogOn && !Z.off;
+  Z.zn.visible = F.fogOn && !!z.next && !Z.off; if (z.next) { Z.zn.position.set(z.next.x, 2, z.next.y); Z.zn.scale.set(Math.max(1, z.next.r), 1, Math.max(1, z.next.r)); }
   // items: only the ones in sight are drawn
   const seenItem = it => !F.fogOn || F.canSeePt(it.x, it.y);
   for (const [id, g] of itemViews) if (!M.items.has(id)) { world.group.remove(g); itemViews.delete(id); }
@@ -609,6 +693,19 @@ function frame(F) {
     const visible = P.alive ? !!P.seen : (!F.fogOn || F.canSeePt(P.x, P.y));
     updatePlayer(P, v, dt, visible);
     if (P.seen && P.flash > 0 && P.gun && (!flash || P === vw)) flash = P;
+  }
+  // zombies: dead ones topple and stay down a moment before they go
+  for (const [id, v] of zombieViews) if (!M.zombies.has(id) && !v.dead) { v.dead = true; v.fall = 0; }
+  for (const Zm of M.zombies.values()) {
+    let v = zombieViews.get(Zm.id); if (!v) { v = makeZombie(Zm); zombieViews.set(Zm.id, v); }
+    updateZombie(Zm, v, dt, !F.fogOn || F.canSeePt(Zm.x, Zm.y));
+  }
+  for (const [id, v] of zombieViews) {
+    if (!v.dead) continue;
+    v.fall = Math.min(1, v.fall + dt * 3); v.gone = (v.gone || 0) + dt;
+    const e = 1 - Math.pow(1 - v.fall, 3);
+    v.rig.rotation.x = Math.PI / 2 * e; v.rig.position.y = 4 * e; v.rig.position.z = 14 * e;
+    if (v.gone > 2.5) { scene.remove(v.holder); zombieViews.delete(id); }
   }
   if (flash) { const mz = muzzle(flash); api.flashL.position.set(mz.x, H.aim, mz.y); api.flashL.intensity = 2.2; } else api.flashL.intensity = Math.max(0, api.flashL.intensity - dt * 30);
   renderer.render(scene, camera);
@@ -629,6 +726,6 @@ function toWorld(sx, sy) {
 // world units per screen pixel near a point, so overlay text can shrink with distance
 function pxScale(x, y, h) { const a = project(x, y, h), b = project(x + 100, y, h); return Math.hypot(b.x - a.x, b.y - a.y) / 100; }
 
-const api = { zoomMul: 1,  init, resize, setWorld, frame, project, toWorld, pxScale, get ok() { return !!renderer; }, get hasWorld() { return !!world; }, AIM_H: H.aim };
+const api = { zoomMul: 1, BOSS_K, init, resize, setWorld, frame, project, toWorld, pxScale, get ok() { return !!renderer; }, get hasWorld() { return !!world; }, AIM_H: H.aim };
 window.R3D = api;
 window.dispatchEvent(new Event('r3d-ready'));

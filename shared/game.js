@@ -32,7 +32,8 @@ const CX = (XL[0] + XN) / 2, CY = (YL[0] + YN) / 2;
 const PRISON = { x: CX - 400, y: YN + 90, w: 800, h: 360 };
 const PX = PRISON.x - 800, PY = PRISON.y - 1980; // prison layout below was drawn at x 800, y 1980
 const CORR_Y = PY + 2160;
-const WORLD = { w: XN + 160, h: PRISON.y + PRISON.h + 100 };
+const WORLD = { w: XN + 160, h: PRISON.y + PRISON.h + 100 };   // resized by buildWorld for the zombie map
+const BR_WORLD = { ...WORLD };
 const SCALE = (COLS * ROWS) / 30;
 const GATE_L = PRISON.x - 35, GATE_R = PRISON.x + PRISON.w + 35;
 // players are small next to the city (a car is about twice as long as a person is tall)
@@ -77,6 +78,26 @@ const PHASES = [
 // airdrops: when they're announced (seconds after the doors open), how long they take to fall, and what's inside
 const DROPS = [55, 135, 205], DROP_FALL = 14;
 const DROP_LOOT = [['rpg'], ['rocket', 3], ['gren', 3], ['vest2'], ['med', 2]];
+
+// zombie mode: up to 6 players hold a dead mall while waves come in from the four corners
+const ZW = { w: 2600, h: 2600 };
+const MALL = { x: 850, y: 900, w: 900, h: 800 };
+const ZMAX = 6;
+const ZOMBIE = {
+  hp: 200, hpWave: 20,                    // every zombie in wave n has 200 + 20(n-1) hp
+  boss: 1000, bossStep: 500, bossEvery: 5, // a boss every 5 waves: 1000 hp, then 1500, 2000...
+  dmg: 20, bossDmg: 60, rate: 1, reach: 10,
+  barHp: 5, buildRate: 0.5,               // a barricade takes 5 hits; holding build adds a plank every half second
+  prep: 25, rest: 15, cap: 28,            // seconds before wave 1, between waves, most zombies alive at once
+};
+const ZSPAWNS = [{ x: 150, y: 150 }, { x: ZW.w - 150, y: 150 }, { x: 150, y: ZW.h - 150 }, { x: ZW.w - 150, y: ZW.h - 150 }];
+const STORE_LOOT = {
+  gun: [['pistol', 3], ['smg', 3], ['shotgun', 2], ['rifle', 2], ['ammo', 5]],
+  pharmacy: [['band', 5], ['med', 2], ['ammo', 2]],
+  sports: [['vest1', 3], ['vest2', 1], ['gren', 3], ['ammo', 3]],
+  grocery: [['ammo', 6], ['band', 3], ['gren', 1]],
+};
+const ZTAGS = ['HELP', "THEY'RE INSIDE", 'NO HOPE', 'EVAC GONE', 'RUN', 'DONT GO IN', 'MALL = SAFE?', 'GOD HELP US', 'BITTEN', 'SHOOT THE HEAD'];
 const NAMES = ['BigTone', 'LilSmoke', 'Ghostface', 'Kingpin', 'Rico', 'Dre', 'Tiny', 'Scrap', 'Blaze', 'Cash', 'Junebug', 'Nitro', 'Spider', 'Saint', 'Lefty', 'Bones', 'Dutch', 'Mook', 'Shadow', 'Ace', 'Vandal', 'Rocco', 'Diesel', 'Smokey', 'Knuckles', 'Slim', 'Capo', 'Truck', 'Ox'];
 const CREWS = [
   { n: 'Dawgz', c: '#ff7a1a' }, { n: 'Vipers', c: '#3ddc84' }, { n: 'Kings', c: '#f2c230' },
@@ -104,6 +125,7 @@ const CAR_COLORS = ['#6e2622', '#22394f', '#9a958a', '#2d2f31', '#4f4b22', '#173
 // ---------- world ----------
 let walls, grid, buildings, boarded, trees, blocks, doors, cars, cells, specks;
 let lights, cracks, potholes, puddles, patches, manholes, trash, tags, tires;
+let stores, barricades, blood, roads, pits, MODE = 'br';
 const GS = 100, GW = Math.ceil(WORLD.w / GS), GH = Math.ceil(WORLD.h / GS), EMPTY = [];
 function addWall(x, y, w, h, kind = 'wall') { const o = { x, y, w, h, kind, open: false }; walls.push(o); return o; }
 
@@ -137,10 +159,25 @@ function addBuilding(x, y, w, h, side, lane) {
 }
 
 // Same seed gives the same city on the server and in every browser.
-function buildWorld(seed) {
+function buildWorld(seed, mode) {
   walls = []; buildings = []; boarded = []; trees = []; blocks = []; doors = []; cars = []; cells = []; specks = [];
   lights = []; cracks = []; potholes = []; puddles = []; patches = []; manholes = []; trash = []; tags = []; tires = [];
+  stores = []; barricades = []; blood = []; roads = []; pits = [];
+  MODE = mode === 'zombie' ? 'zombie' : 'br';
+  Object.assign(WORLD, MODE === 'zombie' ? ZW : BR_WORLD);
   const saved = R; R = mulberry32(seed);
+  if (MODE === 'zombie') buildZombieWorld();
+  else buildCity();
+  R = saved;
+  grid = Array.from({ length: GW * GH }, () => []);
+  for (const w of walls) {
+    for (let gx = Math.floor(w.x / GS); gx <= Math.floor((w.x + w.w) / GS); gx++)
+      for (let gy = Math.floor(w.y / GS); gy <= Math.floor((w.y + w.h) / GS); gy++)
+        if (gx >= 0 && gy >= 0 && gx < GW && gy < GH) grid[gy * GW + gx].push(w);
+  }
+  return { walls, buildings, boarded, trees, blocks, doors, cars, cells, specks, lights, cracks, potholes, puddles, patches, manholes, trash, tags, tires, stores, barricades, blood, roads, pits };
+}
+function buildCity() {
   for (let i = 0; i < 260 * SCALE; i++) specks.push({ x: rnd(0, WORLD.w), y: rnd(0, WORLD.h), r: rnd(2, 7) });
   // city blocks
   for (let i = 0; i < COLS; i++) for (let j = 0; j < ROWS; j++) {
@@ -241,14 +278,102 @@ function buildWorld(seed) {
     lights.push({ x: x + sx * 47, y: y + sy * 47, kind: 'lamp', r: 200, ph: rnd(0, 10), flick: R() < 0.35 });
   }
   lights.push({ x: GATE_L, y: PRISON.y - 20, kind: 'lamp', r: 220, ph: 1, flick: false }, { x: GATE_R, y: PRISON.y - 20, kind: 'lamp', r: 220, ph: 2, flick: true });
-  R = saved;
-  grid = Array.from({ length: GW * GH }, () => []);
-  for (const w of walls) {
-    for (let gx = Math.floor(w.x / GS); gx <= Math.floor((w.x + w.w) / GS); gx++)
-      for (let gy = Math.floor(w.y / GS); gy <= Math.floor((w.y + w.h) / GS); gy++)
-        if (gx >= 0 && gy >= 0 && gx < GW && gy < GH) grid[gy * GW + gx].push(w);
+}
+
+// the zombie map: a dead mall in the middle of an overgrown lot, wrecks and ruins around it,
+// and a breach in each corner where the horde comes from
+function buildZombieWorld() {
+  const M = MALL, T = 16, GAP = 80, X1 = M.x + M.w, Y1 = M.y + M.h, cx = M.x + M.w / 2, cy = M.y + M.h / 2;
+  for (let i = 0; i < 220; i++) specks.push({ x: rnd(0, ZW.w), y: rnd(0, ZW.h), r: rnd(2, 7) });
+  // outer walls; every doorway has a barricade spot that starts broken
+  const bar = (x, y, w, h) => { const b = addWall(x, y, w, h, 'barricade'); b.hp = 0; b.open = true; barricades.push(b); };
+  const hDoors = [M.x + 290, X1 - 290];
+  for (const y of [M.y, Y1 - T]) {
+    let x = M.x;
+    for (const dx of hDoors) { addWall(x, y, dx - GAP / 2 - x, T); bar(dx - GAP / 2, y, GAP, T); x = dx + GAP / 2; }
+    addWall(x, y, X1 - x, T);
   }
-  return { walls, buildings, boarded, trees, blocks, doors, cars, cells, specks, lights, cracks, potholes, puddles, patches, manholes, trash, tags, tires };
+  for (const x of [M.x, X1 - T]) { addWall(x, M.y, T, cy - GAP / 2 - M.y); bar(x, cy - GAP / 2, T, GAP); addWall(x, cy + GAP / 2, T, Y1 - cy - GAP / 2); }
+  buildings.push({ x: M.x, y: M.y, w: M.w, h: M.h, roofA: 1, roof: '#2b2e31', mall: true, decor: [] });
+  // a store in each corner, open toward the atrium
+  const SW = 220, SH = 210, FG = 90;
+  const defs = [['GUNZ', 'gun', 0, 0], ['PHARMACY', 'pharmacy', 1, 0], ['SPORTS', 'sports', 0, 1], ['GROCERY', 'grocery', 1, 1]];
+  for (const [name, kind, right, bottom] of defs) {
+    const s = { name, kind, x: right ? X1 - T - SW : M.x + T, y: bottom ? Y1 - T - SH : M.y + T, w: SW, h: SH, front: bottom ? 'top' : 'bottom' };
+    addWall(right ? s.x : s.x + SW - 10, s.y, 10, SH);
+    const fy = bottom ? s.y : s.y + SH - 10, fx = s.x + (SW - FG) / 2;
+    addWall(s.x, fy, fx - s.x, 10); addWall(fx + FG, fy, s.x + SW - fx - FG, 10);
+    s.door = { x: fx, y: fy, w: FG, h: 10 };
+    stores.push(s);
+  }
+  // food court counters, the dry fountain and planters in the atrium
+  addWall(cx - 100, M.y + 80, 200, 18, 'counter'); addWall(cx - 100, Y1 - 98, 200, 18, 'counter');
+  addWall(cx - 40, cy - 40, 80, 80, 'fountain');
+  for (const sx of [-1, 1]) for (const sy of [-1, 1]) addWall(cx + sx * 170 - 15, cy + sy * 120 - 15, 30, 30, 'planter');
+  lights.push({ x: cx, y: cy - 150, kind: 'lamp', r: 260, ph: 1, flick: true }, { x: cx, y: cy + 150, kind: 'lamp', r: 260, ph: 3, flick: false });
+  for (const s of stores) lights.push({ x: s.x + s.w / 2, y: s.y + s.h / 2, kind: 'lamp', r: 170, ph: rnd(0, 10), flick: R() < 0.6 });
+  // cracked roads from the corners into the parking lot
+  roads.push([0, cy, ZW.w, cy], [cx, 0, cx, ZW.h]);
+  for (const s of ZSPAWNS) roads.push([s.x, s.y, s.x + (cx - s.x) * 0.55, s.y + (cy - s.y) * 0.55]);
+  // the breaches: a torn-open fence and fires where the horde comes through
+  for (const s of ZSPAWNS) {
+    pits.push({ x: s.x, y: s.y, r: 70, a: rnd(0, TAU) });
+    for (let k = 0; k < 2; k++) { const a = rnd(0, TAU), x = s.x + Math.cos(a) * 120, y = s.y + Math.sin(a) * 120; addWall(x - 9, y - 9, 18, 18, 'barrel'); lights.push({ x, y, kind: 'fire', r: 190, ph: rnd(0, 10) }); }
+  }
+  const LOT = { x: M.x - 230, y: M.y - 230, w: M.w + 460, h: M.h + 460 };
+  const free = (x, y, pad) => !inRect(LOT, x, y, pad) && !ZSPAWNS.some(s => Math.hypot(s.x - x, s.y - y) < 230 + pad)
+    && x > 60 + pad && y > 60 + pad && x < ZW.w - 60 - pad && y < ZW.h - 60 - pad
+    && Math.abs(x - cx) > 70 + pad && Math.abs(y - cy) > 70 + pad;
+  // ruined houses, boarded shut
+  const homes = [];
+  for (let t = 0; t < 400 && homes.length < 9; t++) {
+    const w = rnd(120, 200), h = rnd(100, 160), x = rnd(80, ZW.w - 80 - w), y = rnd(80, ZW.h - 80 - h);
+    if (!free(x, y, 0) || !free(x + w, y + h, 0) || !free(x + w, y, 0) || !free(x, y + h, 0)) continue;
+    if (homes.some(o => x < o.x + o.w + 140 && x + w + 140 > o.x && y < o.y + o.h + 140 && y + h + 140 > o.y)) continue;
+    const b = { x, y, w, h, roof: pick(ROOFS.map(c => [c, 1])), roofA: 1, planks: R() < 0.6 };
+    if (R() < 0.7) b.tag = { text: pick(ZTAGS.map(t => [t, 1])), c: pick([['#b8261f', 3], ['#e8e2d4', 1], ['#7fae3a', 1]]), size: Math.min(30, w / 5), a: rnd(-0.3, 0.3) };
+    homes.push(b); boarded.push(b); addWall(x, y, w, h, 'block');
+  }
+  // wrecks: burned out in the lot and along the roads
+  const car = (x, y, horiz) => {
+    const L = CAR_L, W = CAR_W, w = addWall(horiz ? x - L / 2 : x - W / 2, horiz ? y - W / 2 : y - L / 2, horiz ? L : W, horiz ? W : L, 'car');
+    w.color = pick(CAR_COLORS.map(c => [c, 1])); w.burned = R() < 0.75;
+    w.rust = [0, 1, 2].map(() => horiz ? [rnd(6, L - 6), rnd(4, W - 4), rnd(3, 7)] : [rnd(4, W - 4), rnd(6, L - 6), rnd(3, 7)]);
+    cars.push(w);
+  };
+  for (let t = 0, n = 0; t < 200 && n < 10; t++) {
+    const side = Math.floor(R() * 4), horiz = side < 2;
+    const x = horiz ? rnd(LOT.x + 60, LOT.x + LOT.w - 60) : side === 2 ? LOT.x + rnd(40, 150) : LOT.x + LOT.w - rnd(40, 150);
+    const y = horiz ? (side === 0 ? LOT.y + rnd(40, 150) : LOT.y + LOT.h - rnd(40, 150)) : rnd(LOT.y + 60, LOT.y + LOT.h - 60);
+    if (Math.abs(x - cx) < 120 || Math.abs(y - cy) < 120 || hDoors.some(d => Math.abs(x - d) < 110)) continue;
+    if (cars.some(c => Math.hypot(c.x + c.w / 2 - x, c.y + c.h / 2 - y) < 110)) continue;
+    car(x, y, horiz ? R() < 0.7 : R() < 0.3); n++;
+  }
+  for (let t = 0, n = 0; t < 300 && n < 12; t++) {
+    const x = rnd(120, ZW.w - 120), y = rnd(120, ZW.h - 120);
+    if (!free(x, y, 40) || homes.some(o => inRect(o, x, y, 70)) || cars.some(c => Math.hypot(c.x + c.w / 2 - x, c.y + c.h / 2 - y) < 120)) continue;
+    car(x, y, R() < 0.5); n++;
+  }
+  // dead trees and broken fence runs
+  for (let t = 0, n = 0; t < 400 && n < 34; t++) {
+    const x = rnd(90, ZW.w - 90), y = rnd(90, ZW.h - 90);
+    if (!free(x, y, 20) || homes.some(o => inRect(o, x, y, 50)) || trees.some(o => Math.hypot(o.x - x, o.y - y) < 90)) continue;
+    trees.push({ x, y, r: rnd(24, 36), a: rnd(0, TAU) }); addWall(x - 9, y - 9, 18, 18, 'tree'); n++;
+  }
+  for (let t = 0, n = 0; t < 200 && n < 10; t++) {
+    const horiz = R() < 0.5, len = rnd(90, 220), x = rnd(100, ZW.w - 100 - len), y = rnd(100, ZW.h - 100 - len);
+    const x2 = horiz ? x + len : x, y2 = horiz ? y : y + len;
+    if (!free(x, y, 30) || !free(x2, y2, 30) || homes.some(o => inRect(o, x, y, 60) || inRect(o, x2, y2, 60))) continue;
+    addWall(x, y, horiz ? len : 4, horiz ? 4 : len, 'fence'); n++;
+  }
+  // grime
+  for (let i = 0; i < 110; i++) { const [x0, y0, x1, y1] = roads[Math.floor(R() * roads.length)], k = R(); const x = x0 + (x1 - x0) * k + rnd(-40, 40), y = y0 + (y1 - y0) * k + rnd(-40, 40); const pts = [x, y]; let a = rnd(0, TAU), px = x, py = y; for (let j = 0; j < 4; j++) { a += rnd(-0.9, 0.9); const l = rnd(10, 28); px += Math.cos(a) * l; py += Math.sin(a) * l; pts.push(px, py); } cracks.push({ x, y, pts }); }
+  for (let i = 0; i < 40; i++) { const [x0, y0, x1, y1] = roads[Math.floor(R() * roads.length)], k = R(); potholes.push({ x: x0 + (x1 - x0) * k + rnd(-35, 35), y: y0 + (y1 - y0) * k + rnd(-35, 35), rx: rnd(5, 13), ry: rnd(4, 9), a: rnd(0, 3) }); }
+  for (let i = 0; i < 70; i++) blood.push({ x: rnd(80, ZW.w - 80), y: rnd(80, ZW.h - 80), rx: rnd(8, 26), ry: rnd(5, 14), a: rnd(0, 3) });
+  for (let i = 0; i < 14; i++) blood.push({ x: rnd(M.x + 30, X1 - 30), y: rnd(M.y + 30, Y1 - 30), rx: rnd(8, 22), ry: rnd(5, 12), a: rnd(0, 3) });
+  for (let i = 0; i < 520; i++) trash.push({ x: rnd(70, ZW.w - 70), y: rnd(70, ZW.h - 70), w: rnd(2, 7), h: rnd(2, 5), c: pick([['#8a8170', 3], ['#5d6a74', 2], ['#7a3d2c', 2], ['#c9c3b5', 1], ['#3f5c3a', 2]]), a: rnd(0, 3) });
+  for (let i = 0; i < 16; i++) { const x = rnd(120, ZW.w - 120), y = rnd(120, ZW.h - 120); if (inRect(M, x, y, 30)) continue; tags.push({ x, y, text: pick(ZTAGS.map(t => [t, 1])), c: pick([['#b8261f', 3], ['#e8e2d4', 1], ['#7fae3a', 1]]), size: rnd(22, 36), a: rnd(-0.5, 0.5) }); }
+  for (let i = 0; i < 6; i++) { const x = rnd(LOT.x + 40, LOT.x + LOT.w - 40), y = rnd(LOT.y + 40, LOT.y + LOT.h - 40); if (inRect(M, x, y, 60)) continue; lights.push({ x, y, kind: 'lamp', r: 210, ph: rnd(0, 10), flick: R() < 0.5 }); }
 }
 function setDoors(open) { for (const d of doors) d.open = open; }
 
@@ -302,7 +427,7 @@ function makePlayer(id, name, isBot, cell) {
   return {
     id, name, isBot, crew: crewIdx, look, x: cell.x, y: cell.y, r: BODY_R, ang: cell.top ? Math.PI / 2 : -Math.PI / 2,
     hp: 100, armor: 0, alive: true, slots: [null, null], cur: -1, ammo: 0, rockets: 0, gren: 0, band: 0, med: 0, kills: 0,
-    cd: 0, reload: 0, heal: null, punch: 0, place: 0, diedAt: 0, throwCd: 0,
+    cd: 0, reload: 0, heal: null, punch: 0, place: 0, diedAt: 0, throwCd: 0, build: 0, gone: false,
     input: null, lastClicks: 0, pendingFire: 0,
     ai: isBot ? { path: [], think: 0, enemy: null, provoked: null, react: 0, lostT: 0, strafe: 1, strafeT: 0, aimErr: rnd(0.22, 0.45), visited: new Set(), stuckT: 0, stuck: 0, grenT: rnd(3, 8), lx: cell.x, ly: cell.y, sight: rnd(260, 320) } : null,
   };
@@ -325,9 +450,11 @@ function spawnLoot() {
 // humans: [{ name }]. Returns the match; humans get player ids 0..n-1, bots fill the rest
 // unless opts.bots is false.
 function createMatch(humans, seed, opts) {
+  if (opts && opts.mode === 'zombie') return createZombieMatch(humans, seed);
   const bots = !opts || opts.bots !== false;
   buildWorld(seed);
   G = {
+    mode: 'br',
     state: 'lockdown', t: LOCKDOWN, time: 0, liveTime: 0, players: [], items: [], nextItem: 1, bullets: [], events: [],
     projs: [], nextProj: 1, drops: [], dropsDone: 0,
     alive: 0, winner: null,
@@ -388,10 +515,9 @@ function tryFire(p) {
   if (!g) {
     p.cd = W.rate; p.punch = 0.15;
     G.events.push(['punch', p.id]);
-    for (const q of G.players) {
-      if (q === p || !q.alive) continue;
-      if (dist(p, q) < W.range + q.r && Math.abs(angDiff(Math.atan2(q.y - p.y, q.x - p.x), p.ang)) < 0.8) damage(q, W.dmg, p, 'Fists');
-    }
+    const inReach = q => dist(p, q) < W.range + q.r && Math.abs(angDiff(Math.atan2(q.y - p.y, q.x - p.x), p.ang)) < 0.8;
+    if (G.mode === 'zombie') { for (const z of G.zombies) if (z.alive && inReach(z)) hurtZombie(z, W.dmg, p); }
+    else for (const q of G.players) if (q !== p && q.alive && inReach(q)) damage(q, W.dmg, p, 'Fists');
     return true;
   }
   if (g.mag <= 0) { startReload(p); return false; }
@@ -443,7 +569,8 @@ function stepProj(o, dt, hit) {
       if (solidAt(nx, o.y)) o.vx *= -0.45; else o.x = nx;
       if (solidAt(o.x, ny)) o.vy *= -0.45; else o.y = ny;
     } else {
-      if (solidAt(nx, ny)) return true;
+      const w = solidAt(nx, ny);
+      if (w && w.kind !== 'barricade') return true;
       o.x = nx; o.y = ny;
       if ((o.left -= sp * dt / n) <= 0 || (hit && hit(o))) return true;
     }
@@ -466,9 +593,15 @@ function throwGrenade(p, a, d) {
 function explode(o, R, wname) {
   G.events.push(['boom', o.id, Math.round(o.x), Math.round(o.y), R]);
   for (const q of G.players) {
-    if (!q.alive) continue;
+    if (!q.alive || (G.mode === 'zombie' && q !== o.owner)) continue;   // no friendly fire against the horde
     const d = Math.hypot(q.x - o.x, q.y - o.y);
     if (d < R + q.r && los(o, q)) damage(q, d < R * BLAST_CORE ? 999 : BLAST_RIM, o.owner, wname, true);
+  }
+  // zombies: the core kills, the rim takes half; a boss only loses a quarter or a tenth of its health
+  if (G.mode === 'zombie') for (const z of G.zombies) {
+    if (!z.alive) continue;
+    const d = Math.hypot(z.x - o.x, z.y - o.y), core = d < R * BLAST_CORE;
+    if (d < R + z.r && los(o, z)) hurtZombie(z, z.boss ? z.max * (core ? 0.25 : 0.1) : core ? z.hp : z.max * 0.5, o.owner);
   }
 }
 function updateProjs(dt) {
@@ -478,7 +611,9 @@ function updateProjs(dt) {
       stepProj(o, dt);
       if ((o.fuse -= dt) <= 0) { G.projs.splice(i, 1); explode(o, GRENADE.blast, GRENADE.name); }
     } else {
-      const hitP = r => G.players.some(q => q.alive && q !== r.owner && Math.hypot(q.x - r.x, q.y - r.y) < q.r + 4);
+      const hitP = G.mode === 'zombie'
+        ? r => G.zombies.some(z => z.alive && Math.hypot(z.x - r.x, z.y - r.y) < z.r + 4)
+        : r => G.players.some(q => q.alive && q !== r.owner && Math.hypot(q.x - r.x, q.y - r.y) < q.r + 4);
       if (stepProj(o, dt, hitP)) { G.projs.splice(i, 1); explode(o, WEAPONS.rpg.blast, WEAPONS.rpg.name); }
     }
   }
@@ -554,6 +689,7 @@ function kill(q, src, wname) {
   q.slots = [null, null]; q.ammo = 0; q.rockets = 0; q.gren = 0; q.band = 0; q.med = 0;
   if (src && src !== q) src.kills++;
   G.events.push(['kill', src ? src.id : -1, q.id, wname, q.place, Math.round(q.x), Math.round(q.y)]);
+  if (G.mode === 'zombie') { if (G.alive <= 0 && G.state !== 'over') G.state = 'over'; return; }
   if (G.alive <= 1 && G.state !== 'over') {
     const w = G.players.find(p => p.alive) || q;
     G.winner = w; w.place = 1; G.state = 'over';
@@ -603,7 +739,7 @@ function setInput(p, inp) {
   if (!p || !inp) return;
   const x = +inp.x, y = +inp.y, a = +inp.a, c = inp.c | 0;
   if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(a)) return;
-  p.input = { x, y, a, f: !!inp.f, c };
+  p.input = { x, y, a, f: !!inp.f, c, b: !!inp.b };
 }
 function humanUpdate(p, dt) {
   const inp = p.input; if (!inp) return;
@@ -618,6 +754,7 @@ function humanUpdate(p, dt) {
   if (inp.f || p.pendingFire > 0) { if (tryFire(p)) p.pendingFire = 0; }
   p.pendingFire -= dt;
   const g = curGun(p); if (g && g.mag === 0 && p[ammoKey(g.type)] > 0 && p.reload <= 0) startReload(p);
+  if (G.mode === 'zombie') buildBarricade(p, inp.b ? dt : 0);
   for (let i = G.items.length - 1; i >= 0; i--) {
     const it = G.items[i]; if (!it) continue;
     const k = ITEMS[it.type].kind;
@@ -633,7 +770,7 @@ function humanAction(p, a, v) {
   else if (a === 'slot') { const i = v | 0; if (i >= -1 && i <= 1) setSlot(p, i); }
   else if (a === 'cycle') cycleSlot(p);
 }
-function humanLeft(p) { if (p && p.alive) kill(p, null, 'left'); }
+function humanLeft(p) { if (!p) return; p.gone = true; if (p.alive) kill(p, null, 'left'); }
 
 // ---------- bots ----------
 // close: an enemy is near, so don't pick the rocket launcher (it would blow the bot up too) if there's anything else
@@ -742,11 +879,228 @@ function updateBot(b, dt) {
   for (let i = G.items.length - 1; i >= 0; i--) { const it = G.items[i]; if (it && Math.abs(it.x - b.x) < 18 && Math.abs(it.y - b.y) < 18) pickup(b, it); }
 }
 
+
+// ---------- zombie mode ----------
+const ZSRC = { id: -2, name: 'Zombie', kills: 0 };   // what a zombie bite counts as when it kills you
+function createZombieMatch(humans, seed) {
+  buildWorld(seed, 'zombie');
+  G = {
+    mode: 'zombie', state: 'live', t: 0, time: 0, liveTime: 0, players: [], items: [], nextItem: 1, bullets: [], events: [],
+    projs: [], nextProj: 1, drops: [], dropsDone: 0, alive: 0, winner: null,
+    zone: { cur: { x: ZW.w / 2, y: ZW.h / 2, r: 99999 }, next: null, phase: 0, mode: 'final', t: 0, from: null, dps: 0 },
+    zombies: [], nextZ: 1, flow: null, flowT: 0,
+    zw: { wave: 0, phase: 'break', t: ZOMBIE.prep, toSpawn: 0, spawnT: 0, bossT: -1 },
+  };
+  buildFlowGrid();
+  for (const s of stores) for (let i = 0; i < 4; i++) storeItem(s);
+  humans.slice(0, ZMAX).forEach((h, i) => {
+    const p = makePlayer(i, h.name, false, mallSpot(i));
+    arm(p); G.players.push(p);
+  });
+  G.alive = G.players.length;
+  return G;
+}
+// around the fountain, clear of it
+function mallSpot(i) {
+  const cx = MALL.x + MALL.w / 2, cy = MALL.y + MALL.h / 2, a = i / ZMAX * TAU + 0.4;
+  return { x: cx + Math.cos(a) * 95, y: cy + Math.sin(a) * 95, top: false };
+}
+function arm(p) { p.slots = [{ type: 'pistol', mag: WEAPONS.pistol.mag }, null]; p.cur = 0; p.ammo = 48; p.band = 1; }
+function storeItem(s) {
+  const it = addItem(pick(STORE_LOOT[s.kind]), rnd(s.x + 30, s.x + s.w - 30), rnd(s.y + 30, s.y + s.h - 30));
+  G.events.push(['iadd', it.id, it.type, Math.round(it.x), Math.round(it.y)]);
+}
+// between waves the shelves fill back up a little
+function restock() { for (const s of stores) { const n = G.items.filter(it => inRect(s, it.x, it.y)).length; for (let i = n; i < 4; i++) storeItem(s); } }
+function revive(p) {
+  const s = mallSpot(p.id);
+  Object.assign(p, { alive: true, hp: 100, armor: 0, x: s.x, y: s.y, reload: 0, heal: null, cd: 0, build: 0 });
+  arm(p); G.alive++;
+  G.events.push(['revive', p.id]);
+}
+
+// Pathfinding: a flow field over a 20px grid, rebuilt twice a second from every living player.
+// Boarded doorways cost extra, so zombies go for an open door if there is one nearby.
+const FS = 20;
+let FW = 0, FH = 0, fBlock = null, fBar = null;
+function buildFlowGrid() {
+  FW = Math.ceil(ZW.w / FS); FH = Math.ceil(ZW.h / FS);
+  fBlock = new Uint8Array(FW * FH); fBar = new Int8Array(FW * FH).fill(-1);
+  for (let j = 0; j < FH; j++) for (let i = 0; i < FW; i++) {
+    const x = i * FS + FS / 2, y = j * FS + FS / 2, k = j * FW + i;
+    for (const [ox, oy] of [[0, 0], [-8, -8], [8, -8], [-8, 8], [8, 8]]) {
+      for (const w of cellWalls(x + ox, y + oy)) {
+        if (!inRect(w, x + ox, y + oy)) continue;
+        if (w.kind === 'barricade') fBar[k] = barricades.indexOf(w); else fBlock[k] = 1;
+      }
+    }
+  }
+}
+const fIdx = (x, y) => clamp(Math.floor(y / FS), 0, FH - 1) * FW + clamp(Math.floor(x / FS), 0, FW - 1);
+function heapPush(h, d, i) { h.push(d, i); let k = h.length / 2 - 1; while (k > 0) { const p = (k - 1) >> 1; if (h[p * 2] <= h[k * 2]) break; for (const o of [0, 1]) { const t = h[p * 2 + o]; h[p * 2 + o] = h[k * 2 + o]; h[k * 2 + o] = t; } k = p; } }
+function heapPop(h) {
+  const d = h[0], i = h[1], li = h.pop(), ld = h.pop();
+  if (h.length) {
+    h[0] = ld; h[1] = li; let k = 0; const n = h.length / 2;
+    for (;;) { const l = 2 * k + 1, r = l + 1; let m = k; if (l < n && h[l * 2] < h[m * 2]) m = l; if (r < n && h[r * 2] < h[m * 2]) m = r; if (m === k) break; for (const o of [0, 1]) { const t = h[m * 2 + o]; h[m * 2 + o] = h[k * 2 + o]; h[k * 2 + o] = t; } k = m; }
+  }
+  return [d, i];
+}
+const NB = [[1, 0, 1], [-1, 0, 1], [0, 1, 1], [0, -1, 1], [1, 1, 1.414], [1, -1, 1.414], [-1, 1, 1.414], [-1, -1, 1.414]];
+function updateFlow() {
+  const f = G.flow || (G.flow = new Float64Array(FW * FH)), h = [];   // not Float32: rounding makes equal-cost routes look shorter and they snowball
+  f.fill(1e9);
+  for (const p of G.players) if (p.alive) { const k = fIdx(p.x, p.y); f[k] = 0; heapPush(h, 0, k); }
+  while (h.length) {
+    const [d, k] = heapPop(h);
+    if (d > f[k]) continue;
+    const i = k % FW, j = (k - i) / FW;
+    for (const [di, dj, c] of NB) {
+      const ni = i + di, nj = j + dj; if (ni < 0 || nj < 0 || ni >= FW || nj >= FH) continue;
+      const n = nj * FW + ni; if (fBlock[n]) continue;
+      if (di && dj && (fBlock[j * FW + ni] || fBlock[nj * FW + i])) continue;   // no cutting corners
+      const b = fBar[n], nd = d + c + (b >= 0 && !barricades[b].open ? 14 : 0);
+      if (nd < f[n]) { f[n] = nd; heapPush(h, nd, n); }
+    }
+  }
+}
+
+function spawnZombie(boss) {
+  const s = ZSPAWNS[Math.floor(R() * ZSPAWNS.length)], w = G.zw.wave;
+  const hp = boss ? ZOMBIE.boss + ZOMBIE.bossStep * (w / ZOMBIE.bossEvery - 1) : ZOMBIE.hp + ZOMBIE.hpWave * (w - 1);
+  const z = { id: G.nextZ++, x: s.x + rnd(-45, 45), y: s.y + rnd(-45, 45), r: boss ? BODY_R * 4 : BODY_R, ang: rnd(0, TAU), boss, hp, max: hp, cd: 0, atk: 0, alive: true, stuckT: 0, lx: 0, ly: 0, side: null, born: G.liveTime,
+    sp: SPEED * (boss ? 0.42 : Math.min(0.8, 0.55 + w * 0.02) * rnd(0.88, 1.12)) };
+  G.zombies.push(z);
+  if (boss) G.events.push(['boss', z.id]);
+}
+function startWave() {
+  const zw = G.zw, n = G.players.filter(p => !p.gone).length;
+  zw.wave++; zw.phase = 'fight';
+  zw.toSpawn = 6 + (zw.wave - 1) * 4 + Math.max(0, n - 1) * 3; zw.spawnT = 0.5;
+  zw.bossT = zw.wave % ZOMBIE.bossEvery === 0 ? 6 : -1;
+  for (const p of G.players) if (!p.alive && !p.gone) revive(p);   // everyone who went down gets back up
+  G.events.push(['wave', zw.wave, zw.bossT > 0 ? 1 : 0]);
+}
+function updateWaves(dt) {
+  const zw = G.zw;
+  if (zw.phase === 'break') { if ((zw.t -= dt) <= 0) startWave(); return; }
+  if (zw.bossT > 0 && (zw.bossT -= dt) <= 0) { zw.bossT = -1; spawnZombie(true); }
+  if (zw.toSpawn > 0 && (zw.spawnT -= dt) <= 0 && G.zombies.length < ZOMBIE.cap) {
+    // they come in bunches from one corner at a time
+    const k = Math.min(zw.toSpawn, 1 + Math.floor(R() * 3));
+    for (let i = 0; i < k; i++) spawnZombie(false);
+    zw.toSpawn -= k; zw.spawnT = Math.max(0.8, 2.6 - zw.wave * 0.12);
+  }
+  if (zw.toSpawn <= 0 && zw.bossT < 0 && !G.zombies.length) {
+    zw.phase = 'break'; zw.t = ZOMBIE.rest;
+    restock();
+    G.events.push(['clear', zw.wave]);
+  }
+}
+// closest point of a wall to a circle's centre
+const rectDist = (w, p) => Math.hypot(clamp(p.x, w.x, w.x + w.w) - p.x, clamp(p.y, w.y, w.y + w.h) - p.y);
+function updateZombie(z, dt) {
+  z.cd -= dt; z.atk -= dt;
+  let tgt = null, td = 1e9;
+  for (const p of G.players) if (p.alive) { const d = dist(z, p); if (d < td) { td = d; tgt = p; } }
+  if (!tgt) return;
+  let mx, my;
+  if (td < 170 && los(z, tgt)) { mx = tgt.x - z.x; my = tgt.y - z.y; }
+  else {
+    // walk downhill on the flow field
+    const f = G.flow, k = fIdx(z.x, z.y), i = k % FW, j = (k - i) / FW;
+    let best = -1, bd = f ? f[k] : 1e9;
+    if (f) for (const [di, dj] of NB) {
+      const ni = i + di, nj = j + dj; if (ni < 0 || nj < 0 || ni >= FW || nj >= FH) continue;
+      const n = nj * FW + ni; if (f[n] < bd) { bd = f[n]; best = n; }
+    }
+    if (best >= 0) { mx = (best % FW) * FS + FS / 2 - z.x; my = Math.floor(best / FW) * FS + FS / 2 - z.y; }
+    else { mx = tgt.x - z.x; my = tgt.y - z.y; }
+  }
+  let m = Math.hypot(mx, my) || 1; mx /= m; my /= m;
+  // wedged on something for a second: shuffle sideways for a bit
+  if ((z.stuckT += dt) > 1) {
+    if (Math.hypot(z.x - z.lx, z.y - z.ly) < 8 && z.atk <= 0) { const s = R() < 0.5 ? 1 : -1; z.side = { x: -my * s, y: mx * s, t: 0.6 }; }
+    z.stuckT = 0; z.lx = z.x; z.ly = z.y;
+  }
+  if (z.side && (z.side.t -= dt) > 0) { mx += z.side.x * 2; my += z.side.y * 2; }
+  m = Math.hypot(mx, my);
+  if (m > 0.5 && z.atk <= 0) { z.x += mx / m * z.sp * dt; z.y += my / m * z.sp * dt; z.ang = lerpAngle(z.ang, Math.atan2(my, mx), dt * 8); }
+  if (z.cd > 0) return;
+  if (td < z.r + tgt.r + ZOMBIE.reach) {
+    z.cd = ZOMBIE.rate; z.atk = 0.35; z.ang = Math.atan2(tgt.y - z.y, tgt.x - z.x);
+    G.events.push(['zatk', z.id]);
+    damage(tgt, z.boss ? ZOMBIE.bossDmg : ZOMBIE.dmg, ZSRC, z.boss ? 'Boss' : 'Zombie');
+    return;
+  }
+  // outside and up against a boarded doorway: tear at it
+  if (inRect(MALL, z.x, z.y, -4)) return;
+  for (let i = 0; i < barricades.length; i++) {
+    const b = barricades[i];
+    if (b.open || rectDist(b, z) > z.r + 6) continue;
+    z.cd = ZOMBIE.rate; z.atk = 0.35; z.ang = Math.atan2(b.y + b.h / 2 - z.y, b.x + b.w / 2 - z.x);
+    b.hp = Math.max(0, b.hp - (z.boss ? ZOMBIE.barHp : 1));
+    if (!b.hp) b.open = true;
+    G.events.push(['bar', i, b.hp, -1]);
+    return;
+  }
+}
+// zombies keep out of each other and out of the players
+function separate() {
+  const Z = G.zombies;
+  for (let a = 0; a < Z.length; a++) {
+    const p = Z[a];
+    for (let b = a + 1; b < Z.length; b++) {
+      const q = Z[b], dx = q.x - p.x, dy = q.y - p.y, d = Math.hypot(dx, dy), min = p.r + q.r - 4;
+      if (d >= min || d < 0.01) continue;
+      const o = (min - d) / d, wp = p.boss ? 0.1 : q.boss ? 0.9 : 0.5;
+      p.x -= dx * o * wp; p.y -= dy * o * wp; q.x += dx * o * (1 - wp); q.y += dy * o * (1 - wp);
+    }
+    for (const h of G.players) {
+      if (!h.alive) continue;
+      const dx = p.x - h.x, dy = p.y - h.y, d = Math.hypot(dx, dy), min = p.r + h.r;
+      if (d < min && d > 0.01) { p.x += dx / d * (min - d); p.y += dy / d * (min - d); }
+    }
+    pushOut(p);
+  }
+}
+function hurtZombie(z, dmg, src) {
+  if (!z.alive) return;
+  z.hp -= dmg;
+  if (z.hp > 0) return;
+  z.alive = false;
+  if (src && src !== ZSRC && G.players.includes(src)) src.kills++;
+  G.events.push(['zdie', z.id, Math.round(z.x), Math.round(z.y), src && src.id != null ? src.id : -1, z.boss ? 1 : 0]);
+  const drop = (type, n, spread) => { const it = addItem(type, z.x + rnd(-spread, spread), z.y + rnd(-spread, spread), n); G.events.push(['iadd', it.id, it.type, Math.round(it.x), Math.round(it.y)]); };
+  if (z.boss) { drop('crate', 0, 4); drop('ammo', 120, 30); drop('med', 1, 30); return; }   // the boss carries an airdrop crate
+  const r = R();
+  if (r < 0.16) drop('ammo', 24, 8); else if (r < 0.21) drop('band', 1, 8); else if (r < 0.23) drop('gren', 1, 8);
+}
+// hold build next to a doorway to nail planks back up, one every half second
+function nearBarricade(p, maxD) { let best = -1, bd = maxD; barricades.forEach((b, i) => { const d = rectDist(b, p); if (d < bd) { bd = d; best = i; } }); return best; }
+function buildBarricade(p, dt) {
+  if (!dt) { p.build = 0; return; }
+  const i = nearBarricade(p, 60), b = barricades[i];
+  if (!b || b.hp >= ZOMBIE.barHp) { p.build = 0; return; }
+  if ((p.build += dt) < ZOMBIE.buildRate) return;
+  p.build = 0; b.hp++; b.open = false;
+  G.events.push(['bar', i, b.hp, p.id]);
+}
+function stepZombies(dt) {
+  G.liveTime += dt;
+  updateWaves(dt);
+  if ((G.flowT -= dt) <= 0) { G.flowT = 0.5; updateFlow(); }
+  for (const z of G.zombies) if (z.alive) updateZombie(z, dt);
+  separate();
+  G.zombies = G.zombies.filter(z => z.alive);
+}
+
 // ---------- tick ----------
 function step(dt) {
   G.time += dt;
   if (G.state === 'lockdown') { G.t -= dt; if (G.t <= 0) release(); }
-  if (G.state === 'live') { G.liveTime += dt; updateZone(dt); updateDrops(dt); }
+  if (G.mode === 'zombie') { if (G.state === 'live') stepZombies(dt); }
+  else if (G.state === 'live') { G.liveTime += dt; updateZone(dt); updateDrops(dt); }
   for (const p of G.players) {
     if (!p.alive) continue;
     if (!p.isBot) humanUpdate(p, dt);
@@ -765,7 +1119,7 @@ function step(dt) {
         p.heal = null;
       }
     }
-    if (G.state === 'live') {
+    if (G.state === 'live' && G.mode !== 'zombie') {
       const z = G.zone.cur;
       if (Math.hypot(p.x - z.x, p.y - z.y) > z.r) damage(p, G.zone.dps * dt, null, 'Zone');
     }
@@ -776,7 +1130,15 @@ function step(dt) {
     let dead = false;
     for (let s = 0; s < steps && !dead; s++) {
       bl.x += bl.vx * dt / steps; bl.y += bl.vy * dt / steps; bl.left -= sl;
-      if (bl.left <= 0 || solidAt(bl.x, bl.y)) { dead = true; break; }
+      const w = bl.left > 0 && solidAt(bl.x, bl.y);
+      if (bl.left <= 0 || (w && w.kind !== 'barricade')) { dead = true; break; }
+      if (G.mode === 'zombie') {
+        for (const z of G.zombies) {
+          const dx = z.x - bl.x, dy = z.y - bl.y;
+          if (z.alive && dx * dx + dy * dy < z.r * z.r) { G.events.push(['zhit', z.id, Math.round(bl.x), Math.round(bl.y)]); hurtZombie(z, bl.dmg, bl.owner); dead = true; break; }
+        }
+        continue;
+      }
       for (const q of G.players) {
         if (!q.alive || q === bl.owner) continue;
         const dx = q.x - bl.x, dy = q.y - bl.y;
@@ -798,19 +1160,24 @@ function snapCommon() {
     p: G.players.map(p => [p.id, Math.round(p.x), Math.round(p.y), +p.ang.toFixed(2), Math.ceil(p.hp), Math.ceil(p.armor), p.alive ? 1 : 0, curGun(p) ? curGun(p).type : '', (p.heal ? 1 : 0) | (p.reload > 0 ? 2 : 0) | (p.punch > 0 ? 4 : 0)]),
     dr: G.drops.map(d => [d.id, d.x, d.y, +d.t.toFixed(1)]),
     ev,
+    ...(G.mode === 'zombie' ? {
+      zb: G.zombies.map(z => [z.id, Math.round(z.x), Math.round(z.y), +z.ang.toFixed(2), Math.ceil(z.hp / z.max * 100), z.boss ? 1 : 0, z.atk > 0 ? 1 : 0]),
+      zw: [G.zw.wave, G.zw.phase === 'fight' ? 1 : 0, +Math.max(0, G.zw.t).toFixed(1), G.zw.toSpawn + G.zombies.length + (G.zw.bossT > 0 ? 1 : 0)],
+      bc: barricades.map(b => b.hp),
+    } : {}),
   };
 }
 function snapMe(p) {
   return {
     x: +p.x.toFixed(1), y: +p.y.toFixed(1), s: p.slots.map(s => s ? [s.type, s.mag] : null), c: p.cur, am: p.ammo, rk: p.rockets, gr: p.gren, b: p.band, m: p.med, k: p.kills,
-    h: p.heal ? [p.heal.type, +p.heal.t.toFixed(2), p.heal.dur] : null, r: +p.reload.toFixed(2), pl: p.place, dt: +p.diedAt.toFixed(1),
+    h: p.heal ? [p.heal.type, +p.heal.t.toFixed(2), p.heal.dur] : null, r: +p.reload.toFixed(2), pl: p.place, dt: +p.diedAt.toFixed(1), bd: +p.build.toFixed(2),
   };
 }
 function match() { return G; }
 
 return {
   TAU, COLS, ROWS, XL, YL, XN, YN, CITY, CX, CY, PRISON, PX, PY, CORR_Y, WORLD, GATE_L, GATE_R, MAX_PLAYERS, LOCKDOWN, SPEED, BODY_R, CAR_L, CAR_W,
-  WEAPONS, ITEMS, CREWS, SHOPS, PHASES, GRENADE, BLAST_CORE, DROPS, DROP_FALL,
+  WEAPONS, ITEMS, CREWS, SHOPS, PHASES, GRENADE, BLAST_CORE, DROPS, DROP_FALL, ZW, MALL, ZMAX, ZOMBIE, ZSPAWNS,
   clamp, dist, angDiff, lerpAngle, darken, inRect,
   buildWorld, setDoors, cellWalls, solidAt, blocksSight, pushOut,
   stepProj, createMatch, step, setInput, humanAction, humanLeft, roster, itemList, snapCommon, snapMe, match,
