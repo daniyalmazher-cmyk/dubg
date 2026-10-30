@@ -558,7 +558,7 @@ function loadWorld(seed, mode) {
 function newState(state, seed, mode) {
   loadWorld(seed, mode);
   M = {
-    mode: mode === 'zombie' ? 'zombie' : 'br', zombies: new Map(), zw: null,
+    mode: mode === 'zombie' ? 'zombie' : 'br', zombies: new Map(), zw: null, groanT: 2,
     state, seed, time: 0, lockT: D.LOCKDOWN, liveTime: 0, alive: 0, winner: -1, players: new Map(), list: [], items: new Map(), me: null,
     zone: { cur: { x: WORLD.w / 2, y: WORLD.h / 2, r: 99999 }, next: null, mode: 'wait', t: 0 },
     tracers: [], particles: [], corpses: [], feed: [], cam: { x: CX, y: CY }, view: null, msg: '', msgT: 0,
@@ -663,7 +663,7 @@ function handleEvent(e) {
     const [, id, kind, x, y, vx, vy, owner] = e, P = M.players.get(owner);
     M.projs.set(id, { k: kind, x, y, vx, vy, t: 0, left: WEAPONS.rpg.range, dead: false });
     if (kind === 'r') { if (P) P.flash = 0.1; sound('rocket', { x, y }); }
-  } else if (k === 'throw') { const P = M.players.get(e[1]); if (P) { P.punch = 0.2; sound('punch', P); } }
+  } else if (k === 'throw') { const P = M.players.get(e[1]); if (P) { P.punch = 0.2; sound('toss', P); } }
   else if (k === 'boom') {
     const [, id, x, y, R] = e; M.projs.delete(id);
     M.booms.push({ x, y, R, t: 0 });
@@ -683,7 +683,7 @@ function handleEvent(e) {
     for (let i = 0; i < (boss ? 40 : 12); i++) burst(x, y, i % 2 ? '#6b1a14' : '#4f6b22', boss ? 280 : 150);
     if (K) K.kills++;
     if (boss) { M.feed.unshift({ k: K ? K.name : '', v: 'the Boss', w: 'dropped', me: kid === M.me, t: 6 }); M.msg = '<small>It dropped a crate</small>Boss down!'; M.msgT = 3; sound('boom', { x, y }); }
-  } else if (k === 'zatk') { const Z = M.zombies.get(e[1]); if (Z) { Z.atk = 0.35; sound(Z.boss ? 'smash' : 'bite', Z); } }
+  } else if (k === 'zatk') { const Z = M.zombies.get(e[1]); if (Z) { Z.atk = 0.35; sound(Z.boss ? 'smash' : 'bite', Z); playSfx('zattack', Z, 900, Z.boss ? 1 : 0.75, Z.boss ? 0.6 : 1); } }
   else if (k === 'bar') {
     const [, i, hp] = e, b = barricades[i]; if (!b) return;
     const was = b.hp, cx = b.x + b.w / 2, cy = b.y + b.h / 2;
@@ -693,7 +693,7 @@ function handleEvent(e) {
   }
   else if (k === 'wave') { M.msg = `<small>${e[2] ? 'Something big is coming' : 'Here they come'}</small>Wave ${e[1]}`; M.msgT = 3; alarm(); }
   else if (k === 'clear') { M.msg = `<small>Board up and restock</small>Wave ${e[1]} cleared`; M.msgT = 3; }
-  else if (k === 'boss') { M.msg = '<small>Shoot it from behind the barricades</small>BOSS INCOMING'; M.msgT = 3.5; }
+  else if (k === 'boss') { M.msg = '<small>Shoot it from behind the barricades</small>BOSS INCOMING'; M.msgT = 3.5; const Z = M.zombies.get(e[1]); playSfx('zgroan', Z || viewer(), 2600, 1, 0.55); }
   else if (k === 'revive') {
     const P = M.players.get(e[1]); if (P) P.init = false;
     if (e[1] === M.me) { M.local = null; M.death = null; M.spec = null; M.msg = 'Back on your feet'; M.msgT = 2; if (!$('endScreen').hidden) { showScreen(null); cv.focus(); } }
@@ -781,6 +781,14 @@ function update(dt) {
     if (P !== me) interp(P, rt);
   }
   for (const Z of M.zombies.values()) { Z.hurt -= dt; Z.atk -= dt; interp(Z, rt); }
+  // now and then one of the nearby dead groans (never more than two at once)
+  if (M.zombies.size && (M.groanT -= dt) <= 0) {
+    M.groanT = 1.5 + Math.random() * 2.5;
+    const v = viewer(), near = [...M.zombies.values()].filter(Z => Math.hypot(Z.x - v.x, Z.y - v.y) < 800);
+    const Z = near[Math.floor(Math.random() * near.length)];
+    const n = Z && groaning < 2 && playSfx('zgroan', Z, 800, Z.boss ? 0.9 : 0.55, Z.boss ? 0.6 : 1);
+    if (n) { groaning++; n.onended = () => groaning--; }
+  }
   if (me && me.alive && M.local) {
     const md = M.meData;
     let mx = (keys.KeyD || keys.ArrowRight ? 1 : 0) - (keys.KeyA || keys.ArrowLeft ? 1 : 0);
@@ -2008,7 +2016,31 @@ function initAudio() {
     master = AC.createGain(); master.connect(AC.destination); applyVolume();
     noiseBuf = AC.createBuffer(1, AC.sampleRate * 0.4, AC.sampleRate);
     const d = noiseBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    loadSfx();
   } catch (e) { AC = null; }
+}
+// ---------- recorded sound effects (public/sounds); until one loads, the synthesized sound plays instead ----------
+const SFX_FILES = { boom: ['bomb_explosion'], punch: ['fist_sound'], zattack: ['zombie_attack1', 'zombie_attack2'], zgroan: ['zombie_default1', 'zombie_default2', 'zombie_default3'] };
+const SFX = {};   // kind -> decoded recordings
+let groaning = 0; // zombie groans playing right now
+function loadSfx() {
+  for (const [kind, names] of Object.entries(SFX_FILES)) for (const n of names) {
+    fetch(`/sounds/${n}.m4a`).then(r => r.ok ? r.arrayBuffer() : Promise.reject(r.status))
+      .then(b => new Promise((ok, no) => AC.decodeAudioData(b, ok, no)))
+      .then(buf => { (SFX[kind] = SFX[kind] || []).push(buf); }, () => {});
+  }
+}
+const hasSfx = kind => !!(SFX[kind] && SFX[kind].length);
+// one of that kind's recordings, quieter with distance and a touch off pitch each time so repeats don't sound copied
+function playSfx(kind, src, far, vol, rate) {
+  if (!hasSfx(kind) || !AC || muted || !M) return null;
+  const v = viewer(), d = Math.hypot(src.x - v.x, src.y - v.y); if (d > far) return null;
+  const list = SFX[kind], n = AC.createBufferSource(), g = AC.createGain();
+  n.buffer = list[Math.floor(Math.random() * list.length)];
+  n.playbackRate.value = (rate || 1) * (0.93 + Math.random() * 0.14);
+  g.gain.value = Math.pow(1 - d / far, 2) * vol;
+  n.connect(g); g.connect(master); n.start();
+  return n;
 }
 // browsers only allow sound after the player touches the page; the first touch or key starts the menu music
 for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => { initAudio(); if (AC && AC.state === 'suspended') AC.resume(); }, { capture: true });
@@ -2016,6 +2048,7 @@ for (const ev of ['pointerdown', 'keydown']) addEventListener(ev, () => { initAu
 function applyVolume() { if (master) master.gain.value = muted ? 0 : S.vol / 70; }
 function sound(kind, src, W) {
   if (!AC || muted || !M) return;
+  if ((kind === 'boom' || kind === 'punch') && hasSfx(kind)) { playSfx(kind, src, kind === 'boom' ? 1800 : 1000, kind === 'boom' ? 1 : 0.7); return; }
   const v = viewer(), d = Math.hypot(src.x - v.x, src.y - v.y), far = kind === 'boom' ? 1800 : 1000;
   if (d > far) return;
   const vol = Math.pow(1 - d / far, 2) * (kind === 'boom' ? 0.9 : kind === 'shot' || kind === 'rocket' ? 0.32 : 0.2);
@@ -2024,7 +2057,7 @@ function sound(kind, src, W) {
   if (kind === 'boom') { n.loop = true; f.frequency.setValueAtTime(900, t); f.frequency.exponentialRampToValueAtTime(120, t + 1.1); g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 1.2); n.connect(f); f.connect(g); g.connect(master); n.start(t); n.stop(t + 1.25); return; }
   if (kind === 'rocket') { f.frequency.value = 700; g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.38); }
   else if (kind === 'shot') { f.frequency.value = W.name === 'Shotgun' ? 900 : W.name === 'Rifle' ? 2200 : W.name === 'Pistol' ? 1700 : 1400; g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + (W.name === 'Shotgun' ? 0.35 : 0.16)); }
-  else if (kind === 'punch') { f.frequency.value = 400; g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.08); }
+  else if (kind === 'punch' || kind === 'toss') { f.frequency.value = 400; g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.08); }
   else if (kind === 'bite' || kind === 'thud') { f.frequency.value = kind === 'bite' ? 520 : 380; g.gain.setValueAtTime(vol * 1.6, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.14); }
   else if (kind === 'smash') { f.frequency.setValueAtTime(1400, t); f.frequency.exponentialRampToValueAtTime(200, t + 0.35); g.gain.setValueAtTime(vol * 2.2, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.38); }
   else if (kind === 'nail') { f.type = 'highpass'; f.frequency.value = 2500; g.gain.setValueAtTime(vol * 1.5, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.06); }
