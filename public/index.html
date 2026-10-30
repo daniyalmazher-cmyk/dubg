@@ -692,8 +692,9 @@ function handleEvent(e) {
     const [, i, hp] = e, b = barricades[i]; if (!b) return;
     const was = b.hp, cx = b.x + b.w / 2, cy = b.y + b.h / 2;
     b.hp = hp; b.open = hp <= 0;
-    if (hp < was) { for (let j = 0; j < 8; j++) burst(cx, cy, '#8a6a42', 180); sound(hp ? 'thud' : 'smash', { x: cx, y: cy }); }
-    else sound('nail', { x: cx, y: cy });
+    const at = { x: cx, y: cy };
+    if (hp < was) { for (let j = 0; j < 8; j++) burst(cx, cy, '#8a6a42', 180); if (!playSfx(hp ? 'plank_hit' : 'plank_break', at, 1000, hp ? 0.6 : 0.85)) sound(hp ? 'thud' : 'smash', at); }
+    else if (!playSfx('plank_place', at, 800, 0.55)) sound('nail', at);
   }
   else if (k === 'wave') { M.msg = `<small>${e[2] ? 'Something big is coming' : 'Here they come'}</small>Wave ${e[1]}`; M.msgT = 3; alarm(); }
   else if (k === 'clear') { M.msg = `<small>Board up and restock</small>Wave ${e[1]} cleared`; M.msgT = 3; }
@@ -2038,6 +2039,7 @@ function initAudio() {
 const SFX_FILES = {
   boom: ['bomb_explosion'], punch: ['fist_sound'], zattack: ['zombie_attack1', 'zombie_attack2'], zgroan: ['zombie_default1', 'zombie_default2', 'zombie_default3'],
   shot_pistol: ['pistol_shot'], shot_smg: ['smg_shot1', 'smg_shot2'], shot_shotgun: ['shotgun_shot'], shot_rifle: ['rifle_shot'],
+  plank_place: ['plank_place'], plank_hit: ['plank_hit'], plank_break: ['plank_break'],
   reload_pistol: ['pistol_reload'], reload_smg: ['smg_reload'], reload_shotgun: ['shotgun_reload'], reload_rifle: ['rifle_reload'],
 };
 // how loud each gun is, next to the others
