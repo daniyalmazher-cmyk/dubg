@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 
 const H = { wall: 68, pwall: 78, block: 64, fence: 30, door: 68, aim: 25 };
 const BODY = 0.72;   // characters are built at a big size and shrunk to fit the city
@@ -67,6 +68,7 @@ function init(canvas) {
   api.pool = Array.from({ length: LIGHTS }, () => { const l = new THREE.PointLight('#ffd28c', 0, 200, 0); scene.add(l); return l; });
   fogCv = document.createElement('canvas'); fogCv.width = fogCv.height = FOG_PX; fogCtx = fogCv.getContext('2d');
   fogU.tex.value = new THREE.CanvasTexture(fogCv);
+  loadCharacter();
   return true;
 }
 
@@ -538,6 +540,106 @@ const hurtMat = fogify(new THREE.MeshLambertMaterial({ color: '#ff5a4a', emissiv
 // muzzle position of a player's gun, for the muzzle flash light
 function muzzle(P) { return P.muzzle || { x: P.x + Math.cos(P.ang) * 22, y: P.y + Math.sin(P.ang) * 22, h: H.aim }; }
 
+// ---------- the Blender character (public/models/dd_character.glb) ----------
+// One skinned mesh with a 10-bone rig and idle / walk / punch / heal / die clips. Every body part samples one
+// pixel of a 16-pixel palette strip, so each player is one material with its own strip: their skin, hoodie,
+// crew colour and hat. Hats and the vest ride on bones and are shown or hidden.
+let charSrc = null;   // { scene, clips } once loaded; until then players use the box figure above
+const SLOT = { skin: 0, hoodie: 1, hood: 2, pants: 3, shoe: 4, sole: 5, crew: 6, dark: 7, vest: 8, hat: 9, hatDark: 10, brim: 11, hair: 12, strap: 13 };
+function loadCharacter() {
+  gltf.load('/models/dd_character.glb', g => {
+    const clips = {}; for (const c of g.animations) clips[c.name] = c;
+    charSrc = { scene: g.scene, clips };
+  }, undefined, () => console.warn('DUBG: character model missing, keeping the box figures'));
+}
+function palette(P) {
+  const L = P.look, crew = P.crew.c, shoe = P.id % 3 === 0 ? crew : '#e9e6df';
+  const hat = L.hat === 'beanie' ? L.beanie : crew;
+  const cols = { skin: L.skin, hoodie: L.hoodie, hood: shade(L.hoodie, 0.7), pants: PANTS[P.id % PANTS.length], shoe, sole: shade(shoe, 0.8), crew,
+    dark: '#141414', vest: '#2c3340', hat, hatDark: shade(hat, 0.7), brim: shade(crew, 0.6), hair: '#1a120c', strap: shade('#2c3340', 0.6) };
+  const data = new Uint8Array(16 * 4);
+  for (const [k, i] of Object.entries(SLOT)) { tmpC.set(cols[k]); tmpC.convertLinearToSRGB(); data[i * 4] = tmpC.r * 255; data[i * 4 + 1] = tmpC.g * 255; data[i * 4 + 2] = tmpC.b * 255; data[i * 4 + 3] = 255; }
+  const tex = new THREE.DataTexture(data, 16, 1); tex.colorSpace = THREE.SRGBColorSpace;
+  tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.needsUpdate = true;
+  return tex;
+}
+function makeCharacter(P, isMe) {
+  const holder = new THREE.Group(), body = cloneSkinned(charSrc.scene);
+  body.scale.setScalar(MODEL_SCALE * BODY); holder.add(body);
+  const mat = fogify(new THREE.MeshLambertMaterial({ map: palette(P) }));
+  const bones = {}, extras = [];
+  body.traverse(o => {
+    if (o.isBone) bones[o.name.replace(/\W/g, '')] = o;   // the loader drops the dots: arm.R arrives as armR
+    if (o.isMesh) { o.material = mat; o.frustumCulled = false; }
+    if (o.name.startsWith('DUBG_hat_')) o.visible = o.name === 'DUBG_hat_' + P.look.hat;
+    if (o.name === 'DUBG_vest') extras.push(o);
+  });
+  const mixer = new THREE.AnimationMixer(body), acts = {};
+  for (const [n, c] of Object.entries(charSrc.clips)) {
+    const a = mixer.clipAction(c); acts[n] = a;
+    if (n === 'die' || n === 'punch') { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; }
+  }
+  acts.idle.play();
+  // the gun follows the right hand; the arms are raised to aim in code
+  const gun = new THREE.Group(); gun.scale.setScalar(1.2 * BODY); holder.add(gun);
+  const ring = new THREE.Mesh(new THREE.RingGeometry(15 * BODY, 19 * BODY, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: isMe ? '#ffffff' : P.crew.c, transparent: true, opacity: isMe ? 0.8 : 0.65, depthWrite: false }));
+  ring.position.y = 0.8; holder.add(ring);
+  scene.add(holder);
+  const rest = {}; for (const n of ['armR', 'armL']) rest[n] = bones[n].quaternion.clone();
+  return { glb: true, holder, body, mat, bones, vest: extras[0], mixer, acts, cur: acts.idle, gun, ring, rest,
+    lx: P.x, ly: P.y, mvx: 0, mvy: 0, speed: 0, gunType: null, hurt: false, dead: false, punchT: 0 };
+}
+const qA = new THREE.Quaternion(), qB = new THREE.Quaternion(), eA = new THREE.Euler(), wp = new THREE.Vector3();
+function play(v, name, fade = 0.15) {
+  const a = v.acts[name]; if (!a || v.cur === a) return;
+  a.reset().play(); v.cur.crossFadeTo(a, fade, false); v.cur = a;
+}
+function updateCharacter(P, v, dt, visible) {
+  const x = P.x, y = P.y, k = Math.min(1, dt * 10);
+  v.mvx += ((x - v.lx) / Math.max(dt, 1e-3) - v.mvx) * k; v.mvy += ((y - v.ly) / Math.max(dt, 1e-3) - v.mvy) * k;
+  v.speed = Math.min(400, Math.hypot(v.mvx, v.mvy)); v.lx = x; v.ly = y;
+  v.holder.position.set(x, 0, y); v.holder.rotation.y = Math.PI / 2 - P.ang; v.holder.visible = visible;
+  if (v.vest) v.vest.visible = P.armor > 0;
+  if (v.gunType !== P.gun) {
+    v.gunType = P.gun; v.gun.clear(); v.tip = null;
+    if (P.gun) {
+      // a marker at the end of the barrel, for bullet trails and the muzzle flash
+      const gm = gunModel(P.gun), box = new THREE.Box3().setFromObject(gm);
+      v.tip = new THREE.Object3D(); v.tip.position.set(0, (box.min.y + box.max.y) / 2, box.max.z); gm.add(v.tip);
+      v.gun.add(gm);
+    }
+  }
+  v.gun.visible = !!P.gun && P.alive;
+  v.ring.visible = P.alive;
+  // which clip: dead, healing, punching, walking or standing
+  if (!P.alive) play(v, 'die', 0.08);
+  else if (P.flags & 1) play(v, 'heal');
+  else if (!P.gun && (P.punch > 0 || (P.flags & 4)) && v.punchT <= 0) { v.punchT = 0.3; v.acts.punch.reset(); play(v, 'punch', 0.05); v.acts.punch.play(); }
+  else if (v.punchT <= 0) {
+    if (v.speed > 20) {
+      // walk clip speed follows how fast they move; backwards when moving away from where they face
+      const fwd = Math.cos(Math.atan2(v.mvy, v.mvx) - P.ang) >= -0.2 ? 1 : -1;
+      play(v, 'walk'); v.acts.walk.timeScale = fwd * Math.min(1.8, v.speed / 140);
+    } else play(v, 'idle');
+  }
+  v.punchT -= dt;
+  v.mixer.update(dt);
+  // aiming: arms straight out in front, the support hand in on two-handed guns, a kick on each shot
+  if (P.gun && P.alive) {
+    const kick = P.flash > 0 ? 0.12 : 0;
+    v.bones.armR.quaternion.copy(v.rest.armR).multiply(qA.setFromEuler(eA.set(-Math.PI / 2 + kick, 0, 0)));
+    if (TWO_HANDED[P.gun]) v.bones.armL.quaternion.copy(v.rest.armL).multiply(qB.setFromEuler(eA.set(-Math.PI / 2 + 0.15 + kick, 0, 0.55)));
+  }
+  // the gun sits in the right hand, pointing where they face
+  if (v.gun.visible) {
+    v.holder.updateMatrixWorld(true);
+    v.bones.handR.getWorldPosition(wp); v.holder.worldToLocal(wp);
+    v.gun.position.copy(wp);
+  }
+  const hurt = P.hurt > 0;
+  if (hurt !== v.hurt) { v.hurt = hurt; v.mat.emissive.set(hurt ? '#a01810' : '#000000'); }
+}
+
 // ---------- zombies: the same block figures, rotten, arms out; the boss towers over the walls ----------
 // (3x here, not the 5x of the top-down view: at 5x the tilted camera sees nothing but boss)
 const BOSS_K = 3;
@@ -737,9 +839,11 @@ function frame(F) {
   let flash = null;
   for (const P of M.list) {
     if (!P.init) continue;
-    let v = players.get(P.id); if (!v) { v = makePlayer(P, P.id === M.me); players.set(P.id, v); }
+    let v = players.get(P.id);
+    if (v && !v.glb && charSrc) { scene.remove(v.holder); v = null; }   // the model just finished loading
+    if (!v) { v = charSrc ? makeCharacter(P, P.id === M.me) : makePlayer(P, P.id === M.me); players.set(P.id, v); }
     const visible = P.alive ? !!P.seen : (!F.fogOn || F.canSeePt(P.x, P.y));
-    updatePlayer(P, v, dt, visible);
+    if (v.glb) updateCharacter(P, v, dt, visible); else updatePlayer(P, v, dt, visible);
     // where this player's barrel ends right now (x, y on the map, h above the ground)
     if (v.tip && P.alive) { v.tip.getWorldPosition(tmpV); P.muzzle = { x: tmpV.x, y: tmpV.z, h: tmpV.y }; } else P.muzzle = null;
     if (P.seen && P.flash > 0 && P.gun && (!flash || P === vw)) flash = P;
