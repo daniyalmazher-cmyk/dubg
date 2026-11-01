@@ -364,7 +364,7 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
         <div>
           <div class="logo">DUBG</div>
           <div class="sub">Dawg Unknown Battle Ground</div>
-          <div class="spray">this city got no cops</div>
+          <div class="spray">this city got no rules</div>
         </div>
         <button id="settingsBtn" class="ghost" type="button">Settings</button>
       </div>
@@ -645,7 +645,7 @@ function handleEvent(e) {
     M.corpses.push({ x, y, ang: V.ang, tint: V.look.hoodie, skin: V.look.skin });
     for (let i = 0; i < 14; i++) burst(x, y, '#a3271f', 140);
     const left = wname === 'left', bit = kid === -2;
-    M.feed.unshift({ k: K ? K.name : left ? '' : bit ? wname : 'Zone', v: V.name, w: left ? 'left the game' : K ? wname : bit ? (wname === 'Boss' ? 'crushed' : 'bit') : 'gassed', me: kid === M.me || vid === M.me, t: 6 });
+    M.feed.unshift({ k: K ? K.name : left ? '' : bit ? wname : 'Zone', v: V.name, w: left ? 'left the game' : K ? wname : bit ? (wname === 'Boss' ? 'crushed' : 'bit') : 'caught', me: kid === M.me || vid === M.me, t: 6 });
     M.feed.length = Math.min(M.feed.length, 5);
     if (vid === M.me) {
       M.death = { place, by: K ? `${K.name} (${wname})` : bit ? (wname === 'Boss' ? 'the boss' : 'a zombie') : 'the zone' };
@@ -1811,6 +1811,7 @@ setInterval(() => send({ t: 'ping', c: performance.now() }), 2000);
 function playerName() {
   const n = $('nameInput').value.trim();
   if (!n) { showErr('Pick a street name first.'); $('nameInput').focus(); return null; }
+  if (D.badName(n)) { showErr("That name isn't allowed. Pick another one."); $('nameInput').focus(); return null; }
   try { localStorage.setItem('dubg-name', n); } catch (e) {}
   initAudio(); showErr(''); goFull();
   return n;
