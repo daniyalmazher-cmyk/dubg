@@ -3,6 +3,7 @@
 // World units match the 2D game: x -> X, y -> Z, height is Y.
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 const H = { wall: 68, pwall: 78, block: 64, fence: 30, door: 68, aim: 25 };
 const BODY = 0.72;   // characters are built at a big size and shrunk to fit the city
@@ -58,9 +59,9 @@ function init(canvas) {
   scene = new THREE.Scene();
   scene.background = new THREE.Color('#0b0d12');
   camera = new THREE.PerspectiveCamera(FOV, 1, 20, 9000);
-  scene.add(new THREE.AmbientLight('#b4bdd6', 2.1));
-  scene.add(new THREE.HemisphereLight('#8c9cc8', '#3a2e22', 1.1));
-  const moon = new THREE.DirectionalLight('#aab8e0', 0.9); moon.position.set(-0.4, 1, 0.6); scene.add(moon);
+  api.amb = new THREE.AmbientLight('#b4bdd6', 2.1); scene.add(api.amb);
+  api.hemi = new THREE.HemisphereLight('#8c9cc8', '#3a2e22', 1.1); scene.add(api.hemi);
+  api.sun = new THREE.DirectionalLight('#aab8e0', 0.9); api.sun.position.set(-0.4, 1, 0.6); scene.add(api.sun);
   api.lantern = new THREE.PointLight('#ffe3b8', 1.1, 420, 0); scene.add(api.lantern);
   api.flashL = new THREE.PointLight('#ffcc77', 0, 260, 0); scene.add(api.flashL);
   api.pool = Array.from({ length: LIGHTS }, () => { const l = new THREE.PointLight('#ffd28c', 0, 200, 0); scene.add(l); return l; });
@@ -73,6 +74,28 @@ function resize(w, h) {
   if (!renderer) return;
   renderer.setSize(w, h, false);
   camera.aspect = w / h; camera.updateProjectionMatrix();
+}
+
+// ---------- Desert Dunes models (public/models, built in Blender at 1 unit = 10 game units) ----------
+const MODEL_SCALE = 10;
+const gltf = new GLTFLoader(), modelCache = new Map();
+function loadModel(name) {
+  if (!modelCache.has(name)) modelCache.set(name, new Promise(res => gltf.load(`/models/dd_${name}.glb`, g => res(g.scene), undefined, () => { console.warn('DUBG: model missing', name); res(null); })));
+  return modelCache.get(name);
+}
+// one shared vertex-coloured material for everything that never fades, and an unlit one for lanterns
+const voxMat = fogify(new THREE.MeshLambertMaterial({ vertexColors: true }), true);
+const glowMat = new THREE.MeshBasicMaterial({ color: '#ffc46b' });
+function skin(o, mat) { o.traverse(m => { if (m.isMesh) m.material = m.material.name === 'DUBG_Glow' ? glowMat : mat; }); }
+// put a copy of a model at (x, y) turned rot quarter turns; ready(o) runs once it has loaded
+function placeModel(name, x, y, rot, ready) {
+  const w = world;
+  loadModel(name).then(src => {
+    if (!src || world !== w) return;
+    const o = src.clone(true); o.scale.setScalar(MODEL_SCALE); o.rotation.y = rot * Math.PI / 2; o.position.set(x, 0, y);
+    o.traverse(m => { if (m.isMesh) m.matrixAutoUpdate = true; });
+    ready(o); w.group.add(o);
+  });
 }
 
 // ---------- static world ----------
@@ -175,9 +198,15 @@ function setWorld(W, ground, scale) {
   if (!renderer) return;
   disposeWorld();
   const g = new THREE.Group();
-  world = { group: g, W, roofs: [], bwalls: [], doors: [], flames: [], lights: [], bars: [] };
+  world = { group: g, W, roofs: [], bwalls: [], doors: [], flames: [], lights: [], bars: [], night: W.mode === 'zombie' };
+  // the dunes are in daylight; the zombie mall is at night
+  const day = !world.night;
+  scene.background.set(day ? '#e8c995' : '#0b0d12');
+  api.amb.color.set(day ? '#fff0da' : '#b4bdd6'); api.amb.intensity = day ? 1.7 : 2.1;
+  api.hemi.color.set(day ? '#ffe4b8' : '#8c9cc8'); api.hemi.groundColor.set(day ? '#b07a48' : '#3a2e22'); api.hemi.intensity = day ? 1.0 : 1.1;
+  api.sun.color.set(day ? '#ffe2b4' : '#aab8e0'); api.sun.intensity = day ? 1.9 : 0.9; api.sun.position.set(day ? 0.5 : -0.4, 1, day ? 0.35 : 0.6);
   // ground
-  const under = new THREE.Mesh(new THREE.PlaneGeometry(30000, 30000).rotateX(-Math.PI / 2), lambert({ color: '#1f1e1a' }));
+  const under = new THREE.Mesh(new THREE.PlaneGeometry(30000, 30000).rotateX(-Math.PI / 2), lambert({ color: world.night ? '#1f1e1a' : '#d8b886' }));
   under.position.set(W.WORLD.w / 2, -0.5, W.WORLD.h / 2); g.add(under);
   const gt = new THREE.CanvasTexture(ground); gt.colorSpace = THREE.SRGBColorSpace; gt.anisotropy = renderer.capabilities.getMaxAnisotropy();
   const gw = ground.width / scale, gh = ground.height / scale;
@@ -189,8 +218,18 @@ function setWorld(W, ground, scale) {
   const wallMat = solid({ color: '#3a3d42' }), capMat = solid({ color: '#61666d' });
   const loose = [];
   const byB = new Map(W.buildings.map(b => [b, []]));
-  for (const w of W.walls) if (w.kind === 'wall') { const b = W.buildings.find(b => !b.mall && inB(w, b)); if (b) byB.get(b).push(w); else loose.push(w); }
+  for (const w of W.walls) if (w.kind === 'wall') { const b = W.buildings.find(b => !b.mall && inB(w, b)); if (b && b.model) continue; if (b) byB.get(b).push(w); else loose.push(w); }
   for (const [b, ws] of byB) {
+    if (b.model) {
+      // a Desert Dunes house: its own wall and roof materials so it can fade when you walk in
+      const wm = fogify(new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true }), true), rm = fogify(new THREE.MeshLambertMaterial({ vertexColors: true, transparent: true }), true);
+      const entry = { b, mats: [wm, wm, rm], roof: new THREE.Object3D(), a: 1 };
+      world.roofs.push(entry);
+      placeModel(b.model, b.x + b.w / 2, b.y + b.h / 2, b.rot, o => {
+        for (const c of o.children) { const isRoof = c.name.endsWith('_roof'); skin(c, isRoof ? rm : wm); if (isRoof) entry.roof = c; }
+      });
+      continue;
+    }
     if (b.mall) {
       const roofMat = solid({ color: b.roof, transparent: true }), spare = new THREE.MeshBasicMaterial();
       const roof = new THREE.Mesh(boxGeo, roofMat); roof.position.set(b.x + b.w / 2, H.wall, b.y + b.h / 2); roof.scale.set(b.w + 8, 3, b.h + 8);
@@ -208,11 +247,13 @@ function setWorld(W, ground, scale) {
   g.add(boxes(loose, wallMat, rectBox(H.wall)), boxes(loose, capMat, rectBox(2, H.wall, 0.5)));
   const pw = W.walls.filter(w => w.kind === 'pwall');
   g.add(boxes(pw, solid({ color: '#4c5053' }), rectBox(H.pwall)), boxes(pw, solid({ color: '#7a7f83' }), rectBox(3, H.pwall, 1)));
-  // boarded-up buildings: solid blocks with a roof and planks
-  g.add(boxes(W.boarded, solid({ color: '#2b2520' }), rectBox(H.block)));
-  g.add(boxes(W.boarded, solid({ color: '#ffffff' }), rectBox(3, H.block, 3), b => b.roof));
+  // sealed buildings: the Desert Dunes models, or (in the zombie map) solid blocks with a roof and planks
+  for (const b of W.boarded) if (b.model) placeModel(b.model, b.x + b.w / 2, b.y + b.h / 2, b.rot, o => skin(o, voxMat));
+  const plain = W.boarded.filter(b => !b.model);
+  g.add(boxes(plain, solid({ color: '#2b2520' }), rectBox(H.block)));
+  g.add(boxes(plain, solid({ color: '#ffffff' }), rectBox(3, H.block, 3), b => b.roof));
   const planks = [];
-  for (const b of W.boarded) if (b.planks) for (const s of [1, -1]) planks.push({ b, s });
+  for (const b of plain) if (b.planks) for (const s of [1, -1]) planks.push({ b, s });
   g.add(boxes(planks, solid({ color: '#5a4630' }), (p, o) => { const b = p.b; o.position.set(b.x + b.w / 2, H.block + 3, b.y + b.h / 2); o.rotation.set(0, p.s * 0.6, 0); o.scale.set(Math.hypot(b.w, b.h) * 0.75, 3, 10); }));
   // fences, barrels, cars, trees
   const fence = W.walls.filter(w => w.kind === 'fence');
@@ -224,9 +265,20 @@ function setWorld(W, ground, scale) {
   barrels.forEach((w, i) => { dummy.position.set(w.x + 9, 0, w.y + 9); dummy.rotation.set(0, 0, 0); dummy.scale.set(1, 1, 1); dummy.updateMatrix(); bm.setMatrixAt(i, dummy.matrix); });
   g.add(bm);
   addCars(g, W.cars);
-  const tg = treeGeo(), tm = new THREE.InstancedMesh(tg, solid({ color: '#46392d' }), Math.max(1, W.trees.length));
-  tm.count = W.trees.length; tm.frustumCulled = false;
-  W.trees.forEach((t, i) => { dummy.position.set(t.x, 0, t.y); dummy.rotation.set(0, t.a, 0); dummy.scale.setScalar(t.r / 26); dummy.updateMatrix(); tm.setMatrixAt(i, dummy.matrix); });
+  // props and palms of the dunes; the zombie map's dead trees are built in code
+  for (const p of W.props || []) placeModel(p.model, p.cx, p.cy, p.rot, o => skin(o, voxMat));
+  for (const t of W.trees) if (t.palm) placeModel('palm', t.x, t.y, Math.floor(t.a / (Math.PI / 2)), o => skin(o, voxMat));
+  for (const p of W.pools || []) {
+    const rim = new THREE.Mesh(new THREE.CircleGeometry(1, 40).rotateX(-Math.PI / 2), lambert({ color: '#a88a62' }));
+    rim.scale.set(p.rx + 8, 1, p.ry + 8); rim.position.set(p.x, 0.6, p.y);
+    const water = new THREE.Mesh(new THREE.CircleGeometry(1, 40).rotateX(-Math.PI / 2), lambert({ color: '#3aa3ad', transparent: true, opacity: 0.92 }));
+    water.scale.set(p.rx, 1, p.ry); water.position.set(p.x, 1.2, p.y);
+    g.add(rim, water);
+  }
+  const deadTrees = W.trees.filter(t => !t.palm);
+  const tg = treeGeo(), tm = new THREE.InstancedMesh(tg, solid({ color: '#46392d' }), Math.max(1, deadTrees.length));
+  tm.count = deadTrees.length; tm.frustumCulled = false;
+  deadTrees.forEach((t, i) => { dummy.position.set(t.x, 0, t.y); dummy.rotation.set(0, t.a, 0); dummy.scale.setScalar(t.r / 26); dummy.updateMatrix(); tm.setMatrixAt(i, dummy.matrix); });
   g.add(tm);
   // doors (prison gates and cell bars): hidden once open
   const bars = barsTexture();
@@ -634,7 +686,7 @@ function frame(F) {
   camera.updateMatrixWorld();
   // fog texture around the viewer
   const o = F.visOrigin, R = F.visR * 1.15, size = R * 2;
-  fogU.rect.value.set(o.x - R, o.y - R, size, F.fogOn ? 1 : 0);
+  fogU.rect.value.set(o.x - R, o.y - R, size, F.fogOn ? (world.night ? 1 : 0.6) : 0);   // daylight: what you can't see is shade, not black
   if (F.fogOn) {
     const k = FOG_PX / size, c = fogCtx;
     c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = '#000'; c.fillRect(0, 0, FOG_PX, FOG_PX);
@@ -675,7 +727,7 @@ function frame(F) {
     else if (l.neon && l.neon.flicker && Math.sin(t * 9 + l.neon.x) + Math.sin(t * 23 + l.neon.y) < -1.2) k = 0.2;
     pl.position.set(l.x, l.h, l.y); pl.color.set(l.color); pl.distance = l.r; pl.intensity = l.base * k;
   });
-  api.lantern.position.set(vw.x, 70, vw.y); api.lantern.intensity = F.fogOn ? 1.1 : 0;
+  api.lantern.position.set(vw.x, 70, vw.y); api.lantern.intensity = F.fogOn && world.night ? 1.1 : 0;
   // zone
   const z = M.zone, zr = Math.max(1, Math.min(z.cur.r, 20000)), Z = world.zone;
   Z.zw.position.set(z.cur.x, 0, z.cur.y); Z.zw.scale.set(zr, 260, zr); Z.zw.visible = F.fogOn && !Z.off;
