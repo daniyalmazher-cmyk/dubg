@@ -549,7 +549,13 @@ const SLOT = { skin: 0, hoodie: 1, hood: 2, pants: 3, shoe: 4, sole: 5, crew: 6,
 function loadCharacter() {
   gltf.load('/models/dd_character.glb', g => {
     const clips = {}; for (const c of g.animations) clips[c.name] = c;
-    charSrc = { scene: g.scene, clips };
+    // split each clip into its leg tracks and its upper-body tracks
+    const LO = /^(root|hips|legL|legR)\./, split = { lo: {}, hi: {} };
+    for (const [n, c] of Object.entries(clips)) {
+      split.lo[n] = new THREE.AnimationClip(n + ':lo', c.duration, c.tracks.filter(t => LO.test(t.name)));
+      split.hi[n] = new THREE.AnimationClip(n + ':hi', c.duration, c.tracks.filter(t => !LO.test(t.name)));
+    }
+    charSrc = { scene: g.scene, clips, split };
   }, undefined, () => console.warn('DUBG: character model missing, keeping the box figures'));
 }
 function palette(P) {
@@ -574,26 +580,31 @@ function makeCharacter(P, isMe) {
     if (o.name.startsWith('DUBG_hat_')) o.visible = o.name === 'DUBG_hat_' + P.look.hat;
     if (o.name === 'DUBG_vest') extras.push(o);
   });
+  // every clip runs as two layers: the legs (lo) and the upper body (hi), so you can punch, heal or aim while running
   const mixer = new THREE.AnimationMixer(body), acts = {};
-  for (const [n, c] of Object.entries(charSrc.clips)) {
-    const a = mixer.clipAction(c); acts[n] = a;
+  for (const [n, c] of Object.entries(charSrc.clips)) for (const part of ['lo', 'hi']) {
+    const a = mixer.clipAction(charSrc.split[part][n]); acts[n + ':' + part] = a;
     if (n === 'die' || n === 'punch') { a.setLoop(THREE.LoopOnce, 1); a.clampWhenFinished = true; }
   }
-  acts.idle.play();
+  acts['idle:lo'].play(); acts['idle:hi'].play();
   // the gun follows the right hand; the arms are raised to aim in code
   const gun = new THREE.Group(); gun.scale.setScalar(1.2 * BODY); holder.add(gun);
   const ring = new THREE.Mesh(new THREE.RingGeometry(15 * BODY, 19 * BODY, 32).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: isMe ? '#ffffff' : P.crew.c, transparent: true, opacity: isMe ? 0.8 : 0.65, depthWrite: false }));
   ring.position.y = 0.8; holder.add(ring);
   scene.add(holder);
   const rest = {}; for (const n of ['armR', 'armL']) rest[n] = bones[n].quaternion.clone();
-  return { glb: true, holder, body, mat, bones, vest: extras[0], mixer, acts, cur: acts.idle, gun, ring, rest,
+  return { glb: true, holder, body, mat, bones, vest: extras[0], mixer, acts, lo: acts['idle:lo'], hi: acts['idle:hi'], gun, ring, rest,
     lx: P.x, ly: P.y, mvx: 0, mvy: 0, speed: 0, gunType: null, hurt: false, dead: false, punchT: 0 };
 }
 const qA = new THREE.Quaternion(), qB = new THREE.Quaternion(), eA = new THREE.Euler(), wp = new THREE.Vector3();
-function play(v, name, fade = 0.15) {
-  const a = v.acts[name]; if (!a || v.cur === a) return;
-  a.reset().play(); v.cur.crossFadeTo(a, fade, false); v.cur = a;
+// switch one layer ('lo' legs, 'hi' upper body) to a clip
+function play(v, part, name, fade = 0.15) {
+  const a = v.acts[name + ':' + part], cur = v[part]; if (!a || cur === a) return;
+  a.reset().play(); cur.crossFadeTo(a, fade, false); v[part] = a;
 }
+// one stride of the walk clip covers about 65 game units at normal speed, so its speed is matched to how fast
+// the player really moves: feet land where they are instead of skating
+const STRIDE = 65;
 function updateCharacter(P, v, dt, visible) {
   const x = P.x, y = P.y, k = Math.min(1, dt * 10);
   v.mvx += ((x - v.lx) / Math.max(dt, 1e-3) - v.mvx) * k; v.mvy += ((y - v.ly) / Math.max(dt, 1e-3) - v.mvy) * k;
@@ -611,16 +622,21 @@ function updateCharacter(P, v, dt, visible) {
   }
   v.gun.visible = !!P.gun && P.alive;
   v.ring.visible = P.alive;
-  // which clip: dead, healing, punching, walking or standing
-  if (!P.alive) play(v, 'die', 0.08);
-  else if (P.flags & 1) play(v, 'heal');
-  else if (!P.gun && (P.punch > 0 || (P.flags & 4)) && v.punchT <= 0) { v.punchT = 0.3; v.acts.punch.reset(); play(v, 'punch', 0.05); v.acts.punch.play(); }
-  else if (v.punchT <= 0) {
-    if (v.speed > 20) {
-      // walk clip speed follows how fast they move; backwards when moving away from where they face
+  // legs: dead, walking (forwards or backpedalling) or standing
+  const moving = v.speed > 20, base = moving ? 'walk' : 'idle';
+  if (!P.alive) { play(v, 'lo', 'die', 0.08); play(v, 'hi', 'die', 0.08); }
+  else {
+    play(v, 'lo', base);
+    if (moving) {
       const fwd = Math.cos(Math.atan2(v.mvy, v.mvx) - P.ang) >= -0.2 ? 1 : -1;
-      play(v, 'walk'); v.acts.walk.timeScale = fwd * Math.min(1.8, v.speed / 140);
-    } else play(v, 'idle');
+      v.acts['walk:lo'].timeScale = v.acts['walk:hi'].timeScale = fwd * Math.min(3, v.speed / STRIDE);
+    }
+    // upper body: healing, a punch (restarts on every swing), or swinging along with the legs
+    if (P.flags & 1) play(v, 'hi', 'heal');
+    else if (!P.gun && (P.punch > 0 || (P.flags & 4)) && v.punchT <= 0) {
+      v.punchT = 0.3; const a = v.acts['punch:hi'];
+      if (v.hi === a) a.reset().play(); else play(v, 'hi', 'punch', 0.05);
+    } else if (v.punchT <= 0) play(v, 'hi', base);
   }
   v.punchT -= dt;
   v.mixer.update(dt);
