@@ -21,6 +21,35 @@ function lerpAngle(a, b, k) { return a - angDiff(a, b) * Math.min(1, k); }
 function shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(R() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
 function darken(hex, k) { const n = parseInt(hex.slice(1), 16); return `rgb(${(n >> 16) * k | 0},${(n >> 8 & 255) * k | 0},${(n & 255) * k | 0})`; }
 
+// ---------- player names ----------
+// Checked by the server (and in the browser, to warn early). BAD_ANY words are blocked anywhere in a name,
+// even spaced out or in leetspeak; BAD_WORD ones hide inside normal names (Cassandra, Dickson, Grape),
+// so they only count as a whole word. English plus the Urdu/Hindi ones Pakistani players actually use.
+const BAD_ANY = [
+  'fuck', 'fuk', 'fvck', 'phuck', 'shit', 'cunt', 'nigg', 'nigr', 'faggot', 'fagot', 'bitch', 'biatch', 'whore', 'slut', 'rapist',
+  'porn', 'penis', 'vagina', 'pussy', 'dildo', 'asshole', 'bastard', 'wank', 'twat', 'nazi', 'hitler', 'kkk', 'retard', 'molest',
+  'pedophil', 'paedo', 'jizz', 'boob', 'horny', 'milf', 'blowjob', 'handjob', 'motherf', 'cocksuck', 'masturb', 'orgasm', 'erection',
+  'chutiy', 'chutia', 'chootiy', 'bhenchod', 'benchod', 'behnchod', 'bhanchod', 'behenchod', 'bhenchod', 'madarchod', 'maderchod',
+  'madarchd', 'maderchd', 'gandu', 'harami', 'haramzad', 'haramkhor', 'bhosd', 'bhosri', 'bhosad', 'lavda', 'lawda', 'lowda', 'kanjar',
+  'khanki', 'chinal', 'tmkc', 'terimaa', 'terimaki', 'maakichu', 'maakaloda', 'gaandmar', 'gandmar', 'bhadwa', 'bhadva', 'suar ka',
+];
+const BAD_WORD = [
+  'ass', 'asses', 'arse', 'cock', 'cocks', 'dick', 'dicks', 'sex', 'sexy', 'cum', 'tit', 'tits', 'anal', 'rape', 'raped', 'pedo',
+  'semen', 'hoe', 'hoes', 'fag', 'fags', 'randi', 'lauda', 'loda', 'lodu', 'lund', 'chut', 'chodu', 'chod', 'mc', 'bc', 'mkc', 'bkl',
+  'kutti', 'kamina', 'kamini', 'dalla', 'gaand', 'gand', 'admin', 'moderator', 'dev', 'official', 'staff',
+];
+const LEET = { 0: 'o', 1: 'i', 3: 'e', 4: 'a', 5: 's', 7: 't', 8: 'b', 9: 'g', '@': 'a', $: 's', '!': 'i', '|': 'i', '+': 't' };
+function badName(s) {
+  const n = String(s || '').toLowerCase().replace(/[01345789@$!|+]/g, c => LEET[c] || c);
+  // letters only, so "f u c k" and "f.u.c.k" join up; squeezed folds "fuuuuck" back to "fuck"
+  const joined = n.replace(/[^a-z]/g, ''), squeezed = joined.replace(/(.)\1+/g, '$1');
+  for (const w of BAD_ANY) {
+    const bare = w.replace(/[^a-z]/g, '');
+    if (joined.includes(bare) || (!/(.)\1/.test(bare) && squeezed.includes(bare))) return true;
+  }
+  return n.split(/[^a-z]+/).some(w => w && (BAD_WORD.includes(w) || BAD_WORD.includes(w.replace(/(.)\1+/g, '$1'))));
+}
+
 // ---------- data ----------
 // city size in blocks; streets run between them every 350 units
 const COLS = 10, ROWS = 8;
@@ -97,8 +126,8 @@ const STORE_LOOT = {
   sports: [['vest1', 3], ['vest2', 1], ['gren', 3], ['ammo', 3]],
   grocery: [['ammo', 6], ['band', 3], ['gren', 1]],
 };
-const ZTAGS = ['HELP', "THEY'RE INSIDE", 'NO HOPE', 'EVAC GONE', 'RUN', 'DONT GO IN', 'MALL = SAFE?', 'GOD HELP US', 'BITTEN', 'SHOOT THE HEAD'];
-const NAMES = ['BigTone', 'LilSmoke', 'Ghostface', 'Kingpin', 'Rico', 'Dre', 'Tiny', 'Scrap', 'Blaze', 'Cash', 'Junebug', 'Nitro', 'Spider', 'Saint', 'Lefty', 'Bones', 'Dutch', 'Mook', 'Shadow', 'Ace', 'Vandal', 'Rocco', 'Diesel', 'Smokey', 'Knuckles', 'Slim', 'Capo', 'Truck', 'Ox'];
+const ZTAGS = ['HELP', "THEY'RE INSIDE", 'NO HOPE', 'EVAC GONE', 'RUN', 'DONT GO IN', 'MALL = SAFE?', 'SOMEBODY HELP', 'BITTEN', 'AIM FOR THE HEAD'];
+const NAMES = ['BigTone', 'LilRocket', 'Ghostface', 'Kingston', 'Rico', 'Dre', 'Tiny', 'Scrap', 'Bolt', 'Cash', 'Junebug', 'Nitro', 'Spider', 'Saint', 'Lefty', 'Bones', 'Dutch', 'Moose', 'Shadow', 'Ace', 'Vandal', 'Rocco', 'Diesel', 'Sparky', 'Knuckles', 'Slim', 'Champ', 'Truck', 'Ox'];
 const CREWS = [
   { n: 'Dawgz', c: '#ff7a1a' }, { n: 'Vipers', c: '#3ddc84' }, { n: 'Kings', c: '#f2c230' },
   { n: 'Wolves', c: '#a67bff' }, { n: 'Reapers', c: '#e6e2da' }, { n: 'Ghosts', c: '#36d6e7' },
@@ -110,13 +139,13 @@ const SHOPS = {
   gun:      { sign: 'GUN SHOP', color: '#ff3b3b', floor: '#3a3230', extra: 1, loot: [['pistol', 20], ['smg', 16], ['shotgun', 14], ['rifle', 12], ['ammo', 28], ['vest1', 6], ['vest2', 4], ['gren', 9]] },
   pawn:     { sign: 'PAWN', color: '#f2c230', floor: '#463c2c', extra: 0, loot: [['pistol', 12], ['smg', 6], ['shotgun', 6], ['rifle', 3], ['ammo', 20], ['band', 10], ['vest1', 14], ['vest2', 8], ['gren', 6]] },
   pharmacy: { sign: 'PHARMACY', color: '#39e07a', floor: '#3e4644', extra: 0, loot: [['band', 40], ['med', 25], ['ammo', 10], ['pistol', 6]] },
-  liquor:   { sign: 'LIQUOR', color: '#3fb8ff', floor: '#3b3646', extra: 0, loot: LOOT_TABLE },
+  corner:   { sign: 'CORNER STORE', color: '#3fb8ff', floor: '#3b3646', extra: 0, loot: LOOT_TABLE },
   motel:    { sign: 'MOTEL', color: '#ff4fd8', floor: '#4a3a3e', extra: 0, loot: LOOT_TABLE },
   diner:    { sign: 'DINER', color: '#ffa53a', floor: '#4a3f33', extra: 0, loot: LOOT_TABLE },
   laundry:  { sign: '24H LAUNDRY', color: '#9d7bff', floor: '#3a4048', extra: 0, loot: LOOT_TABLE },
 };
-const SHOP_PICK = [['pawn', 3], ['pharmacy', 2], ['liquor', 3], ['motel', 2], ['diner', 2], ['laundry', 2]];
-const TAG_WORDS = ['DAWGZ', 'VIPERS', 'KINGS', 'WOLVES', 'REAPERS', 'GHOSTS', 'EASTSIDE', 'WESTSIDE', '4 LIFE', 'NO COPS', 'RIP BIG T', 'OUR BLOCK', 'STAY OUT'];
+const SHOP_PICK = [['pawn', 3], ['pharmacy', 2], ['corner', 3], ['motel', 2], ['diner', 2], ['laundry', 2]];
+const TAG_WORDS = ['DAWGZ', 'VIPERS', 'KINGS', 'WOLVES', 'REAPERS', 'GHOSTS', 'EASTSIDE', 'WESTSIDE', 'SQUAD UP', 'NO RULES', 'BIG T WAS HERE', 'OUR BLOCK', 'STAY OUT'];
 const ROOFS = ['#4a2f26', '#363d44', '#46432f', '#2f3d37', '#45394a', '#553f29', '#3b322a', '#2c2c2e'];
 const FLOORS = ['#5e4c3b', '#4f5655', '#5c5547', '#4d4a5a', '#584339'];
 const DECOR = ['#3e3328', '#6e3b2e', '#2f4146', '#5a5236', '#3b3048', '#28362f'];
@@ -1178,7 +1207,7 @@ function match() { return G; }
 return {
   TAU, COLS, ROWS, XL, YL, XN, YN, CITY, CX, CY, PRISON, PX, PY, CORR_Y, WORLD, GATE_L, GATE_R, MAX_PLAYERS, LOCKDOWN, SPEED, BODY_R, CAR_L, CAR_W,
   WEAPONS, ITEMS, CREWS, SHOPS, PHASES, GRENADE, BLAST_CORE, DROPS, DROP_FALL, ZW, MALL, ZMAX, ZOMBIE, ZSPAWNS,
-  clamp, dist, angDiff, lerpAngle, darken, inRect,
+  clamp, dist, angDiff, lerpAngle, darken, inRect, badName,
   buildWorld, setDoors, cellWalls, solidAt, blocksSight, pushOut,
   stepProj, createMatch, step, setInput, humanAction, humanLeft, roster, itemList, snapCommon, snapMe, match,
 };

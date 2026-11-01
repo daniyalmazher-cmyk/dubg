@@ -67,7 +67,8 @@ function uniqueNames(list) {
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 function newCode() {
   let code;
-  do { code = ''; for (let i = 0; i < 5; i++) code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]; } while (rooms.has(code));
+  // random letters can spell something rude; roll again if so
+  do { code = ''; for (let i = 0; i < 5; i++) code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]; } while (rooms.has(code) || D.badName(code));
   return code;
 }
 
@@ -158,6 +159,10 @@ wss.on('connection', ws => {
     if (!m || typeof m.t !== 'string') return;
     const me = c.match ? c.match.E.match().players[c.pid] : null;
     const free = !c.queued && !c.room && !c.match;
+    // names are checked before anything that shows them to other players
+    if ((m.t === 'queue' || m.t === 'create' || m.t === 'join') && free && D.badName(cleanName(m.name))) {
+      send(c, { t: 'err', msg: "That name isn't allowed. Pick another one." }); return;
+    }
     switch (m.t) {
       case 'queue': {
         if (!free) return;
