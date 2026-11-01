@@ -25,13 +25,13 @@ const FILES = {
 const server = http.createServer((req, res) => {
   const url = req.url.split('?')[0];
   if (url === '/health') { res.writeHead(200, { 'content-type': 'text/plain' }); res.end('ok'); return; }
-  // sound effects: plain names only, so nothing outside public/sounds can be asked for
-  const snd = /^\/sounds\/[a-z0-9_]+\.m4a$/.test(url);
-  const f = snd ? ['public' + url, 'audio/mp4'] : FILES[url];
+  // sound effects and 3D models: plain names only, so nothing outside those folders can be asked for
+  const snd = /^\/sounds\/[a-z0-9_]+\.m4a$/.test(url), mdl = /^\/models\/[a-z0-9_]+\.glb$/.test(url);
+  const f = snd ? ['public' + url, 'audio/mp4'] : mdl ? ['public' + url, 'model/gltf-binary'] : FILES[url];
   if (!f) { res.writeHead(404, { 'content-type': 'text/plain' }); res.end('Not found'); return; }
   fs.readFile(path.join(__dirname, f[0]), (err, data) => {
     if (err) { res.writeHead(err.code === 'ENOENT' ? 404 : 500); res.end(); return; }
-    res.writeHead(200, { 'content-type': f[1], 'cache-control': snd ? 'public, max-age=86400' : 'no-cache' });
+    res.writeHead(200, { 'content-type': f[1], 'cache-control': snd || mdl ? 'public, max-age=86400' : 'no-cache' });
     res.end(data);
   });
 });
