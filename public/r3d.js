@@ -321,14 +321,6 @@ function setWorld(W, ground, scale) {
     g.add(grp); world.bars.push({ b, planks });
   }
   for (const st of W.stores || []) world.lights.push({ x: st.x + st.w / 2, y: st.y + st.h / 2, h: 60, r: 260, color: W.ZSIGN[st.kind], base: 0.9 });
-  // neon signs light up the street in their colour
-  for (const b of W.buildings) {
-    if (b.mall) continue;
-    const S = W.SHOPS[b.shop], d = b.door;
-    let x = d.x + d.w / 2, y = d.y + d.h / 2;
-    if (b.side === 'top') y = b.y - 30; else if (b.side === 'bottom') y = b.y + b.h + 30; else if (b.side === 'left') x = b.x - 30; else x = b.x + b.w + 30;
-    world.lights.push({ x, y, h: 60, r: 190, color: S.color, base: 1.1, neon: b });
-  }
   // zone
   const zw = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 160, 1, true).translate(0, 0.5, 0), new THREE.MeshBasicMaterial({ color: '#3c74ff', transparent: true, opacity: 0.22, side: THREE.DoubleSide, depthWrite: false }));
   const zo = new THREE.Mesh(new THREE.RingGeometry(1, 60, 160).rotateX(-Math.PI / 2), new THREE.MeshBasicMaterial({ color: '#2858d2', transparent: true, opacity: 0.28, depthWrite: false }));
@@ -724,7 +716,6 @@ function frame(F) {
     let k = 1;
     if (l.src && l.src.kind === 'fire') k = 0.85 + 0.15 * Math.sin(t * 13 + l.src.ph) * Math.sin(t * 7.3 + l.src.ph * 2);
     else if (l.src && l.src.flick && Math.sin(t * 6 + l.src.ph) + Math.sin(t * 17.3 + l.src.ph) < -1.1) k = 0.2;
-    else if (l.neon && l.neon.flicker && Math.sin(t * 9 + l.neon.x) + Math.sin(t * 23 + l.neon.y) < -1.2) k = 0.2;
     pl.position.set(l.x, l.h, l.y); pl.color.set(l.color); pl.distance = l.r; pl.intensity = l.base * k;
   });
   api.lantern.position.set(vw.x, 70, vw.y); api.lantern.intensity = F.fogOn && world.night ? 1.1 : 0;
