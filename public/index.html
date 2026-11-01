@@ -1362,29 +1362,6 @@ function drawLights(t) {
   }
 }
 
-function drawSigns(t) {
-  ctx.save();
-  ctx.font = '700 15px "Barlow Condensed", "Arial Narrow", sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  for (const b of buildings) {
-    const S = SHOPS[b.shop], tw = ctx.measureText(S.sign).width + 20, th = 22, d = b.door;
-    let sx, sy;
-    if (b.side === 'top') { sx = d.x + d.w / 2; sy = b.y - 15; }
-    else if (b.side === 'bottom') { sx = d.x + d.w / 2; sy = b.y + b.h + 15; }
-    else if (b.side === 'left') { sx = b.x + tw / 2 + 4; sy = d.y - 16; }
-    else { sx = b.x + b.w - tw / 2 - 4; sy = d.y - 16; }
-    if (!inView(sx - tw / 2 - 20, sy - 30, tw + 40, 60)) continue;
-    let on = 1;
-    if (b.flicker && Math.sin(t * 9 + b.x) + Math.sin(t * 23 + b.y) < -1.2) on = 0.2;
-    ctx.fillStyle = 'rgba(8,8,10,.94)'; ctx.fillRect(sx - tw / 2, sy - th / 2, tw, th);
-    ctx.globalAlpha = 0.35 + 0.65 * on;
-    ctx.shadowColor = S.color; ctx.shadowBlur = 16 * on;
-    ctx.strokeStyle = S.color; ctx.lineWidth = 2; ctx.strokeRect(sx - tw / 2 + 2.5, sy - th / 2 + 2.5, tw - 5, th - 5);
-    ctx.fillStyle = S.color; ctx.fillText(S.sign, sx, sy + 1);
-    ctx.shadowBlur = 0; ctx.globalAlpha = 1;
-  }
-  ctx.restore();
-}
-
 const rain = Array.from({ length: 170 }, () => ({ x: Math.random(), y: Math.random(), s: 0.6 + Math.random() * 0.6 }));
 const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -1438,7 +1415,6 @@ function render(dt) {
   }
   if (fogOn) drawFog(vw);
   drawLights(t);
-  if (M.mode !== 'zombie') drawSigns(t);
   drawSky(t);
   const zn = M.zone;
   if (fogOn && M.mode !== 'zombie') {
