@@ -51,21 +51,17 @@ function badName(s) {
 }
 
 // ---------- data ----------
-// city size in blocks; streets run between them every 350 units
-const COLS = 10, ROWS = 8;
-const XL = Array.from({ length: COLS + 1 }, (_, i) => 140 + i * 350);
-const YL = Array.from({ length: ROWS + 1 }, (_, j) => 140 + j * 350);
+// Desert Dunes: a town of blocks with streets between them every 350 units, and open dunes all round it
+const COLS = 10, ROWS = 8, DUNE = 420;
+const XL = Array.from({ length: COLS + 1 }, (_, i) => DUNE + 140 + i * 350);
+const YL = Array.from({ length: ROWS + 1 }, (_, j) => DUNE + 140 + j * 350);
 const XN = XL[COLS], YN = YL[ROWS];
-const CITY = { x: 100, y: 100, w: XN + 40 - 100, h: YN + 40 - 100 };
+const CITY = { x: XL[0] - 40, y: YL[0] - 40, w: XN - XL[0] + 80, h: YN - YL[0] + 80 };
 const CX = (XL[0] + XN) / 2, CY = (YL[0] + YN) / 2;
-const PRISON = { x: CX - 400, y: YN + 90, w: 800, h: 360 };
-const PX = PRISON.x - 800, PY = PRISON.y - 1980; // prison layout below was drawn at x 800, y 1980
-const CORR_Y = PY + 2160;
-const WORLD = { w: XN + 160, h: PRISON.y + PRISON.h + 100 };   // resized by buildWorld for the zombie map
+const WORLD = { w: XN + 140 + DUNE, h: YN + 140 + DUNE };   // resized by buildWorld for the zombie map
 const BR_WORLD = { ...WORLD };
 const SCALE = (COLS * ROWS) / 30;
-const GATE_L = PRISON.x - 35, GATE_R = PRISON.x + PRISON.w + 35;
-const MAX_PLAYERS = 30, LOCKDOWN = 8, SPEED = 205;
+const MAX_PLAYERS = 30, LOCKDOWN = 6, SPEED = 205;
 
 const WEAPONS = {
   fists:   { name: 'Fists',   dmg: 14, rate: 0.45, melee: true, range: 34, tier: 0 },
@@ -134,36 +130,55 @@ const SKINS = ['#8d5524', '#c68642', '#e0ac69', '#5c3a1e', '#f1c27d', '#3d2314',
 const HOODIES = ['#1c1c1e', '#2b2f36', '#3a3a3a', '#4b3b2a', '#1f2a3a', '#55524c', '#5e1d1d', '#2f3d2a', '#d9d6cf', '#6b5a3e'];
 const BEANIES = ['#1b1b1b', '#5a2a2a', '#2a3a4a', '#d8d2c4', '#3d4a2a'];
 const SHOPS = {
-  gun:      { sign: 'GUN SHOP', color: '#ff3b3b', floor: '#3a3230', extra: 1, loot: [['pistol', 20], ['smg', 16], ['shotgun', 14], ['rifle', 12], ['ammo', 28], ['vest1', 6], ['vest2', 4], ['gren', 9]] },
-  pawn:     { sign: 'PAWN', color: '#f2c230', floor: '#463c2c', extra: 0, loot: [['pistol', 12], ['smg', 6], ['shotgun', 6], ['rifle', 3], ['ammo', 20], ['band', 10], ['vest1', 14], ['vest2', 8], ['gren', 6]] },
-  pharmacy: { sign: 'PHARMACY', color: '#39e07a', floor: '#3e4644', extra: 0, loot: [['band', 40], ['med', 25], ['ammo', 10], ['pistol', 6]] },
-  corner:   { sign: 'CORNER STORE', color: '#3fb8ff', floor: '#3b3646', extra: 0, loot: LOOT_TABLE },
-  motel:    { sign: 'MOTEL', color: '#ff4fd8', floor: '#4a3a3e', extra: 0, loot: LOOT_TABLE },
-  diner:    { sign: 'DINER', color: '#ffa53a', floor: '#4a3f33', extra: 0, loot: LOOT_TABLE },
-  laundry:  { sign: '24H LAUNDRY', color: '#9d7bff', floor: '#3a4048', extra: 0, loot: LOOT_TABLE },
+  gun:      { sign: 'ARMORY', color: '#ff5a3b', floor: '#8a6a52', extra: 1, loot: [['pistol', 20], ['smg', 16], ['shotgun', 14], ['rifle', 12], ['ammo', 28], ['vest1', 6], ['vest2', 4], ['gren', 9]] },
+  pawn:     { sign: 'BAZAAR', color: '#f2c230', floor: '#9a7a58', extra: 0, loot: [['pistol', 12], ['smg', 6], ['shotgun', 6], ['rifle', 3], ['ammo', 20], ['band', 10], ['vest1', 14], ['vest2', 8], ['gren', 6]] },
+  pharmacy: { sign: 'PHARMACY', color: '#39e07a', floor: '#8a8a72', extra: 0, loot: [['band', 40], ['med', 25], ['ammo', 10], ['pistol', 6]] },
+  spice:    { sign: 'SPICES', color: '#3fd0c8', floor: '#9a6e52', extra: 0, loot: LOOT_TABLE },
+  inn:      { sign: 'INN', color: '#ff7ad8', floor: '#94725e', extra: 0, loot: LOOT_TABLE },
+  tea:      { sign: 'TEA HOUSE', color: '#ffa53a', floor: '#8e7254', extra: 0, loot: LOOT_TABLE },
+  bakery:   { sign: 'BAKERY', color: '#c9a2ff', floor: '#9e8466', extra: 0, loot: LOOT_TABLE },
 };
-const SHOP_PICK = [['pawn', 3], ['pharmacy', 2], ['corner', 3], ['motel', 2], ['diner', 2], ['laundry', 2]];
-const TAG_WORDS = ['DAWGZ', 'VIPERS', 'KINGS', 'WOLVES', 'REAPERS', 'GHOSTS', 'EASTSIDE', 'WESTSIDE', 'SQUAD UP', 'NO RULES', 'BIG T WAS HERE', 'OUR BLOCK', 'STAY OUT'];
+const SHOP_PICK = [['pawn', 3], ['pharmacy', 2], ['spice', 3], ['inn', 2], ['tea', 2], ['bakery', 2]];
 const ROOFS = ['#4a2f26', '#363d44', '#46432f', '#2f3d37', '#45394a', '#553f29', '#3b322a', '#2c2c2e'];
 const FLOORS = ['#5e4c3b', '#4f5655', '#5c5547', '#4d4a5a', '#584339'];
-const DECOR = ['#3e3328', '#6e3b2e', '#2f4146', '#5a5236', '#3b3048', '#28362f'];
-const CAR_COLORS = ['#6e2622', '#22394f', '#9a958a', '#2d2f31', '#4f4b22', '#173f35', '#5b3a1c'];
+const DECOR = ['#7a2f3a', '#2f5f86', '#8a5a2c', '#2a7d72', '#a8553a', '#5a3a6a'];          // rugs on the floors
+const CAR_COLORS = ['#b5583a', '#d9c7a0', '#7a8a6a', '#8f4a33', '#5f6f7a', '#c9a24a'];
+// the two paint schemes of the Desert Dunes houses (they match the 3D models dd_*_a and dd_*_b)
+const SCHEME = { a: { wall: '#d9a37b', roof: '#b8805c', dome: '#2a9d8f' }, b: { wall: '#ece2d0', roof: '#d9ccb4', dome: '#f7f0e4' } };
+// which way a model faces: 0 = its front toward +y, then quarter turns (1 = +x, 2 = -y, 3 = -x)
+const SIDE_ROT = { bottom: 0, right: 1, top: 2, left: 3 };
 
 // ---------- world ----------
 let walls, grid, buildings, boarded, trees, blocks, doors, cars, cells, specks;
 let lights, cracks, potholes, puddles, patches, manholes, trash, tags, tires;
-let stores, barricades, blood, roads, pits, MODE = 'br';
+let stores, barricades, blood, roads, pits, props, dunes, pools, camps, MODE = 'br';
 const GS = 100, GW = Math.ceil(WORLD.w / GS), GH = Math.ceil(WORLD.h / GS), EMPTY = [];
 function addWall(x, y, w, h, kind = 'wall') { const o = { x, y, w, h, kind, open: false }; walls.push(o); return o; }
+// something solid with a 3D model: a w x h collision box centred on (x, y), the model turned `rot` quarter turns
+function addProp(model, x, y, w, h, rot = 0) {
+  const o = addWall(x - w / 2, y - h / 2, w, h, 'prop'); o.model = model; o.rot = rot; o.cx = x; o.cy = y;
+  props.push(o); return o;
+}
+// model footprints (game units) and the box you bump into
+const PROP = {
+  cactus: [24, 14], rocks_a: [60, 52], rocks_b: [48, 40], market_stall: [52, 36], well: [50, 44],
+  crate: [22, 22], barrel: [22, 22], pots: [30, 18], tent: [66, 56], wall: [94, 14],
+};
+function prop(model, x, y, rot = 0) { const [w, h] = PROP[model]; return rot % 2 ? addProp(model, x, y, h, w, rot) : addProp(model, x, y, w, h, rot); }
+function palm(x, y) { trees.push({ x, y, r: 48, a: rnd(0, TAU), palm: true }); addWall(x - 9, y - 9, 18, 18, 'tree'); }
 
 function addBuilding(x, y, w, h, side, lane) {
+  const size = w > 200 && h > 200 ? 'big' : w > 200 || h > 200 ? 'half' : 'quarter', scheme = R() < 0.5 ? 'a' : 'b';
   if (R() < 0.42) {
-    boarded.push({ x, y, w, h, roof: pick(ROOFS.map(c => [c, 1])), roofA: 1, planks: R() < 0.7 });
+    // sealed: a compound, a storehouse, a domed tower or a minaret
+    const model = size === 'big' ? 'solid_big' : size === 'half' ? 'solid_half' : R() < 0.5 ? 'solid_tower' : 'solid_minaret';
+    boarded.push({ x, y, w, h, roof: model === 'solid_half' || model === 'solid_minaret' ? SCHEME.b.roof : SCHEME.a.roof, roofA: 1, model, rot: SIDE_ROT[side], size });
     addWall(x, y, w, h, 'block');
     return;
   }
   const T = 10, G = 48;
-  const b = { x, y, w, h, side, roofA: 1, roof: pick(ROOFS.map(c => [c, 1])), floor: pick(FLOORS.map(c => [c, 1])), decor: [] };
+  const b = { x, y, w, h, side, roofA: 1, roof: SCHEME[scheme].roof, dome: SCHEME[scheme].dome, floor: pick(FLOORS.map(c => [c, 1])), decor: [],
+    model: `${size}_${scheme}`, rot: SIDE_ROT[side], size };
   if (side === 'top' || side === 'bottom') {
     const dx = x + w / 2, wy = side === 'top' ? y : y + h - T;
     addWall(x, wy, w / 2 - G / 2, T); addWall(x + w / 2 + G / 2, wy, w / 2 - G / 2, T);
@@ -189,7 +204,7 @@ function addBuilding(x, y, w, h, side, lane) {
 function buildWorld(seed, mode) {
   walls = []; buildings = []; boarded = []; trees = []; blocks = []; doors = []; cars = []; cells = []; specks = [];
   lights = []; cracks = []; potholes = []; puddles = []; patches = []; manholes = []; trash = []; tags = []; tires = [];
-  stores = []; barricades = []; blood = []; roads = []; pits = [];
+  stores = []; barricades = []; blood = []; roads = []; pits = []; props = []; dunes = []; pools = []; camps = [];
   MODE = mode === 'zombie' ? 'zombie' : 'br';
   Object.assign(WORLD, MODE === 'zombie' ? ZW : BR_WORLD);
   const saved = R; R = mulberry32(seed);
@@ -202,11 +217,11 @@ function buildWorld(seed, mode) {
       for (let gy = Math.floor(w.y / GS); gy <= Math.floor((w.y + w.h) / GS); gy++)
         if (gx >= 0 && gy >= 0 && gx < GW && gy < GH) grid[gy * GW + gx].push(w);
   }
-  return { walls, buildings, boarded, trees, blocks, doors, cars, cells, specks, lights, cracks, potholes, puddles, patches, manholes, trash, tags, tires, stores, barricades, blood, roads, pits };
+  return { walls, buildings, boarded, trees, blocks, doors, cars, cells, specks, lights, cracks, potholes, puddles, patches, manholes, trash, tags, tires, stores, barricades, blood, roads, pits, props, dunes, pools };
 }
 function buildCity() {
-  for (let i = 0; i < 260 * SCALE; i++) specks.push({ x: rnd(0, WORLD.w), y: rnd(0, WORLD.h), r: rnd(2, 7) });
-  // city blocks
+  for (let i = 0; i < 300 * SCALE; i++) specks.push({ x: rnd(0, WORLD.w), y: rnd(0, WORLD.h), r: rnd(2, 7) });
+  // town blocks: houses, or an open square
   for (let i = 0; i < COLS; i++) for (let j = 0; j < ROWS; j++) {
     const bx = XL[i] + 40, by = YL[j] + 40, bw = XL[i + 1] - 40 - bx, bh = YL[j + 1] - 40 - by;
     const t = pick([['big', 33], ['two', 32], ['four', 16], ['park', 19]]);
@@ -232,79 +247,98 @@ function buildCity() {
       addBuilding(bx + 2 * m + hw, by + m, hw, hh, 'top', YL[j]);
       addBuilding(bx + m, by + 2 * m + hh, hw, hh, 'bottom', YL[j + 1]);
       addBuilding(bx + 2 * m + hw, by + 2 * m + hh, hw, hh, 'bottom', YL[j + 1]);
+    } else if (R() < 0.6) {
+      // market square: stalls facing a well, palms in the corners, crates and pots for cover
+      const cx = bx + bw / 2, cy = by + bh / 2;
+      prop('well', cx, cy);
+      prop('market_stall', cx, cy - 82, 0); prop('market_stall', cx, cy + 82, 2); prop('market_stall', cx - 82, cy, 1); prop('market_stall', cx + 82, cy, 3);
+      for (const sx of [-1, 1]) for (const sy of [-1, 1]) palm(cx + sx * 104, cy + sy * 104);
+      const bits = shuffle([['crate', 46, -52], ['barrel', -48, 54], ['pots', 52, 50], ['crate', -54, -46]]);
+      for (const [m2, ox, oy] of bits.slice(0, 2 + Math.floor(R() * 3))) prop(m2, cx + ox, cy + oy, Math.floor(R() * 4));
+      lights.push({ x: cx - 104, y: cy - 104, kind: 'lamp', r: 200, ph: rnd(0, 10), flick: false }, { x: cx + 104, y: cy + 104, kind: 'lamp', r: 200, ph: rnd(0, 10), flick: R() < 0.3 });
     } else {
-      // vacant lot: chain-link fence with one opening, dead trees, burning barrels, junk
-      const fx = bx + 8, fy = by + 8, fw = bw - 16, fh = bh - 16, gap = pick([['top', 1], ['bottom', 1], ['left', 1], ['right', 1]]), G2 = 70;
-      const fence = (side, x, y, w, h) => {
-        if (gap !== side) { addWall(x, y, w, h, 'fence'); return; }
-        if (w > h) { addWall(x, y, w / 2 - G2 / 2, h, 'fence'); addWall(x + w / 2 + G2 / 2, y, w / 2 - G2 / 2, h, 'fence'); }
-        else { addWall(x, y, w, h / 2 - G2 / 2, 'fence'); addWall(x, y + h / 2 + G2 / 2, w, h / 2 - G2 / 2, 'fence'); }
-      };
-      fence('top', fx, fy, fw, 4); fence('bottom', fx, fy + fh - 4, fw, 4); fence('left', fx, fy, 4, fh); fence('right', fx + fw - 4, fy, 4, fh);
-      const used = [];
-      const spot = () => { for (let k = 0; k < 40; k++) { const x = rnd(bx + 45, bx + bw - 45), y = rnd(by + 45, by + bh - 45); if (!used.some(u => Math.abs(u.x - x) < 60 && Math.abs(u.y - y) < 60)) { used.push({ x, y }); return { x, y }; } } return null; };
-      for (let k = 0, n = 2 + Math.floor(R() * 3); k < n; k++) { const s2 = spot(); if (!s2) break; trees.push({ x: s2.x, y: s2.y, r: rnd(24, 34), a: rnd(0, TAU) }); addWall(s2.x - 9, s2.y - 9, 18, 18, 'tree'); }
-      for (let k = 0, n = 1 + Math.floor(R() * 2); k < n; k++) { const s2 = spot(); if (!s2) break; addWall(s2.x - 9, s2.y - 9, 18, 18, 'barrel'); lights.push({ x: s2.x, y: s2.y, kind: 'fire', r: 170, ph: rnd(0, 10) }); }
-      for (let k = 0; k < 4; k++) tires.push({ x: rnd(bx + 30, bx + bw - 30), y: rnd(by + 30, by + bh - 30) });
-      for (let k = 0; k < 40; k++) trash.push({ x: rnd(bx + 14, bx + bw - 14), y: rnd(by + 14, by + bh - 14), w: rnd(2, 7), h: rnd(2, 5), c: pick([['#8a8170', 3], ['#5d6a74', 2], ['#7a3d2c', 1], ['#c9c3b5', 2]]), a: rnd(0, 3) });
-      if (R() < 0.8) tags.push({ x: rnd(bx + 60, bx + bw - 60), y: rnd(by + 60, by + bh - 60), text: pick(TAG_WORDS.map(t => [t, 1])), c: pick(CREWS.map(c => [c.c, 1])), size: rnd(26, 40), a: rnd(-0.4, 0.4) });
+      // oasis: a pool you can't wade through (but can shoot across), ringed with palms
+      const cx = bx + bw / 2, cy = by + bh / 2, rx = 62, ry = 44;
+      pools.push({ x: cx, y: cy, rx, ry });
+      addWall(cx - rx + 6, cy - ry + 6, (rx - 6) * 2, (ry - 6) * 2, 'water');
+      for (let k = 0; k < 6; k++) { const a = k / 6 * TAU + rnd(-0.2, 0.2); palm(cx + Math.cos(a) * (rx + 38), cy + Math.sin(a) * (ry + 42)); }
+      if (R() < 0.6) prop(R() < 0.5 ? 'rocks_b' : 'pots', cx + (R() < 0.5 ? -1 : 1) * 108, cy + (R() < 0.5 ? -1 : 1) * 30, Math.floor(R() * 4));
     }
   }
-  // prison
-  const P = PRISON, T = 14;
-  addWall(P.x, P.y, P.w, T, 'pwall'); addWall(P.x, P.y + P.h - T, P.w, T, 'pwall');
-  for (const gx of [P.x, P.x + P.w - T]) {
-    addWall(gx, P.y, T, CORR_Y - 30 - P.y, 'pwall');
-    addWall(gx, CORR_Y + 30, T, P.y + P.h - (CORR_Y + 30), 'pwall');
-    doors.push(addWall(gx, CORR_Y - 30, T, 60, 'gate'));
-  }
-  for (let k = 0; k <= 15; k++) { const x = PX + 825 + k * 50; addWall(x - 3, PY + 1994, 6, 80, 'pwall'); addWall(x - 3, PY + 2246, 6, 80, 'pwall'); }
-  for (let k = 0; k < 15; k++) {
-    const x = PX + 825 + k * 50;
-    doors.push(addWall(x + 3, PY + 2068, 44, 6, 'bars'));
-    doors.push(addWall(x + 3, PY + 2246, 44, 6, 'bars'));
-    cells.push({ x: x + 25, y: PY + 2031, top: true }, { x: x + 25, y: PY + 2289, top: false });
-  }
-  // parked cars along the kerbs, away from doors, junctions and the prison exits
+  // a few wrecked trucks along the streets, away from doors and junctions
   const doorNear = (lane, v, pos) => buildings.some(b => b.outPt.lane === lane && b.outPt[lane === 'h' ? 'y' : 'x'] === v && Math.abs(b.outPt[lane === 'h' ? 'x' : 'y'] - pos) < 75);
-  for (let tries = 0, n = 0; tries < 300 * SCALE && n < 26 * SCALE; tries++) {
+  for (let tries = 0, n = 0; tries < 300 * SCALE && n < 14 * SCALE; tries++) {
     const horiz = R() < 0.55, s = R() < 0.5 ? 1 : -1, color = pick(CAR_COLORS.map(c => [c, 1]));
     if (horiz) {
       const j = Math.floor(R() * (ROWS + 1)), cx = rnd(XL[0] + 70, XN - 70);
       if (XL.some(x => Math.abs(x - cx) < 85) || doorNear('h', YL[j], cx)) continue;
-      if (j === ROWS && (Math.abs(cx - GATE_L) < 90 || Math.abs(cx - GATE_R) < 90)) continue;
       const y = s > 0 ? YL[j] + 16 : YL[j] - 38;
       if (cars.some(c => Math.abs(c.x + c.w / 2 - cx) < 90 && Math.abs(c.y - y) < 40)) continue;
-      const w = addWall(cx - 29, y, 58, 22, 'car'); w.color = color; w.burned = R() < 0.4; w.rust = [0, 1, 2].map(() => [rnd(6, 52), rnd(4, 18), rnd(3, 7)]); cars.push(w); n++;
+      const w = addWall(cx - 29, y, 58, 22, 'car'); w.color = color; w.burned = R() < 0.3; w.rust = [0, 1, 2].map(() => [rnd(6, 52), rnd(4, 18), rnd(3, 7)]); cars.push(w); n++;
     } else {
       const i = Math.floor(R() * (COLS + 1)), cy = rnd(YL[0] + 70, YN - 70);
       if (YL.some(y => Math.abs(y - cy) < 85) || doorNear('v', XL[i], cy)) continue;
       const x = s > 0 ? XL[i] + 16 : XL[i] - 38;
       if (cars.some(c => Math.abs(c.y + c.h / 2 - cy) < 90 && Math.abs(c.x - x) < 40)) continue;
-      const w = addWall(x, cy - 29, 22, 58, 'car'); w.color = color; w.burned = R() < 0.4; w.rust = [0, 1, 2].map(() => [rnd(4, 18), rnd(6, 52), rnd(3, 7)]); cars.push(w); n++;
+      const w = addWall(x, cy - 29, 22, 58, 'car'); w.color = color; w.burned = R() < 0.3; w.rust = [0, 1, 2].map(() => [rnd(4, 18), rnd(6, 52), rnd(3, 7)]); cars.push(w); n++;
     }
   }
-  // which shops are open: always five gun shops, the rest mixed
-  shuffle(buildings.slice()).forEach((b, i) => { b.shop = i < 5 ? 'gun' : pick(SHOP_PICK); b.flicker = R() < 0.25; b.floor = SHOPS[b.shop].floor; });
-  // a city nobody has fixed in years
-  const onStreet = () => { if (R() < 0.5) return { x: rnd(110, XN + 30), y: YL[Math.floor(R() * (ROWS + 1))] + rnd(-32, 32) }; return { x: XL[Math.floor(R() * (COLS + 1))] + rnd(-32, 32), y: rnd(110, YN + 30) }; };
-  for (let i = 0; i < 45 * SCALE; i++) { const q = onStreet(); potholes.push({ x: q.x, y: q.y, rx: rnd(5, 13), ry: rnd(4, 9), a: rnd(0, 3) }); }
-  for (let i = 0; i < 24 * SCALE; i++) { const q = onStreet(); puddles.push({ x: q.x, y: q.y, rx: rnd(14, 36), ry: rnd(8, 18), a: rnd(0, 3) }); }
-  for (let i = 0; i < 34 * SCALE; i++) { const q = onStreet(); patches.push({ x: q.x - 20, y: q.y - 14, w: rnd(24, 70), h: rnd(16, 40), c: R() < 0.5 ? '#222326' : '#18191b' }); }
-  for (let i = 0; i < 16 * SCALE; i++) manholes.push(onStreet());
-  for (let i = 0; i < 180 * SCALE; i++) {
+  // which shops are open: always five armories, the rest mixed
+  shuffle(buildings.slice()).forEach((b, i) => { b.shop = i < 5 ? 'gun' : pick(SHOP_PICK); b.flicker = R() < 0.15; b.floor = SHOPS[b.shop].floor; });
+  // streets of packed sand: wheel ruts, drifts, a few potholes, litter
+  const onStreet = () => { if (R() < 0.5) return { x: rnd(XL[0] - 30, XN + 30), y: YL[Math.floor(R() * (ROWS + 1))] + rnd(-32, 32) }; return { x: XL[Math.floor(R() * (COLS + 1))] + rnd(-32, 32), y: rnd(YL[0] - 30, YN + 30) }; };
+  for (let i = 0; i < 25 * SCALE; i++) { const q = onStreet(); potholes.push({ x: q.x, y: q.y, rx: rnd(5, 12), ry: rnd(4, 8), a: rnd(0, 3) }); }
+  for (let i = 0; i < 40 * SCALE; i++) { const q = onStreet(); patches.push({ x: q.x - 20, y: q.y - 14, w: rnd(30, 80), h: rnd(16, 40), c: R() < 0.5 ? '#d9bd8c' : '#c8a473' }); }
+  for (let i = 0; i < 80 * SCALE; i++) {
     const q = onStreet(), pts = [q.x, q.y]; let a = rnd(0, TAU), x = q.x, y = q.y;
     for (let k = 0; k < 4; k++) { a += rnd(-0.9, 0.9); const l = rnd(10, 28); x += Math.cos(a) * l; y += Math.sin(a) * l; pts.push(x, y); }
     cracks.push({ x: q.x, y: q.y, pts });
   }
-  for (let i = 0; i < 380 * SCALE; i++) trash.push({ x: rnd(105, XN + 35), y: rnd(105, YN + 35), w: rnd(2, 6), h: rnd(2, 5), c: pick([['#8a8170', 3], ['#5d6a74', 2], ['#7a3d2c', 1], ['#c9c3b5', 2], ['#3f5c3a', 1]]), a: rnd(0, 3) });
-  for (let i = 0; i < 26 * SCALE; i++) { const q = onStreet(); tags.push({ x: q.x, y: q.y, text: pick(TAG_WORDS.map(t => [t, 1])), c: pick(CREWS.map(c => [c.c, 1])), size: rnd(20, 34), a: rnd(-0.5, 0.5) }); }
-  for (const b of boarded) if (R() < 0.65) b.tag = { text: pick(TAG_WORDS.map(t => [t, 1])), c: pick(CREWS.map(c => [c.c, 1])), size: Math.min(34, b.w / 5), a: rnd(-0.3, 0.3) };
-  for (const x of XL) for (const y of YL) if (R() < 0.42) {
+  for (let i = 0; i < 160 * SCALE; i++) trash.push({ x: rnd(CITY.x, CITY.x + CITY.w), y: rnd(CITY.y, CITY.y + CITY.h), w: rnd(2, 6), h: rnd(2, 5), c: pick([['#8a7a5a', 3], ['#a85a3a', 1], ['#e8dcc0', 2], ['#5f7a4a', 1]]), a: rnd(0, 3) });
+  // lanterns at some crossroads
+  for (const x of XL) for (const y of YL) if (R() < 0.36) {
     const sx = R() < 0.5 ? 1 : -1, sy = R() < 0.5 ? 1 : -1;
-    lights.push({ x: x + sx * 47, y: y + sy * 47, kind: 'lamp', r: 200, ph: rnd(0, 10), flick: R() < 0.35 });
+    lights.push({ x: x + sx * 47, y: y + sy * 47, kind: 'lamp', r: 200, ph: rnd(0, 10), flick: R() < 0.2 });
   }
-  lights.push({ x: GATE_L, y: PRISON.y - 20, kind: 'lamp', r: 220, ph: 1, flick: false }, { x: GATE_R, y: PRISON.y - 20, kind: 'lamp', r: 220, ph: 2, flick: true });
+  buildDunes();
+}
+
+// The open desert round the town: everyone starts out here, spread round a ring, facing in.
+// Rocks and cacti for cover, and a few nomad camps with a fire, a tent and some loot.
+function buildDunes() {
+  const inTown = (x, y, pad) => inRect(CITY, x, y, pad);
+  const ok = (x, y, pad) => x > 60 && y > 60 && x < WORLD.w - 60 && y < WORLD.h - 60 && !inTown(x, y, pad)
+    && !walls.some(w => inRect(w, x, y, pad)) && !cells.some(c => Math.hypot(c.x - x, c.y - y) < pad + 30);
+  // spawn points round a rectangle halfway out into the dunes
+  const ix = DUNE * 0.45, iy = DUNE * 0.45, W = WORLD.w - 2 * ix, H = WORLD.h - 2 * iy, per = 2 * (W + H), n = 40;
+  for (let k = 0; k < n; k++) {
+    let d = (k + 0.5) / n * per, x, y;
+    if (d < W) { x = ix + d; y = iy; } else if ((d -= W) < H) { x = ix + W; y = iy + d; } else if ((d -= H) < W) { x = ix + W - d; y = iy + H; } else { d -= W; x = ix; y = iy + H - d; }
+    cells.push({ x, y, ang: Math.atan2(CY - y, CX - x) });
+  }
+  // dune ridges (just shading on the sand)
+  for (let k = 0; k < 70; k++) {
+    let x, y; do { x = rnd(0, WORLD.w); y = rnd(0, WORLD.h); } while (inTown(x, y, 60));
+    dunes.push({ x, y, rx: rnd(90, 220), ry: rnd(30, 70), a: rnd(-0.5, 0.5) });
+  }
+  // nomad camps, one on each side and a couple more
+  const spots = [[CX, DUNE * 0.78], [CX, WORLD.h - DUNE * 0.78], [DUNE * 0.78, CY], [WORLD.w - DUNE * 0.78, CY],
+    [WORLD.w * 0.25, DUNE * 0.78], [WORLD.w * 0.75, WORLD.h - DUNE * 0.78]];
+  for (const [sx, sy] of spots) {
+    const x = sx + rnd(-60, 60), y = sy + rnd(-40, 40);
+    if (!ok(x, y, 70)) continue;
+    prop('tent', x, y, Math.floor(R() * 4));
+    const fx = x + rnd(-1, 1) * 30, fy = y + 70;
+    addWall(fx - 9, fy - 9, 18, 18, 'barrel'); lights.push({ x: fx, y: fy, kind: 'fire', r: 190, ph: rnd(0, 10) });
+    prop('crate', x + 58, y + 30, 0); if (R() < 0.6) prop('barrel', x - 58, y + 34, 0);
+    camps.push({ x, y: y + 40 });
+  }
+  // rocks, cacti and the odd palm scattered over the sand
+  const scatter = (count, place) => { for (let t = 0, k = 0; t < count * 30 && k < count; t++) { const x = rnd(80, WORLD.w - 80), y = rnd(80, WORLD.h - 80); if (ok(x, y, 70)) { place(x, y); k++; } } };
+  scatter(30, (x, y) => prop(R() < 0.55 ? 'rocks_a' : 'rocks_b', x, y, Math.floor(R() * 4)));
+  scatter(34, (x, y) => prop('cactus', x, y, Math.floor(R() * 4)));
+  scatter(10, (x, y) => palm(x, y));
+  scatter(8, (x, y) => prop('wall', x, y, R() < 0.5 ? 0 : 1));
 }
 
 // the zombie map: a dead mall in the middle of an overgrown lot, wrecks and ruins around it,
@@ -405,7 +439,7 @@ function buildZombieWorld() {
 function setDoors(open) { for (const d of doors) d.open = open; }
 
 function cellWalls(x, y) { const gx = Math.floor(x / GS), gy = Math.floor(y / GS); return gx < 0 || gy < 0 || gx >= GW || gy >= GH ? EMPTY : grid[gy * GW + gx]; }
-function solidAt(x, y) { for (const w of cellWalls(x, y)) if (!w.open && w.kind !== 'fence' && x >= w.x && x <= w.x + w.w && y >= w.y && y <= w.y + w.h) return w; return null; }
+function solidAt(x, y) { for (const w of cellWalls(x, y)) if (!w.open && w.kind !== 'fence' && w.kind !== 'water' && x >= w.x && x <= w.x + w.w && y >= w.y && y <= w.y + w.h) return w; return null; }
 function blocksSight(x, y) { for (const w of cellWalls(x, y)) if ((w.kind === 'wall' || w.kind === 'pwall' || w.kind === 'block') && x >= w.x && x <= w.x + w.w && y >= w.y && y <= w.y + w.h) return true; return false; }
 function los(a, b) { const d = dist(a, b), n = Math.ceil(d / 12); for (let i = 1; i < n; i++) { const t = i / n; if (solidAt(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t)) return false; } return true; }
 function pushOut(p) {
@@ -428,7 +462,6 @@ function pushOut(p) {
 }
 const inRect = (r, x, y, pad = 0) => x >= r.x - pad && x <= r.x + r.w + pad && y >= r.y - pad && y <= r.y + r.h + pad;
 function buildingAt(x, y) { for (const b of buildings) if (inRect(b, x, y)) return b; return null; }
-const inPrison = p => inRect(PRISON, p.x, p.y);
 
 // lane routing: every door's outside point sits on a street centre line
 function nearestIdx(arr, v) { let bi = 0, bd = 1e9; arr.forEach((a, i) => { const d = Math.abs(a - v); if (d < bd) { bd = d; bi = i; } }); return bi; }
@@ -452,7 +485,7 @@ function makePlayer(id, name, isBot, cell) {
   const hat = pick([['cap', 3], ['capBack', 2], ['beanie', 2], ['durag', 2], ['dreads', 2], ['buzz', 2], ['bandana', 2]]);
   const look = { skin: pick(SKINS.map(c => [c, 1])), hoodie, hat, beanie: pick(BEANIES.map(c => [c, 1])) };
   return {
-    id, name, isBot, crew: crewIdx, look, x: cell.x, y: cell.y, r: 12, ang: cell.top ? Math.PI / 2 : -Math.PI / 2,
+    id, name, isBot, crew: crewIdx, look, x: cell.x, y: cell.y, r: 12, ang: cell.ang != null ? cell.ang : cell.top ? Math.PI / 2 : -Math.PI / 2,
     hp: 100, armor: 0, alive: true, slots: [null, null], cur: -1, ammo: 0, rockets: 0, gren: 0, band: 0, med: 0, kills: 0,
     cd: 0, reload: 0, heal: null, punch: 0, place: 0, diedAt: 0, throwCd: 0, build: 0, gone: false,
     input: null, lastClicks: 0, pendingFire: 0,
@@ -471,7 +504,7 @@ function spawnLoot() {
     for (let i = 0; i < n; i++) addItem(pick(S.loot), rnd(b.x + 28, b.x + b.w - 28), rnd(b.y + 28, b.y + b.h - 28));
   }
   for (const k of blocks) if (k.park) for (let i = 0; i < 2; i++) addItem(pick(LOOT_TABLE), rnd(k.x + 30, k.x + k.w - 30), rnd(k.y + 30, k.y + k.h - 30));
-  for (let i = 0; i < 3; i++) addItem('band', rnd(PX + 880, PX + 1520), CORR_Y + rnd(-40, 40));
+  for (const c of camps) for (let i = 0; i < 3; i++) addItem(pick(LOOT_TABLE), c.x + rnd(-60, 60), c.y + rnd(-20, 40));
 }
 
 // humans: [{ name }]. Returns the match; humans get player ids 0..n-1, bots fill the rest
@@ -770,6 +803,7 @@ function setInput(p, inp) {
 }
 function humanUpdate(p, dt) {
   const inp = p.input; if (!inp) return;
+  if (G.state === 'lockdown') { p.ang = inp.a; return; }   // everyone holds still on the dunes until the countdown ends
   const max = SPEED * (p.heal ? 0.5 : 1) * dt * 1.35 + 0.5;
   const dx = inp.x - p.x, dy = inp.y - p.y, d = Math.hypot(dx, dy);
   if (d > 0) { const k = Math.min(1, max / d); p.x += dx * k; p.y += dy * k; }
@@ -818,11 +852,7 @@ function planPath(b, zoneMode) {
   const ai = b.ai, pts = [];
   let P;
   const inB = buildingAt(b.x, b.y);
-  if (inPrison(b)) {
-    const gx = b.x < CX ? GATE_L : GATE_R;
-    pts.push({ x: clamp(b.x, PX + 830, PX + 1570), y: CORR_Y }, { x: gx, y: CORR_Y }, { x: gx, y: YN });
-    P = { x: gx, y: YN, lane: 'h' };
-  } else if (inB) { pts.push(inB.inPt, inB.outPt); P = inB.outPt; }
+  if (inB) { pts.push(inB.inPt, inB.outPt); P = inB.outPt; }
   else { P = snapLane(b.x, b.y); pts.push(P); }
   const tb = chooseBuilding(b, zoneMode, inB);
   if (tb) {
@@ -1203,7 +1233,7 @@ function snapMe(p) {
 function match() { return G; }
 
 return {
-  TAU, COLS, ROWS, XL, YL, XN, YN, CITY, CX, CY, PRISON, PX, PY, CORR_Y, WORLD, GATE_L, GATE_R, MAX_PLAYERS, LOCKDOWN, SPEED,
+  TAU, COLS, ROWS, XL, YL, XN, YN, CITY, CX, CY, DUNE, WORLD, MAX_PLAYERS, LOCKDOWN, SPEED, SCHEME,
   WEAPONS, ITEMS, CREWS, SHOPS, PHASES, GRENADE, BLAST_CORE, DROPS, DROP_FALL, ZW, MALL, ZMAX, ZOMBIE, ZSPAWNS,
   clamp, dist, angDiff, lerpAngle, darken, inRect, badName,
   buildWorld, setDoors, cellWalls, solidAt, blocksSight, pushOut,

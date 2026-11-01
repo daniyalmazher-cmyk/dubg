@@ -364,11 +364,11 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
         <div>
           <div class="logo">DUBG</div>
           <div class="sub">Dawg Unknown Battle Ground</div>
-          <div class="spray">this city got no rules</div>
+          <div class="spray">welcome to the dunes</div>
         </div>
         <button id="settingsBtn" class="ghost" type="button">Settings</button>
       </div>
-      <div class="pitch" id="pitch">30 dawgs locked up in county. The power cuts out. Last dawg standing runs the city.</div>
+      <div class="pitch" id="pitch">30 dawgs out on the dunes round a desert town. Run in, loot the houses, last dawg standing takes the dunes.</div>
       <div class="cols">
         <div class="col">
           <div>
@@ -401,9 +401,9 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
         <div>Survive<span>Every 5th wave a boss comes</span></div>
       </div>
       <div class="flow" id="flowBR">
-        <div>Locked up<span>Everyone starts in a cell</span></div>
-        <div>Break out<span>Doors open, hit the streets</span></div>
-        <div>Hit the shops<span>Neon sign means open. Boarded means sealed.</span></div>
+        <div>On the dunes<span>Everyone starts out in the sand</span></div>
+        <div>Run for town<span>The countdown ends, go</span></div>
+        <div>Loot the houses<span>Open doors have loot. Barred gates are sealed.</span></div>
         <div>Survive<span>Stay inside the circle</span></div>
       </div>
       <div class="note touchHelp">Left thumb moves. Right thumb aims, and pushing it all the way out shoots (or switch to fire buttons in Settings). Tap a gun at the bottom to hold it, tap it again to put it away. The red cross heals. Hold the grenade and drag to aim, let go to throw. In Zombies, hold the board-up prompt at a doorway. Tap the alive counter to see every player.</div>
@@ -515,7 +515,7 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
 (() => {
 'use strict';
 const D = window.DUBG;
-const { TAU, WEAPONS, ITEMS, SHOPS, CREWS, WORLD, PRISON, CITY, PX, PY, CORR_Y, GATE_L, GATE_R, CX, CY, YN, SPEED, clamp, dist, angDiff, darken, inRect } = D;
+const { TAU, WEAPONS, ITEMS, SHOPS, CREWS, WORLD, CITY, CX, CY, SPEED, clamp, dist, angDiff, darken, inRect } = D;
 const cv = document.getElementById('game'), ctx = cv.getContext('2d');
 const mini = document.getElementById('mini'), mctx = mini.getContext('2d');
 const $ = id => document.getElementById(id);
@@ -524,8 +524,10 @@ const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;',
 function rrect(c, x, y, w, h, r) { c.beginPath(); if (c.roundRect) c.roundRect(x, y, w, h, r); else c.rect(x, y, w, h); }
 
 const C = {
-  dirt: '#26251f', speck: '#2d2c25', asphalt: '#1d1e20', lane: 'rgba(214,180,70,.2)', side: '#3a3936', lot: '#2b2720', alley: '#2a2a28',
-  path: '#33322b', wall: '#121314', wallTop: '#34373b', concrete: '#4a4e50', cell: '#3b3e40', corridor: '#53575a',
+  wall: '#121314', wallTop: '#34373b',   // the zombie mall
+  // Desert Dunes
+  sand: '#d8b886', speck: '#c9a571', street: '#c7a173', rut: 'rgba(120,82,46,.22)', pave: '#b38c66', yard: '#bf9a70', plaza: '#cfae80',
+  adobe: '#9a6646', adobeTop: '#e2b48a',
 };
 
 let DPR = 1, VW = 0, VH = 0, ZOOM = 1;
@@ -542,10 +544,11 @@ function resize() {
 
 // ---------- client match state ----------
 let walls, buildings, boarded, trees, blocks, doors, cars, cells, specks, lights, cracks, potholes, puddles, patches, manholes, trash, tags, tires;
+let props, dunes, pools;
 let stores, barricades, blood, roads, pits;
 let M = null;
 function loadWorld(seed, mode) {
-  ({ walls, buildings, boarded, trees, blocks, doors, cars, cells, specks, lights, cracks, potholes, puddles, patches, manholes, trash, tags, tires, stores, barricades, blood, roads, pits } = D.buildWorld(seed, mode));
+  ({ walls, buildings, boarded, trees, blocks, doors, cars, cells, specks, lights, cracks, potholes, puddles, patches, manholes, trash, tags, tires, stores, barricades, blood, roads, pits, props, dunes, pools } = D.buildWorld(seed, mode));
 }
 function newState(state, seed, mode) {
   loadWorld(seed, mode);
@@ -791,7 +794,7 @@ function update(dt) {
     let my = (keys.KeyS || keys.ArrowDown ? 1 : 0) - (keys.KeyW || keys.ArrowUp ? 1 : 0);
     let m = Math.hypot(mx, my), push = 1;
     if (touch.move) { const tm = Math.hypot(touch.move.x, touch.move.y); if (tm > 0.15) { mx = touch.move.x; my = touch.move.y; m = tm; push = Math.min(1, tm / 0.6); } }
-    if (m) { const sp = SPEED * push * (md && md.h ? 0.5 : 1); M.local.x += mx / m * sp * dt; M.local.y += my / m * sp * dt; }
+    if (m && M.state !== 'lockdown') { const sp = SPEED * push * (md && md.h ? 0.5 : 1); M.local.x += mx / m * sp * dt; M.local.y += my / m * sp * dt; }
     D.pushOut(M.local);
     me.x = M.local.x; me.y = M.local.y;
     if (touch.on) {
@@ -876,7 +879,8 @@ function drawFog(o) {
   if (fog.width !== cv.width || fog.height !== cv.height) { fog.width = cv.width; fog.height = cv.height; }
   fctx.setTransform(1, 0, 0, 1, 0, 0); fctx.globalCompositeOperation = 'source-over';
   fctx.clearRect(0, 0, fog.width, fog.height);
-  fctx.fillStyle = 'rgba(3,4,6,.93)'; fctx.fillRect(0, 0, fog.width, fog.height);
+  // night in the zombie mall; on the dunes it's daytime, so what you can't see is shade, not black
+  fctx.fillStyle = M.mode === 'zombie' ? 'rgba(3,4,6,.93)' : 'rgba(46,28,14,.66)'; fctx.fillRect(0, 0, fog.width, fog.height);
   const z = ZOOM, cam = M.cam;
   fctx.setTransform(DPR * z, 0, 0, DPR * z, DPR * (VW / 2 - cam.x * z), DPR * (VH / 2 - cam.y * z));
   fctx.globalCompositeOperation = 'destination-out';
@@ -890,81 +894,60 @@ function drawFog(o) {
 }
 
 function drawWorld() {
-  ctx.fillStyle = C.dirt; ctx.fillRect(-600, -600, WORLD.w + 1200, WORLD.h + 1200);
+  ctx.fillStyle = C.sand; ctx.fillRect(-600, -600, WORLD.w + 1200, WORLD.h + 1200);
+  // dune ridges: a shadowed side and a sunlit crest
+  for (const d of dunes) {
+    if (!inView(d.x - d.rx, d.y - d.rx, d.rx * 2, d.rx * 2)) continue;
+    ctx.fillStyle = 'rgba(150,100,55,.16)'; ctx.beginPath(); ctx.ellipse(d.x, d.y + d.ry * 0.35, d.rx, d.ry, d.a, 0, TAU); ctx.fill();
+    ctx.fillStyle = 'rgba(255,238,205,.2)'; ctx.beginPath(); ctx.ellipse(d.x, d.y - d.ry * 0.2, d.rx * 0.8, d.ry * 0.5, d.a, 0, TAU); ctx.fill();
+  }
   ctx.fillStyle = C.speck;
   for (const s of specks) if (inView(s.x - 8, s.y - 8, 16, 16)) { ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, TAU); ctx.fill(); }
-  ctx.fillStyle = C.asphalt; ctx.fillRect(CITY.x, CITY.y, CITY.w, CITY.h);
-  ctx.fillStyle = C.path; ctx.fillRect(GATE_L - 30, YN + 35, 60, CORR_Y + 30 - YN - 35); ctx.fillRect(GATE_R - 30, YN + 35, 60, CORR_Y + 30 - YN - 35);
-  for (const d of patches) if (inView(d.x, d.y, d.w, d.h)) { ctx.fillStyle = d.c; ctx.fillRect(d.x, d.y, d.w, d.h); }
-  for (const q of puddles) if (inView(q.x - q.rx, q.y - q.rx, q.rx * 2, q.rx * 2)) {
-    ctx.fillStyle = 'rgba(60,78,105,.32)'; ctx.beginPath(); ctx.ellipse(q.x, q.y, q.rx, q.ry, q.a, 0, TAU); ctx.fill();
-    ctx.fillStyle = 'rgba(150,180,220,.1)'; ctx.beginPath(); ctx.ellipse(q.x - q.rx * 0.2, q.y - q.ry * 0.2, q.rx * 0.5, q.ry * 0.35, q.a, 0, TAU); ctx.fill();
-  }
-  for (const q of potholes) if (inView(q.x - 14, q.y - 14, 28, 28)) {
-    ctx.fillStyle = '#0f1011'; ctx.beginPath(); ctx.ellipse(q.x, q.y, q.rx, q.ry, q.a, 0, TAU); ctx.fill();
-    ctx.strokeStyle = 'rgba(120,120,115,.15)'; ctx.lineWidth = 1.5; ctx.stroke();
-  }
-  ctx.strokeStyle = 'rgba(0,0,0,.6)'; ctx.lineWidth = 1.4; ctx.beginPath();
+  // packed-sand streets with wheel ruts
+  ctx.fillStyle = C.street; ctx.fillRect(CITY.x, CITY.y, CITY.w, CITY.h);
+  for (const d of patches) if (inView(d.x, d.y, d.w, d.h)) { ctx.fillStyle = d.c; ctx.beginPath(); ctx.ellipse(d.x + d.w / 2, d.y + d.h / 2, d.w / 2, d.h / 2, 0, 0, TAU); ctx.fill(); }
+  for (const q of potholes) if (inView(q.x - 14, q.y - 14, 28, 28)) { ctx.fillStyle = 'rgba(110,74,40,.45)'; ctx.beginPath(); ctx.ellipse(q.x, q.y, q.rx, q.ry, q.a, 0, TAU); ctx.fill(); }
+  ctx.strokeStyle = 'rgba(110,74,40,.35)'; ctx.lineWidth = 1.2; ctx.beginPath();
   for (const c of cracks) { if (!inView(c.x - 120, c.y - 120, 240, 240)) continue; ctx.moveTo(c.pts[0], c.pts[1]); for (let i = 2; i < c.pts.length; i += 2) ctx.lineTo(c.pts[i], c.pts[i + 1]); }
   ctx.stroke();
-  ctx.save(); ctx.strokeStyle = C.lane; ctx.lineWidth = 3; ctx.setLineDash([22, 26]); ctx.beginPath();
-  for (const y of D.YL) { ctx.moveTo(CITY.x, y); ctx.lineTo(CITY.x + CITY.w, y); }
-  for (const x of D.XL) { ctx.moveTo(x, CITY.y); ctx.lineTo(x, CITY.y + CITY.h); }
+  ctx.save(); ctx.strokeStyle = C.rut; ctx.lineWidth = 4; ctx.setLineDash([60, 18]); ctx.beginPath();
+  for (const y of D.YL) for (const o of [-12, 12]) { ctx.moveTo(CITY.x, y + o); ctx.lineTo(CITY.x + CITY.w, y + o); }
+  for (const x of D.XL) for (const o of [-12, 12]) { ctx.moveTo(x + o, CITY.y); ctx.lineTo(x + o, CITY.y + CITY.h); }
   ctx.stroke(); ctx.restore();
-  for (const m of manholes) if (inView(m.x - 12, m.y - 12, 24, 24)) {
-    ctx.fillStyle = '#29292a'; ctx.beginPath(); ctx.arc(m.x, m.y, 10, 0, TAU); ctx.fill();
-    ctx.strokeStyle = '#3c3c3d'; ctx.lineWidth = 1.5; ctx.stroke(); ctx.beginPath(); ctx.moveTo(m.x - 7, m.y); ctx.lineTo(m.x + 7, m.y); ctx.moveTo(m.x, m.y - 7); ctx.lineTo(m.x, m.y + 7); ctx.stroke();
-  }
+  // blocks: a paved edge round a yard, or a tiled square
   for (const k of blocks) {
     if (!inView(k.x, k.y, k.w, k.h)) continue;
-    ctx.fillStyle = C.side; ctx.fillRect(k.x, k.y, k.w, k.h);
-    ctx.strokeStyle = 'rgba(0,0,0,.45)'; ctx.lineWidth = 2; ctx.strokeRect(k.x + 1, k.y + 1, k.w - 2, k.h - 2);
-    ctx.fillStyle = k.park ? C.lot : C.alley; ctx.fillRect(k.x + 7, k.y + 7, k.w - 14, k.h - 14);
-  }
-  for (const t of tires) if (inView(t.x - 10, t.y - 10, 20, 20)) { ctx.strokeStyle = '#121212'; ctx.lineWidth = 5; ctx.beginPath(); ctx.arc(t.x, t.y, 7, 0, TAU); ctx.stroke(); }
-  for (const d of trash) if (inView(d.x - 6, d.y - 6, 12, 12)) {
-    ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.a); ctx.fillStyle = d.c; ctx.globalAlpha = 0.7; ctx.fillRect(-d.w / 2, -d.h / 2, d.w, d.h); ctx.restore();
-  }
-  for (const t of tags) {
-    if (!inView(t.x - 120, t.y - 40, 240, 80)) continue;
-    ctx.save(); ctx.translate(t.x, t.y); ctx.rotate(t.a); ctx.globalAlpha = 0.55;
-    ctx.font = `${t.size}px "Permanent Marker", cursive`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillText(t.text, 2, 2); ctx.fillStyle = t.c; ctx.fillText(t.text, 0, 0);
-    ctx.restore();
-  }
-  const P = PRISON;
-  if (inView(P.x, P.y, P.w, P.h)) {
-    ctx.fillStyle = C.concrete; ctx.fillRect(P.x, P.y, P.w, P.h);
-    ctx.fillStyle = C.corridor; ctx.fillRect(P.x, PY + 2074, P.w, 172);
-    ctx.fillStyle = 'rgba(242,194,48,.5)'; ctx.fillRect(PX + 825, PY + 2082, 750, 3); ctx.fillRect(PX + 825, PY + 2237, 750, 3);
-    ctx.save(); ctx.font = '44px "Black Ops One", Impact, sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.07)'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText('CELL BLOCK D', PX + 1200, CORR_Y);
-    ctx.font = '30px "Permanent Marker", cursive'; ctx.fillStyle = 'rgba(255,122,26,.35)'; ctx.translate(PX + 1450, PY + 2205); ctx.rotate(-0.12); ctx.fillText('DAWGZ', 0, 0);
-    ctx.restore();
-    for (const c of cells) {
-      ctx.fillStyle = C.cell; ctx.fillRect(c.x - 22, PY + (c.top ? 1994 : 2252), 44, 74);
-      ctx.fillStyle = '#5d6165'; ctx.fillRect(c.x + 6, PY + (c.top ? 1998 : 2288), 13, 34);
-      ctx.fillStyle = '#7c8084'; ctx.fillRect(c.x + 8, PY + (c.top ? 2000 : 2290), 9, 8);
-      ctx.fillStyle = '#9a9ea2'; ctx.fillRect(c.x - 18, PY + (c.top ? 2000 : 2312), 8, 8);
+    ctx.fillStyle = C.pave; ctx.fillRect(k.x, k.y, k.w, k.h);
+    ctx.fillStyle = k.park ? C.plaza : C.yard; ctx.fillRect(k.x + 7, k.y + 7, k.w - 14, k.h - 14);
+    if (k.park) {
+      ctx.strokeStyle = 'rgba(140,96,60,.25)'; ctx.lineWidth = 1; ctx.beginPath();
+      for (let x = k.x + 7; x < k.x + k.w - 7; x += 24) { ctx.moveTo(x, k.y + 7); ctx.lineTo(x, k.y + k.h - 7); }
+      for (let y = k.y + 7; y < k.y + k.h - 7; y += 24) { ctx.moveTo(k.x + 7, y); ctx.lineTo(k.x + k.w - 7, y); }
+      ctx.stroke();
     }
   }
+  // oasis pools
+  for (const p of pools) {
+    if (!inView(p.x - p.rx - 20, p.y - p.ry - 20, p.rx * 2 + 40, p.ry * 2 + 40)) continue;
+    ctx.fillStyle = '#a88a62'; ctx.beginPath(); ctx.ellipse(p.x, p.y, p.rx + 8, p.ry + 8, 0, 0, TAU); ctx.fill();
+    const g = ctx.createRadialGradient(p.x, p.y, 4, p.x, p.y, p.rx);
+    g.addColorStop(0, '#2f8fa0'); g.addColorStop(1, '#4fb6b0');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.ellipse(p.x, p.y, p.rx, p.ry, 0, 0, TAU); ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.25)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(p.x - 10, p.y - 6, p.rx * 0.5, p.ry * 0.35, 0, 3.6, 5.6); ctx.stroke();
+  }
+  for (const d of trash) if (inView(d.x - 6, d.y - 6, 12, 12)) {
+    ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.a); ctx.fillStyle = d.c; ctx.globalAlpha = 0.6; ctx.fillRect(-d.w / 2, -d.h / 2, d.w, d.h); ctx.restore();
+  }
+  // house floors, with rugs
   for (const b of buildings) {
     if (!inView(b.x, b.y, b.w, b.h)) continue;
     ctx.fillStyle = b.floor; ctx.fillRect(b.x, b.y, b.w, b.h);
-    ctx.strokeStyle = 'rgba(0,0,0,.18)'; ctx.lineWidth = 1; ctx.beginPath();
-    for (let x = b.x + 16; x < b.x + b.w; x += 16) { ctx.moveTo(x, b.y); ctx.lineTo(x, b.y + b.h); }
+    ctx.strokeStyle = 'rgba(0,0,0,.12)'; ctx.lineWidth = 1; ctx.beginPath();
+    for (let x = b.x + 20; x < b.x + b.w; x += 20) { ctx.moveTo(x, b.y); ctx.lineTo(x, b.y + b.h); }
+    for (let y = b.y + 20; y < b.y + b.h; y += 20) { ctx.moveTo(b.x, y); ctx.lineTo(b.x + b.w, y); }
     ctx.stroke();
-    for (const d of b.decor) { ctx.fillStyle = d.c; ctx.fillRect(d.x, d.y, d.w, d.h); }
-    if (b.shop === 'gun') {
-      const back = b.side === 'top' ? 'bottom' : b.side === 'bottom' ? 'top' : b.side === 'left' ? 'right' : 'left';
-      ctx.fillStyle = '#1a1412';
-      if (back === 'bottom') ctx.fillRect(b.x + 14, b.y + b.h - 22, b.w - 28, 10);
-      else if (back === 'top') ctx.fillRect(b.x + 14, b.y + 12, b.w - 28, 10);
-      else if (back === 'right') ctx.fillRect(b.x + b.w - 22, b.y + 14, 10, b.h - 28);
-      else ctx.fillRect(b.x + 12, b.y + 14, 10, b.h - 28);
-      ctx.fillStyle = 'rgba(160,200,220,.18)'; ctx.fillRect(b.x + b.w / 2 - 30, b.y + b.h / 2 - 6, 60, 12);
-    }
-    ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(b.door.x, b.door.y, b.door.w, b.door.h);
+    for (const d of b.decor) { ctx.fillStyle = d.c; ctx.fillRect(d.x, d.y, d.w, d.h); ctx.strokeStyle = 'rgba(233,196,106,.7)'; ctx.lineWidth = 2; ctx.strokeRect(d.x + 3, d.y + 3, d.w - 6, d.h - 6); }
+    ctx.fillStyle = 'rgba(0,0,0,.25)'; ctx.fillRect(b.door.x, b.door.y, b.door.w, b.door.h);
   }
 }
 function drawCorpses() {
@@ -1129,12 +1112,14 @@ function drawItem(it) {
 
 function drawWalls() {
   ctx.fillStyle = 'rgba(0,0,0,.3)';
-  for (const w of walls) if (w.kind === 'wall' || w.kind === 'pwall') { if (inView(w.x, w.y, w.w + 5, w.h + 5)) ctx.fillRect(w.x + 4, w.y + 4, w.w, w.h); }
+  for (const w of walls) if (w.kind === 'wall') { if (inView(w.x, w.y, w.w + 5, w.h + 5)) ctx.fillRect(w.x + 4, w.y + 4, w.w, w.h); }
+  const desert = M.mode !== 'zombie';
   for (const w of walls) {
-    if (!inView(w.x - 4, w.y - 4, w.w + 8, w.h + 8)) continue;
-    if (w.kind === 'wall' || w.kind === 'pwall') {
-      ctx.fillStyle = C.wall; ctx.fillRect(w.x, w.y, w.w, w.h);
-      ctx.fillStyle = C.wallTop; if (w.w > w.h) ctx.fillRect(w.x, w.y, w.w, 2); else ctx.fillRect(w.x, w.y, 2, w.h);
+    if (!inView(w.x - 50, w.y - 50, w.w + 100, w.h + 100)) continue;
+    if (w.kind === 'prop') { drawProp(w); continue; }
+    if (w.kind === 'wall') {
+      ctx.fillStyle = desert ? C.adobe : C.wall; ctx.fillRect(w.x, w.y, w.w, w.h);
+      ctx.fillStyle = desert ? C.adobeTop : C.wallTop; if (w.w > w.h) ctx.fillRect(w.x, w.y, w.w, 2); else ctx.fillRect(w.x, w.y, 2, w.h);
     } else if (w.kind === 'fence') {
       ctx.fillStyle = 'rgba(150,158,165,.45)'; ctx.fillRect(w.x, w.y, w.w, w.h);
       ctx.fillStyle = '#7d848a';
@@ -1248,10 +1233,66 @@ function drawPlayer(p) {
   if (p.id === M.me) { ctx.strokeStyle = 'rgba(255,255,255,.7)'; ctx.lineWidth = 1.5; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.arc(p.x, p.y, 19, 0, TAU); ctx.stroke(); ctx.setLineDash([]); }
 }
 
+// Desert Dunes props seen from above: wells, stalls, crates, barrels, pots, rocks, cacti, tents and adobe walls
+function drawProp(w) {
+  const m = w.model, x = w.x, y = w.y, W = w.w, H = w.h, cx = w.cx, cy = w.cy;
+  ctx.fillStyle = 'rgba(70,40,20,.28)'; ctx.fillRect(x + 4, y + 5, W, H);
+  if (m === 'well') {
+    ctx.fillStyle = '#a87a5a'; ctx.fillRect(x, y, W, H); ctx.fillStyle = '#2e6f86'; ctx.fillRect(x + 9, y + 8, W - 18, H - 16);
+    ctx.fillStyle = 'rgba(181,88,58,.85)'; ctx.fillRect(x - 4, cy - 10, W + 8, 20);
+  } else if (m === 'market_stall') {
+    const n = 7, horiz = W > H;
+    for (let i = 0; i < n; i++) { ctx.fillStyle = i % 2 ? '#f0e4cd' : '#2a9d8f'; if (horiz) ctx.fillRect(x + i * W / n, y - 6, W / n + 0.5, H + 12); else ctx.fillRect(x - 6, y + i * H / n, W + 12, H / n + 0.5); }
+    ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1.5; if (horiz) ctx.strokeRect(x, y - 6, W, H + 12); else ctx.strokeRect(x - 6, y, W + 12, H);
+  } else if (m === 'crate') {
+    ctx.fillStyle = '#8a6a45'; ctx.fillRect(x, y, W, H); ctx.strokeStyle = '#4a3122'; ctx.lineWidth = 2; ctx.strokeRect(x + 1, y + 1, W - 2, H - 2);
+    ctx.beginPath(); ctx.moveTo(x + 2, y + 2); ctx.lineTo(x + W - 2, y + H - 2); ctx.moveTo(x + W - 2, y + 2); ctx.lineTo(x + 2, y + H - 2); ctx.stroke();
+  } else if (m === 'barrel') {
+    ctx.fillStyle = '#b5583a'; ctx.beginPath(); ctx.arc(cx, cy, W / 2, 0, TAU); ctx.fill(); ctx.strokeStyle = '#8d949a'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = '#7e3a25'; ctx.beginPath(); ctx.arc(cx, cy, W / 4, 0, TAU); ctx.fill();
+  } else if (m === 'pots') {
+    for (const [ox, oy, r] of [[-6, 0, 8], [7, -2, 6], [1, 5, 5]]) { ctx.fillStyle = '#b5583a'; ctx.beginPath(); ctx.arc(cx + ox, cy + oy, r, 0, TAU); ctx.fill(); ctx.fillStyle = '#5a2a1a'; ctx.beginPath(); ctx.arc(cx + ox, cy + oy, r * 0.45, 0, TAU); ctx.fill(); }
+  } else if (m === 'rocks_a' || m === 'rocks_b') {
+    const n = m === 'rocks_a' ? 4 : 3;
+    for (let i = 0; i < n; i++) {
+      const a = cx * 0.37 + cy * 0.11 + i * 2.1, r = (i ? 0.32 : 0.45) * Math.min(W, H), ox = i ? Math.cos(a) * W * 0.28 : 0, oy = i ? Math.sin(a) * H * 0.28 : 0;
+      ctx.save(); ctx.translate(cx + ox, cy + oy); ctx.rotate(a);
+      ctx.fillStyle = i % 2 ? '#9a6c4c' : '#c0906a'; ctx.fillRect(-r, -r * 0.8, r * 2, r * 1.6);
+      ctx.fillStyle = '#d6aa82'; ctx.fillRect(-r * 0.6, -r * 0.6, r * 1.1, r * 0.8); ctx.restore();
+    }
+  } else if (m === 'cactus') {
+    ctx.fillStyle = '#467a42'; rrect(ctx, cx - 6, cy - 6, 12, 12, 4); ctx.fill();
+    ctx.fillStyle = '#5f9b56'; rrect(ctx, cx - 5, cy - 5, 10, 10, 4); ctx.fill();
+    const horiz = W > H; ctx.fillStyle = '#5f9b56';
+    if (horiz) { ctx.fillRect(cx + 4, cy - 3, 9, 6); ctx.fillRect(cx - 12, cy - 3, 8, 6); } else { ctx.fillRect(cx - 3, cy + 4, 6, 9); ctx.fillRect(cx - 3, cy - 12, 6, 8); }
+    ctx.fillStyle = '#e27a9a'; ctx.beginPath(); ctx.arc(cx, cy, 2.5, 0, TAU); ctx.fill();
+  } else if (m === 'tent') {
+    const horiz = w.rot % 2 === 0, n = 6;
+    for (let i = 0; i < n; i++) { ctx.fillStyle = i % 2 ? '#f0e4cd' : '#c8463d'; if (horiz) ctx.fillRect(x + i * W / n, y, W / n + 0.5, H); else ctx.fillRect(x, y + i * H / n, W, H / n + 0.5); }
+    ctx.strokeStyle = '#4a3122'; ctx.lineWidth = 2.5; ctx.beginPath(); if (horiz) { ctx.moveTo(x - 3, cy); ctx.lineTo(x + W + 3, cy); } else { ctx.moveTo(cx, y - 3); ctx.lineTo(cx, y + H + 3); } ctx.stroke();
+    ctx.fillStyle = 'rgba(0,0,0,.12)'; if (horiz) ctx.fillRect(x, cy, W, H / 2); else ctx.fillRect(cx, y, W / 2, H);
+  } else if (m === 'wall') {
+    ctx.fillStyle = C.adobe; ctx.fillRect(x, y, W, H); ctx.fillStyle = C.adobeTop;
+    const horiz = W > H;
+    for (let k = 0; k < 5; k++) { if (horiz) ctx.fillRect(x + 4 + k * (W - 8) / 5, y + 2, (W - 8) / 10, H - 4); else ctx.fillRect(x + 2, y + 4 + k * (H - 8) / 5, W - 4, (H - 8) / 10); }
+  }
+}
+// a palm seen from above: fronds fanning out from the crown
+function drawPalm(tr) {
+  ctx.fillStyle = 'rgba(70,40,20,.25)'; ctx.beginPath(); ctx.arc(tr.x + 10, tr.y + 12, tr.r * 0.8, 0, TAU); ctx.fill();
+  for (let k = 0; k < 9; k++) {
+    const a = tr.a + k * TAU / 9, ex = tr.x + Math.cos(a) * tr.r, ey = tr.y + Math.sin(a) * tr.r, px = -Math.sin(a) * 7, py = Math.cos(a) * 7;
+    ctx.fillStyle = k % 2 ? '#3a7a3e' : '#4f9a4a';
+    ctx.beginPath(); ctx.moveTo(tr.x, tr.y); ctx.lineTo(tr.x + Math.cos(a) * tr.r * 0.5 + px, tr.y + Math.sin(a) * tr.r * 0.5 + py); ctx.lineTo(ex, ey); ctx.lineTo(tr.x + Math.cos(a) * tr.r * 0.5 - px, tr.y + Math.sin(a) * tr.r * 0.5 - py); ctx.closePath(); ctx.fill();
+  }
+  ctx.fillStyle = '#8a6a45'; ctx.beginPath(); ctx.arc(tr.x, tr.y, 7, 0, TAU); ctx.fill();
+  ctx.fillStyle = '#4a3122'; for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.arc(tr.x + Math.cos(tr.a + k * 2.1) * 5, tr.y + Math.sin(tr.a + k * 2.1) * 5, 2.6, 0, TAU); ctx.fill(); }
+}
 function drawRoof(b, alpha) {
   if (!inView(b.x - 8, b.y - 8, b.w + 16, b.h + 16) || alpha < 0.01) return;
   ctx.globalAlpha = alpha;
   ctx.fillStyle = 'rgba(0,0,0,.4)'; ctx.fillRect(b.x + 3, b.y + 6, b.w + 4, b.h + 4);
+  if (b.model) { drawDesertRoof(b); ctx.globalAlpha = 1; return; }
   ctx.fillStyle = b.roof; ctx.fillRect(b.x - 4, b.y - 4, b.w + 8, b.h + 8);
   ctx.strokeStyle = 'rgba(0,0,0,.3)'; ctx.lineWidth = 2; ctx.beginPath();
   if (b.w >= b.h) { const my = b.y + b.h / 2; ctx.moveTo(b.x - 4, my); ctx.lineTo(b.x + b.w + 4, my); for (let x = b.x + 14; x < b.x + b.w; x += 18) { ctx.moveTo(x, b.y - 4); ctx.lineTo(x, b.y + b.h + 4); } }
@@ -1273,6 +1314,25 @@ function drawRoof(b, alpha) {
   ctx.globalAlpha = 1;
 }
 
+// flat roofs behind a parapet, with the domes, towers and water tanks the 3D models have
+function drawDesertRoof(b) {
+  const x = b.x - 4, y = b.y - 4, w = b.w + 8, h = b.h + 8, cx = b.x + b.w / 2, cy = b.y + b.h / 2, m = b.model;
+  ctx.fillStyle = b.roof; ctx.fillRect(x, y, w, h);
+  ctx.fillStyle = '#8f4a33'; ctx.fillRect(x + 8, y + 8, w - 16, h - 16);
+  ctx.strokeStyle = 'rgba(0,0,0,.2)'; ctx.lineWidth = 2; ctx.strokeRect(x + 8, y + 8, w - 16, h - 16);
+  const dome = (dx, dy, r, c) => {
+    for (let i = 0; i < 4; i++) { ctx.fillStyle = i % 2 ? darken(c, 0.85) : c; const s = r * (1 - i * 0.22); ctx.fillRect(dx - s, dy - s, s * 2, s * 2); }
+    ctx.fillStyle = '#e9c46a'; ctx.beginPath(); ctx.arc(dx, dy, 3, 0, TAU); ctx.fill();
+  };
+  const tank = (dx, dy) => { ctx.fillStyle = '#8d949a'; ctx.fillRect(dx - 10, dy - 10, 20, 20); ctx.fillStyle = '#f0e4cd'; ctx.beginPath(); ctx.arc(dx, dy, 8, 0, TAU); ctx.fill(); };
+  if (m === 'solid_big') { dome(cx - 20, cy - 10, 50, '#2a9d8f'); ctx.fillStyle = '#d9a37b'; const r = b.rot; ctx.fillRect(r === 2 || r === 3 ? x + 4 : x + w - 36, r === 0 || r === 3 ? y + 4 : y + h - 36, 32, 32); dome(r === 2 || r === 3 ? x + 20 : x + w - 20, r === 0 || r === 3 ? y + 20 : y + h - 20, 14, '#3b6fb6'); }
+  else if (m === 'solid_tower') dome(cx, cy, Math.min(w, h) * 0.4, '#f0e4cd');
+  else if (m === 'solid_minaret') { ctx.fillStyle = '#ece2d0'; ctx.fillRect(cx - 4, cy - 4, 30, 30); dome(cx + 11, cy + 11, 14, '#3b6fb6'); }
+  else if (m === 'solid_half') { for (let i = 0; i < 3; i++) { ctx.fillStyle = '#6b4a32'; ctx.fillRect(cx + 30 + i * 16 - 40, cy - 8, 14, 14); } tank(cx - 60 * (b.w > b.h ? 1 : 0), cy - 60 * (b.w > b.h ? 0 : 1)); }
+  else if (b.size === 'big') { dome(cx, cy + 10, 50, b.dome); tank(x + 30, y + 30); }
+  else if (b.size === 'half') { const horiz = b.w > b.h; dome(horiz ? cx - 60 : cx, horiz ? cy : cy - 60, 28, b.dome); tank(horiz ? cx + 70 : cx, horiz ? cy : cy + 70); }
+  else dome(cx, cy, Math.min(w, h) * 0.33, b.dome);
+}
 function drawLights(t) {
   ctx.save(); ctx.globalCompositeOperation = 'lighter';
   for (const l of lights) {
@@ -1366,6 +1426,7 @@ function render(dt) {
   for (const b of boarded) drawRoof(b, 1);
   for (const tr of trees) {
     if (!inView(tr.x - tr.r, tr.y - tr.r, tr.r * 2, tr.r * 2)) continue;
+    if (tr.palm) { drawPalm(tr); continue; }
     ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.beginPath(); ctx.arc(tr.x + 5, tr.y + 7, tr.r * 0.8, 0, TAU); ctx.fill();
     ctx.strokeStyle = '#46392d'; ctx.lineCap = 'round';
     for (let k = 0; k < 6; k++) {
@@ -1389,8 +1450,8 @@ function render(dt) {
     ctx.restore();
   }
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  ctx.fillStyle = 'rgba(16,24,48,.16)'; ctx.fillRect(0, 0, VW, VH);
-  if (!calm) {
+  ctx.fillStyle = M.mode === 'zombie' ? 'rgba(16,24,48,.16)' : 'rgba(255,160,80,.06)'; ctx.fillRect(0, 0, VW, VH);
+  if (!calm && M.mode === 'zombie') {
     ctx.strokeStyle = 'rgba(170,190,225,.2)'; ctx.lineWidth = 1; ctx.beginPath();
     for (const r of rain) {
       r.y += dt * 1.5 * r.s; r.x += dt * 0.22 * r.s;
@@ -1477,12 +1538,13 @@ function buildMiniBase() {
     c.fillStyle = 'rgba(130,170,60,.5)'; for (const p of pits) { c.beginPath(); c.arc(p.x * s, p.y * s, 110 * s, 0, TAU); c.fill(); }
     return;
   }
-  c.fillStyle = C.dirt; c.fillRect(0, 0, S, S);
-  c.fillStyle = C.asphalt; c.fillRect(CITY.x * s, CITY.y * s, CITY.w * s, CITY.h * s);
-  for (const k of blocks) { c.fillStyle = k.park ? '#3a3328' : C.side; c.fillRect(k.x * s, k.y * s, k.w * s, k.h * s); }
-  c.fillStyle = '#444'; for (const b of boarded) c.fillRect(b.x * s, b.y * s, b.w * s, b.h * s);
+  c.fillStyle = C.sand; c.fillRect(0, 0, S, S);
+  c.fillStyle = C.street; c.fillRect(CITY.x * s, CITY.y * s, CITY.w * s, CITY.h * s);
+  for (const k of blocks) { c.fillStyle = k.park ? C.plaza : C.pave; c.fillRect(k.x * s, k.y * s, k.w * s, k.h * s); }
+  c.fillStyle = '#4fb6b0'; for (const p of pools) { c.beginPath(); c.ellipse(p.x * s, p.y * s, p.rx * s, p.ry * s, 0, 0, TAU); c.fill(); }
+  c.fillStyle = '#8a5a3c'; for (const b of boarded) c.fillRect(b.x * s, b.y * s, b.w * s, b.h * s);
   for (const b of buildings) { c.fillStyle = b.shop === 'gun' ? SHOPS.gun.color : darken(SHOPS[b.shop].color, 0.55); c.fillRect(b.x * s, b.y * s, b.w * s, b.h * s); }
-  c.fillStyle = '#6d7275'; c.fillRect(PRISON.x * s, PRISON.y * s, PRISON.w * s, PRISON.h * s);
+  c.fillStyle = '#9a6c4c'; for (const w of props) if (w.model.startsWith('rocks')) c.fillRect(w.x * s, w.y * s, Math.max(1, w.w * s), Math.max(1, w.h * s));
 }
 function drawMini() {
   const S = mini.width, s = S / Math.max(WORLD.w, WORLD.h);
@@ -1530,7 +1592,7 @@ function updateHud() {
   const pe = $('ping'); setText(pe, net.ping ? String(net.ping) : '--'); pe.className = !net.ping ? '' : net.ping < 90 ? 'good' : net.ping < 160 ? 'ok' : 'bad';
   if (M.mode === 'zombie') zombieHud(me); else zoneHud(me, z);
   let center = '';
-  if (M.state === 'lockdown') center = `<small>Power failure in Cell Block D</small>Doors open in ${Math.ceil(M.lockT)}`;
+  if (M.state === 'lockdown') center = `<small>Desert Dunes</small>Go in ${Math.ceil(M.lockT)}`;
   else if (M.msgT > 0) center = M.msg;
   else if ((!me || !me.alive) && M.spec && M.spec.alive && $('endScreen').hidden) center = `<small>Spectating</small>${esc(M.spec.name)}`;
   setHtml($('center'), center);
@@ -1549,7 +1611,7 @@ function zoneHud(me, z) {
   const ph = z.next && D.PHASES.find(p => p.r === z.next.r);
   const total = phase === 'lock' ? D.LOCKDOWN : ph ? (phase === 'wait' ? ph.wait : ph.shrink) : left;
   const out = M.state === 'live' && me && me.alive && Math.hypot(me.x - z.cur.x, me.y - z.cur.y) > z.cur.r;
-  const lbl = out ? 'Outside zone!' : phase === 'lock' ? 'Doors open' : phase === 'wait' ? 'Zone shrinks' : phase === 'shrink' ? 'Zone closing' : phase === 'final' ? 'Final zone' : 'Match over';
+  const lbl = out ? 'Outside zone!' : phase === 'lock' ? 'Match starts' : phase === 'wait' ? 'Zone shrinks' : phase === 'shrink' ? 'Zone closing' : phase === 'final' ? 'Final zone' : 'Match over';
   const timed = phase === 'lock' || phase === 'wait' || phase === 'shrink';
   setText($('zoneLbl'), lbl); setText($('zoneTime'), timed ? fmtTime(left) : '');
   $('zoneFill').style.width = (timed ? (1 - left / Math.max(total, left, 0.001)) * 100 : 100) + '%';
@@ -1617,7 +1679,7 @@ function showEnd() {
   if (M.mode === 'zombie') return zombieEnd(me, over);
   $('endTitle').textContent = won ? 'Top Dawg!' : me ? 'Eliminated' : `${W ? W.name : 'Nobody'} won`;
   $('endTitle').className = 'big ' + (won ? 'win' : me ? 'lose' : 'win');
-  $('endLine').textContent = won ? 'Last dawg standing. The city is yours.'
+  $('endLine').textContent = won ? 'Last dawg standing. The dunes are yours.'
     : !me ? 'Match over.'
     : `Taken out by ${M.death ? M.death.by : 'someone'}.` + (over && W ? ` ${W.name} won the match.` : '');
   $('endRes').hidden = !me;
@@ -1820,7 +1882,7 @@ function playerName() {
 let MODE = 'br';
 try { if (localStorage.getItem('dubg-mode') === 'zombie') MODE = 'zombie'; } catch (e) {}
 const PITCH = {
-  br: '30 dawgs locked up in county. The power cuts out. Last dawg standing runs the city.',
+  br: '30 dawgs out on the dunes round a desert town. Run in, loot the houses, last dawg standing takes the dunes.',
   zombie: 'The dead took the city. Your crew holds the old mall. Board up the doors and see how many waves you last.',
 };
 function setMode(m) {
