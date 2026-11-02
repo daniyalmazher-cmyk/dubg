@@ -18,7 +18,7 @@ const QUEUE_WAIT = (+process.env.QUEUE_WAIT || 20) * 1000;   // start with whoev
 const MAX_MATCHES = +process.env.MAX_MATCHES || 12;          // keep a small server from being overloaded
 const MODES = { br: { size: QUEUE_SIZE, max: D.MAX_PLAYERS }, zombie: { size: D.ZMAX, max: D.ZMAX } };
 const modeOf = m => m === 'zombie' ? 'zombie' : 'br';
-const PRIZES = { 1: 10, 2: 5, 3: 3 };                       // Tonnies for the top three of a battle royale
+const PRIZES = { 1: 10, 2: 5, 3: 3 };                       // Tonnies for the top three of a public battle royale
 
 // ---------- static files ----------
 const FILES = {
@@ -171,9 +171,10 @@ function leaveMatch(c) {
   send(c, { t: 'ended' });
   if (m.room) roomUpdate(m.room);
 }
-// battle royale prizes: the top three real players get Tonnies, even if they've already left the match
+// battle royale prizes: the top three real players get Tonnies, even if they've already left the match.
+// Public matches only: a private room with bots would be an easy farm.
 function payPrizes(m) {
-  if (m.mode !== 'br') return;
+  if (m.mode !== 'br' || m.room) return;
   for (const p of m.E.match().players) {
     const prize = PRIZES[p.place], id = m.accounts[p.id];
     if (p.isBot || !prize || id == null) continue;
