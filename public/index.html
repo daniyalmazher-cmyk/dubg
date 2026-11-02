@@ -160,12 +160,12 @@ button:focus-visible{outline:3px solid var(--hazard);outline-offset:3px}
 .invSide{display:flex;flex-direction:column;gap:14px;min-width:0}
 #slotSeg{flex-wrap:wrap}
 .invGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
-.itm{display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;padding:10px;background:#0c0d0e;color:var(--text);border:1px solid var(--line);font-family:var(--body);font-weight:700;font-size:15px}
-.itm i{display:block;width:100%;height:34px;border:1px solid rgba(255,255,255,.12)}
+.itm{display:flex;flex-direction:column;align-items:flex-start;gap:4px;text-align:left;padding:8px 10px 10px;background:#0c0d0e;color:var(--text);border:1px solid var(--line);font-family:var(--body);font-weight:700;font-size:15px;line-height:1.15}
+.itm img,.itm i{display:block;width:100%;aspect-ratio:1;object-fit:contain;background:radial-gradient(circle at 50% 60%,#26231f,#141312 70%)}
 .itm small{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .itm.on{border-color:var(--orange);box-shadow:inset 0 0 0 1px var(--orange)}
 .itm.on small{color:var(--orange)}
-@media (max-height:560px){.avatarBox{height:170px}.invWrap .avatarBox{height:200px}.invWrap{grid-template-columns:170px 1fr}.itm i{height:22px}.itm{padding:7px;font-size:13px}}
+@media (max-height:560px){.avatarBox{height:170px}.invWrap .avatarBox{height:200px}.invWrap{grid-template-columns:170px 1fr}.invGrid{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}.itm{padding:6px;font-size:12px}}
 @media (max-width:620px){#homeScreen .cols{grid-template-columns:1fr}.invWrap{grid-template-columns:1fr}.avatarBox{height:200px}}
 .homeTop{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
@@ -1625,7 +1625,7 @@ try { acct.look = acct.name && D.cleanLook(JSON.parse(localStorage.getItem('dubg
 
 // ---------- outfit: the character on the home screen, and the inventory to change it ----------
 const avatarCv = document.createElement('canvas'); avatarCv.className = 'avatarCv';
-let invSlot = 'torso', invStart = '';
+let invSlot = 'torso', invStart = '', thumbs = null;
 // the preview canvas moves to whichever of the two screens is showing
 function syncAvatar() {
   if (!window.R3D) return;
@@ -1639,10 +1639,15 @@ function renderInv() {
   for (const b of $('slotSeg').children) b.classList.toggle('on', b.dataset.v === invSlot);
   $('invGrid').innerHTML = D.COSMETICS[invSlot].map(it => {
     const on = acct.look[invSlot] === it.id;
-    return `<button type="button" class="itm ${on ? 'on' : ''}" data-id="${it.id}" aria-pressed="${on}"><i style="background:${it.c}"></i>${esc(it.name)}<small>${on ? 'Wearing' : D.DEFAULT_LOOK[invSlot] === it.id ? 'Starter' : 'Wear'}</small></button>`;
+    const pic = thumbs && thumbs[invSlot + ':' + it.id];
+    return `<button type="button" class="itm ${on ? 'on' : ''}" data-id="${it.id}" aria-pressed="${on}">${pic ? `<img src="${pic}" alt="">` : '<i></i>'}${esc(it.name)}<small>${on ? 'Wearing' : D.DEFAULT_LOOK[invSlot] === it.id ? 'Starter' : 'Wear'}</small></button>`;
   }).join('');
 }
-$('invBtn').addEventListener('click', () => { invStart = JSON.stringify(acct.look); renderInv(); showScreen('invScreen'); });
+$('invBtn').addEventListener('click', () => {
+  invStart = JSON.stringify(acct.look); renderInv(); showScreen('invScreen');
+  // a picture of every item, drawn once from the 3D model
+  if (!thumbs && window.R3D) { thumbs = {}; R3D.preview.thumbs(D.SLOTS.flatMap(slot => D.COSMETICS[slot].map(it => ({ slot, id: it.id })))).then(t => { thumbs = t; renderInv(); }); }
+});
 $('slotSeg').addEventListener('click', e => { const v = e.target.dataset && e.target.dataset.v; if (v) { invSlot = v; renderInv(); } });
 $('invGrid').addEventListener('click', e => {
   const b = e.target.closest('.itm'); if (!b) return;

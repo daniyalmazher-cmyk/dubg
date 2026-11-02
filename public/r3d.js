@@ -544,7 +544,7 @@ function muzzle(P) { return P.muzzle || { x: P.x + Math.cos(P.ang) * 22, y: P.y 
 // A 10-bone rig with idle / walk / punch / heal / die clips, a head, and every outfit piece as its own skinned mesh
 // (DUBG_<area>_<item>). A player shows one piece per area. Pieces are coloured per vertex; their bare-skin parts use a
 // second material, so a player is two materials: their clothes and their skin.
-const CHAR_VERSION = 2;   // bump when the model changes: browsers keep models cached for a day
+const CHAR_VERSION = 3;   // bump when the model changes: browsers keep models cached for a day
 let charSrc = null;   // { scene, clips } once loaded; until then players use the box figure above
 const charWait = [];  // run once the model is in
 function loadCharacter() {
@@ -641,7 +641,38 @@ const preview = {
     if (!pv.on) { pv.on = true; pv.t = 0; requestAnimationFrame(previewFrame); }
   },
   hide() { pv.on = false; },
+  thumbs,
 };
+// pictures of single outfit pieces for the inventory tiles: [{ slot, id }] -> Promise of { 'slot:id': data URL }
+// (look-at point and camera direction per area, in model units; the model faces +Z)
+const SHOT = { head: [0, 5.05, 0, 4.6, [0.5, 0.25, 1]], torso: [0, 3.0, 0, 7, [0.45, 0.2, 1]], legs: [0, 1.3, 0, 6.6, [0.45, 0.25, 1]],
+  feet: [0, 0.45, 0.2, 4, [0.7, 0.45, 1]], hands: [1.15, 2.4, 0, 2.7, [0.9, 0.25, 0.75]] };   // the left hand: it has the watch
+function thumbs(list) {
+  return new Promise(res => {
+    const go = () => {
+      const cv = document.createElement('canvas'), out = {};
+      let r; try { r = new THREE.WebGLRenderer({ canvas: cv, alpha: true, antialias: true }); } catch (e) { res(out); return; }
+      r.setSize(160, 160, false); r.outputColorSpace = THREE.SRGBColorSpace;
+      const sc = new THREE.Scene(), cam = new THREE.PerspectiveCamera(30, 1, 0.1, 100);
+      sc.add(new THREE.HemisphereLight('#fff4e0', '#6b5a45', 2.2));
+      const sun = new THREE.DirectionalLight('#ffffff', 2.2); sun.position.set(4, 6, 8); sc.add(sun);
+      const fig = dressed({}, '#c68642', false); sc.add(fig.body);
+      const head = fig.body.getObjectByName('DUBG_Body');
+      for (const { slot, id } of list) {
+        fig.body.traverse(o => { const m = PIECE.exec(o.name); if (m) o.visible = m[1] === slot && m[2] === id; });
+        if (head) head.visible = slot === 'head';   // hats and masks need a head under them
+        const [x, y, z, d, dir] = SHOT[slot];
+        tmpV.set(...dir).normalize().multiplyScalar(d);
+        cam.position.set(x + tmpV.x, y + tmpV.y, z + tmpV.z); cam.lookAt(x, y, z);
+        r.render(sc, cam);
+        out[slot + ':' + id] = cv.toDataURL('image/png');
+      }
+      r.dispose(); r.forceContextLoss();
+      res(out);
+    };
+    if (charSrc) go(); else { charWait.push(go); loadCharacter(); }
+  });
+}
 const qA = new THREE.Quaternion(), qB = new THREE.Quaternion(), eA = new THREE.Euler(), wp = new THREE.Vector3();
 // switch one layer ('lo' legs, 'hi' upper body) to a clip
 function play(v, part, name, fade = 0.15) {

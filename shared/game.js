@@ -133,25 +133,26 @@ const SKINS = ['#8d5524', '#c68642', '#e0ac69', '#5c3a1e', '#f1c27d', '#3d2314',
 // c is the item's main colour, used for corpses and the box figure shown while the model loads.
 const COSMETICS = {
   head: [
-    { id: 'hair', name: 'Short hair', c: '#2a1a10' }, { id: 'cap', name: 'Red cap', c: '#b8322c' }, { id: 'beanie', name: 'Grey beanie', c: '#6b6e73' },
-    { id: 'cowboy', name: 'Desert hat', c: '#7d5a38' }, { id: 'wrap', name: 'Head wrap', c: '#e6dcc4' }, { id: 'bucket', name: 'Bucket hat', c: '#6c7a42' },
-    { id: 'phones', name: 'Headphones', c: '#26272b' },
+    { id: 'hair', name: 'Short hair', c: '#2a1a10' }, { id: 'cap', name: 'Baseball cap', c: '#1f2a3a' }, { id: 'beanie', name: 'Pom beanie', c: '#5e1d1d' },
+    { id: 'cowboy', name: 'Desert hat', c: '#7d5a38' }, { id: 'helmet', name: 'Moto helmet', c: '#c7372a' }, { id: 'gasmask', name: 'Gas mask', c: '#2d3029' },
+    { id: 'scarf', name: 'Dune scarf & goggles', c: '#d9c9a3' }, { id: 'bandit', name: 'Bandana & shades', c: '#b8322c' }, { id: 'phones', name: 'Headphones', c: '#26272b' },
   ],
   torso: [
-    { id: 'tee', name: 'White tee', c: '#ecebe6' }, { id: 'teeblack', name: 'Black tee', c: '#23242a' }, { id: 'hoodie', name: 'Grey hoodie', c: '#6b6e73' },
-    { id: 'tank', name: 'Olive tank top', c: '#5f6b3a' }, { id: 'denim', name: 'Denim jacket', c: '#3f5f8a' }, { id: 'track', name: 'Track jacket', c: '#b8322c' },
+    { id: 'tee', name: 'White tee', c: '#ecebe6' }, { id: 'hoodie', name: 'Hoodie', c: '#55585c' }, { id: 'leather', name: 'Leather jacket', c: '#1f1d1c' },
+    { id: 'puffer', name: 'Puffer jacket', c: '#e07a2a' }, { id: 'duster', name: 'Duster coat', c: '#8a6a44' }, { id: 'poncho', name: 'Poncho', c: '#b8322c' },
+    { id: 'tank', name: 'Tank top & tags', c: '#5f6b3a' },
   ],
   legs: [
-    { id: 'trousers', name: 'Brown trousers', c: '#6b4a2e' }, { id: 'jeans', name: 'Blue jeans', c: '#3a5378' }, { id: 'cargo', name: 'Cargo pants', c: '#a08a5c' },
-    { id: 'shorts', name: 'Black shorts', c: '#26272b' }, { id: 'joggers', name: 'Grey joggers', c: '#8a8d92' },
+    { id: 'trousers', name: 'Brown trousers', c: '#6b4a2e' }, { id: 'cargo', name: 'Tactical cargos', c: '#5f6b3a' }, { id: 'ripped', name: 'Ripped jeans', c: '#3a5378' },
+    { id: 'shorts', name: 'Shorts & tube socks', c: '#2f6b5e' }, { id: 'joggers', name: 'Joggers', c: '#8a8d92' },
   ],
   feet: [
-    { id: 'sneakers', name: 'White sneakers', c: '#ecebe6' }, { id: 'boots', name: 'Work boots', c: '#5a3a22' }, { id: 'hightops', name: 'Red high-tops', c: '#b8322c' },
-    { id: 'sandals', name: 'Sandals', c: '#6b4a2e' }, { id: 'desert', name: 'Desert boots', c: '#c2a26a' },
+    { id: 'sneakers', name: 'White sneakers', c: '#ecebe6' }, { id: 'combat', name: 'Combat boots', c: '#2b2b2b' }, { id: 'hightops', name: 'High-tops', c: '#b8322c' },
+    { id: 'cowboy', name: 'Cowboy boots', c: '#7a4a28' }, { id: 'sandals', name: 'Sandals', c: '#6b4a2e' },
   ],
   hands: [
-    { id: 'bare', name: 'No gloves', c: '#c68642' }, { id: 'black', name: 'Black gloves', c: '#1e1f22' }, { id: 'fingerless', name: 'Fingerless gloves', c: '#26272b' },
-    { id: 'work', name: 'Work gloves', c: '#c8a874' }, { id: 'wraps', name: 'Hand wraps', c: '#ecebe6' },
+    { id: 'bare', name: 'No gloves', c: '#c68642' }, { id: 'tactical', name: 'Tactical gloves', c: '#2f3326' }, { id: 'gauntlets', name: 'Work gauntlets', c: '#c8a874' },
+    { id: 'wraps', name: 'Fight wraps', c: '#ecebe6' }, { id: 'watch', name: 'Watch & bracelet', c: '#c9a24a' },
   ],
 };
 const SLOTS = ['head', 'torso', 'legs', 'feet', 'hands'];
