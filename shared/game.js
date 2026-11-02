@@ -131,7 +131,8 @@ const CREWS = [
 const SKINS = ['#8d5524', '#c68642', '#e0ac69', '#5c3a1e', '#f1c27d', '#3d2314', '#a86b3c'];
 // Cosmetics: one item per body area. Ids match the DUBG_<slot>_<id> pieces in public/models/dd_character.glb.
 // c is the item's main colour, used for corpses and the box figure shown while the model loads; r is its rarity;
-// set groups the pieces of a full outfit; locked items can be looked at and tried on but not worn yet.
+// set groups the pieces of a full outfit; locked items can be looked at and tried on but not worn yet;
+// hidesHead headwear replaces the whole head.
 // Every account starts with these; more items get added here (and to the model) later.
 const RARITY = {
   common: { name: 'Common', c: '#e8e6e0' }, uncommon: { name: 'Uncommon', c: '#3d8bff' },
@@ -140,7 +141,7 @@ const RARITY = {
 const COSMETICS = {
   head: [
     { id: 'hair', name: 'No headwear', c: '#2a1a10', r: 'common' },
-    { id: 'inferno', name: 'Inferno Skull', c: '#e8e2cf', r: 'ultra', set: 'Inferno Rider', locked: true },
+    { id: 'inferno', name: 'Inferno Skull', c: '#e8e2cf', r: 'ultra', set: 'Inferno Rider', locked: true, hidesHead: true },
   ],
   torso: [
     { id: 'tee', name: 'White tee', c: '#ecebe6', r: 'common' },
