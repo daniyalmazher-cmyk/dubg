@@ -544,7 +544,7 @@ function muzzle(P) { return P.muzzle || { x: P.x + Math.cos(P.ang) * 22, y: P.y 
 // A 10-bone rig with idle / walk / punch / heal / die clips, a head, and every outfit piece as its own skinned mesh
 // (DUBG_<area>_<item>). A player shows one piece per area. Pieces are coloured per vertex; their bare-skin parts use a
 // second material, so a player is two materials: their clothes and their skin.
-const CHAR_VERSION = 8;   // bump when the model changes: browsers keep models cached for a day
+const CHAR_VERSION = 9;   // bump when the model changes: browsers keep models cached for a day
 let charSrc = null;   // { scene, clips } once loaded; until then players use the box figure above
 const charWait = [];  // run once the model is in
 function loadCharacter() {
@@ -566,73 +566,9 @@ const PIECE = /^DUBG_(head|torso|legs|feet|hands)_([a-z]+)(_\d+)?$/;
 // headwear that replaces the whole head (a skull) hides the face under it
 const hidesHead = id => { const it = window.DUBG && DUBG.COSMETICS.head.find(i => i.id === id); return !!(it && it.hidesHead); };
 function setOutfit(body, look) {
-  body.traverse(o => { const m = PIECE.exec(o.name) || FX.exec(o.name); if (m) o.visible = look[m[1]] === m[2]; });
+  body.traverse(o => { const m = PIECE.exec(o.name); if (m) o.visible = look[m[1]] === m[2]; });
   const face = body.getObjectByName('DUBG_Body'); if (face) face.visible = !hidesHead(look.head);
 }
-// ---------- fire: soft flames drawn by a shader on camera-facing cards ----------
-// Each card sits on a DUBG_fx_<area>_<item>_<n> marker placed in Blender; the marker's x scale is the flame's width and
-// its y scale the height. Rolling noise shapes a teardrop with ragged tips, white-hot in the middle through orange to red,
-// with sparks drifting up above it.
-const fireT = { value: 0 };
-const FLAME_VS = `
-  attribute float seed;
-  varying vec2 vUv; varying float vSeed;
-  void main() {
-    vUv = uv; vSeed = seed;
-    vec4 mv = modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0);
-    vec2 s = vec2(length(modelMatrix[0].xyz), length(modelMatrix[1].xyz));
-    mv.xy += position.xy * s;
-    mv.z += s.x * 0.45;   // pulled toward the camera so the body part it rises from doesn't hide it
-    gl_Position = projectionMatrix * mv;
-  }`;
-const FLAME_FS = `
-  uniform float uT;
-  varying vec2 vUv; varying float vSeed;
-  float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
-  float noise(vec2 p) {
-    vec2 i = floor(p), f = fract(p); f = f * f * (3.0 - 2.0 * f);
-    return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), f.x), mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x), f.y);
-  }
-  float fbm(vec2 p) { float v = 0.0, a = 0.5; for (int k = 0; k < 4; k++) { v += a * noise(p); p *= 2.03; a *= 0.5; } return v; }
-  void main() {
-    float t = uT + vSeed * 17.0, y = vUv.y;
-    float n = fbm(vec2(vUv.x * 3.5 + vSeed * 9.0, y * 2.6 - t * 1.9));
-    float n2 = fbm(vec2(vUv.x * 7.0 - vSeed * 4.0, y * 5.0 - t * 3.1));
-    float x = (vUv.x - 0.5) * 2.0 + (n - 0.5) * 1.1 * y;           // pushed sideways more the higher it goes
-    float width = mix(0.95, 0.06, pow(y, 0.75));
-    float i = (1.0 - smoothstep(width * 0.5, width, abs(x))) * smoothstep(0.0, 0.08, y) * (1.15 - y);
-    i *= 0.55 + 0.9 * n2;
-    i -= (1.0 - n) * y * 0.55;                                     // tips tear off into tongues
-    i = clamp(i * 1.7, 0.0, 1.0);
-    vec2 g = vec2(vUv.x * 7.0, y * 9.0 - t * 3.5), id = floor(g), f = fract(g);
-    vec2 c = vec2(hash(id + vSeed), hash(id + 3.7 + vSeed)) * 0.6 + 0.2;
-    float sp = step(0.86, hash(id * 1.7 + vSeed)) * smoothstep(0.14, 0.0, length(f - c)) * smoothstep(0.3, 0.6, y) * (1.0 - y);
-    vec3 col = mix(vec3(0.5, 0.03, 0.0), vec3(0.95, 0.25, 0.02), smoothstep(0.02, 0.3, i));
-    col = mix(col, vec3(1.0, 0.55, 0.06), smoothstep(0.3, 0.6, i));
-    col = mix(col, vec3(1.0, 0.8, 0.3), smoothstep(0.65, 0.92, i));
-    col = mix(col, vec3(1.0, 0.95, 0.75), smoothstep(0.96, 1.0, i));
-    col = mix(col, vec3(1.0, 0.75, 0.3), sp);
-    float a = max(smoothstep(0.02, 0.35, i), sp);
-    if (a < 0.01) discard;
-    gl_FragColor = vec4(col, a);
-  }`;
-let flameMat = null;
-const flameGeo = [];   // one card per seed, so neighbouring flames don't move in step
-function flame(k) {
-  if (!flameMat) flameMat = new THREE.ShaderMaterial({ vertexShader: FLAME_VS, fragmentShader: FLAME_FS, uniforms: { uT: fireT }, transparent: true, depthWrite: false, side: THREE.DoubleSide });
-  const i = k % 8;
-  if (!flameGeo[i]) {
-    const g = new THREE.PlaneGeometry(1, 1).translate(0, 0.5, 0);
-    g.setAttribute('seed', new THREE.Float32BufferAttribute(new Array(4).fill(i * 0.137 + 0.05), 1));
-    flameGeo[i] = g;
-  }
-  const m = new THREE.Mesh(flameGeo[i], flameMat); m.frustumCulled = false; m.renderOrder = 5;
-  return m;
-}
-const FX = /^DUBG_fx_(head|torso|legs|feet|hands)_([a-z]+)_(\d+)$/;
-const EMBER = {};
-// glowing trims and eyes: unlit like the flames, but they stay put
-const ember = fog => EMBER[fog] || (EMBER[fog] = fog ? fogify(new THREE.MeshBasicMaterial({ vertexColors: true })) : new THREE.MeshBasicMaterial({ vertexColors: true }));
 // a fresh copy of the character in an outfit; fog: false for the menu preview, which has no fog of war
 function dressed(look, skin, fog) {
   const body = cloneSkinned(charSrc.scene), bones = {};
@@ -640,9 +576,8 @@ function dressed(look, skin, fog) {
   const cloth = wrap(new THREE.MeshLambertMaterial({ vertexColors: true })), flesh = wrap(new THREE.MeshLambertMaterial({ color: skin }));
   body.traverse(o => {
     if (o.isBone) bones[o.name.replace(/\W/g, '')] = o;   // the loader drops the dots: arm.R arrives as armR
-    if (o.isMesh) { const n = o.material.name; o.material = n === 'DUBG_Skin' ? flesh : n === 'DUBG_Ember' ? ember(fog) : cloth; o.frustumCulled = false; }
+    if (o.isMesh) { const n = o.material.name; o.material = n === 'DUBG_Skin' ? flesh : cloth; o.frustumCulled = false; }
   });
-  let k = 0; body.traverse(o => { if (FX.test(o.name)) o.add(flame(k++)); });
   setOutfit(body, look);
   const vest = body.getObjectByName('DUBG_vest'); if (vest) vest.visible = false;
   return { body, bones, mats: [cloth, flesh], vest };
@@ -685,7 +620,6 @@ function previewFrame(now) {
   const dt = Math.min(0.05, (now - (pv.t || now)) / 1000); pv.t = now;
   if (c.width !== Math.round(w * pv.dpr) || c.height !== Math.round(h * pv.dpr)) { pv.r.setSize(w, h, false); pv.cam.aspect = w / h; pv.cam.updateProjectionMatrix(); }
   if (!pv.drag) pv.yaw += dt * 0.35;
-  fireT.value = now / 1000;
   if (pv.fig) { pv.fig.body.rotation.y = pv.yaw; pv.mixer.update(dt); }
   pv.r.render(pv.scene, pv.cam);
 }
@@ -728,7 +662,6 @@ function thumbs(list) {
       sc.add(new THREE.HemisphereLight('#fff4e0', '#6b5a45', 2.2));
       const sun = new THREE.DirectionalLight('#ffffff', 2.2); sun.position.set(4, 6, 8); sc.add(sun);
       const fig = dressed({}, '#c68642', false); sc.add(fig.body);
-      fireT.value = 1.3;   // one moment of the flames for the still pictures
       const head = fig.body.getObjectByName('DUBG_Body');
       for (const { slot, id } of list) {
         fig.body.traverse(o => { const m = PIECE.exec(o.name); if (m) o.visible = m[1] === slot && m[2] === id; });
@@ -937,7 +870,6 @@ function makeItem(it, ITEMS) {
 function frame(F) {
   if (!renderer || !world) return;
   const { M, dt } = F, t = M.time;
-  fireT.value = performance.now() / 1000;
   // camera: tilted, looking north, framing about as much ground as the 2D view
   const vh = renderer.domElement.clientHeight || innerHeight;
   const L = (vh / F.zoom) * 0.62 / api.zoomMul / (2 * Math.tan(THREE.MathUtils.degToRad(FOV / 2)));

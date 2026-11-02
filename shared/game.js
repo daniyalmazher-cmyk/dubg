@@ -131,7 +131,7 @@ const CREWS = [
 const SKINS = ['#8d5524', '#c68642', '#e0ac69', '#5c3a1e', '#f1c27d', '#3d2314', '#a86b3c'];
 // Cosmetics: one item per body area. Ids match the DUBG_<slot>_<id> pieces in public/models/dd_character.glb.
 // c is the item's main colour, used for corpses and the box figure shown while the model loads; r is its rarity;
-// set groups the pieces of a full outfit; locked items can be looked at and tried on but not worn yet;
+// set groups the pieces of a full outfit; locked items can be looked at and tried on but not worn until owned;
 // hidesHead headwear replaces the whole head.
 // Every account starts with these; more items get added here (and to the model) later.
 const RARITY = {
@@ -141,23 +141,18 @@ const RARITY = {
 const COSMETICS = {
   head: [
     { id: 'hair', name: 'No headwear', c: '#2a1a10', r: 'common' },
-    { id: 'inferno', name: 'Inferno Skull', c: '#e8e2cf', r: 'ultra', set: 'Inferno Rider', locked: true, hidesHead: true },
   ],
   torso: [
     { id: 'tee', name: 'White tee', c: '#ecebe6', r: 'common' },
-    { id: 'inferno', name: 'Inferno Jacket', c: '#141313', r: 'ultra', set: 'Inferno Rider', locked: true },
   ],
   legs: [
     { id: 'trousers', name: 'Brown trousers', c: '#6b4a2e', r: 'common' },
-    { id: 'inferno', name: 'Inferno Jeans', c: '#1a1a1d', r: 'ultra', set: 'Inferno Rider', locked: true },
   ],
   feet: [
     { id: 'sandals', name: 'Sandals', c: '#6b4a2e', r: 'common' },
-    { id: 'inferno', name: 'Inferno Kicks', c: '#151515', r: 'ultra', set: 'Inferno Rider', locked: true },
   ],
   hands: [
     { id: 'bare', name: 'No gloves', c: '#c68642', r: 'common' },
-    { id: 'inferno', name: 'Inferno Gloves', c: '#141313', r: 'ultra', set: 'Inferno Rider', locked: true },
   ],
 };
 const SLOTS = ['head', 'torso', 'legs', 'feet', 'hands'];
