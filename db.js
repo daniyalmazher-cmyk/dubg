@@ -37,6 +37,9 @@ function postgres(url) {
     setOwned: (id, owned) => pool.query('update users set owned = $2 where id = $1', [id, JSON.stringify(owned)]),
     // adds (or with a negative n, takes) Tonnies and returns the new balance
     addTonnies: async (id, n) => { const r = await one('update users set tonnies = tonnies + $2 where id = $1 returning tonnies', [id, n]); return r ? r.tonnies : 0; },
+    // spends price Tonnies and adds items to what the account owns, in one step; null if the balance is short
+    buy: (id, price, items) => one(`update users set tonnies = tonnies - $2, owned = coalesce(owned, '[]'::jsonb) || $3::jsonb
+      where id = $1 and tonnies >= $2 returning tonnies, owned`, [id, price, JSON.stringify(items)]),
     close: () => pool.end(),
   };
 }
@@ -74,6 +77,12 @@ function jsonFile(file) {
     async setLook(id, look) { const u = data.users.find(x => x.id === id); if (u) { u.look = look; await save(); } },
     async setOwned(id, owned) { const u = data.users.find(x => x.id === id); if (u) { u.owned = owned; await save(); } },
     async addTonnies(id, n) { const u = data.users.find(x => x.id === id); if (!u) return 0; u.tonnies = (u.tonnies || 0) + n; await save(); return u.tonnies; },
+    async buy(id, price, items) {
+      const u = data.users.find(x => x.id === id);
+      if (!u || (u.tonnies || 0) < price) return null;
+      u.tonnies -= price; u.owned = [...(u.owned || []), ...items]; await save();
+      return { tonnies: u.tonnies, owned: u.owned };
+    },
     close: () => saving,
   };
 }

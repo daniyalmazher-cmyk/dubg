@@ -117,6 +117,20 @@ function signIn(c, user, token) {
   c.user.tonnies = user.tonnies || 0;
   send(c, { t: 'authed', name: user.name, look: c.user.look, owned, tonnies: c.user.tonnies, token });
 }
+// the store: a whole set for its price in Tonnies; every open session of the account hears about it
+async function buySet(c, id) {
+  const set = Object.hasOwn(D.SETS, id) ? D.SETS[id] : null;
+  if (!set) return send(c, { t: 'buyErr', msg: "That isn't in the store." });
+  const missing = D.setItems(id).filter(i => !c.user.owned.includes(i));
+  if (!missing.length) return send(c, { t: 'buyErr', msg: 'You already own this set.' });
+  const r = await db.buy(c.user.id, set.price, missing);
+  if (!r) return send(c, { t: 'buyErr', msg: `Not enough Tonnies. ${set.name} costs ${set.price.toLocaleString()}.` });
+  console.log(`${c.user.name} bought ${set.name} for ${set.price}, ${r.tonnies} left`);
+  for (const x of clients.values()) if (x.user && x.user.id === c.user.id) {
+    x.user.tonnies = r.tonnies; x.user.owned = r.owned;
+    send(x, { t: 'bought', set: id, balance: r.tonnies, owned: r.owned });
+  }
+}
 async function onAccount(c, m) {
   const fail = msg => send(c, { t: 'authErr', msg });
   if (m.t === 'auth') {
@@ -255,6 +269,10 @@ wss.on('connection', (ws, req) => {
       if (!c.user) return;
       c.user.look = D.cleanLook(m.look, c.user.owned);
       db.setLook(c.user.id, c.user.look).catch(e => console.error('look save error:', e.message));
+      return;
+    }
+    if (m.t === 'buy') {
+      if (c.user) buySet(c, String(m.set)).catch(e => { console.error('store error:', e.message); send(c, { t: 'buyErr', msg: 'Something went wrong on our side. Try again in a minute.' }); });
       return;
     }
     if (m.t === 'signup' || m.t === 'login' || m.t === 'auth' || m.t === 'logout') {

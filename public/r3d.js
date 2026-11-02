@@ -544,7 +544,7 @@ function muzzle(P) { return P.muzzle || { x: P.x + Math.cos(P.ang) * 22, y: P.y 
 // A 10-bone rig with idle / walk / punch / heal / die clips, a head, and every outfit piece as its own skinned mesh
 // (DUBG_<area>_<item>). A player shows one piece per area. Pieces are coloured per vertex; their bare-skin parts use a
 // second material, so a player is two materials: their clothes and their skin.
-const CHAR_VERSION = 9;   // bump when the model changes: browsers keep models cached for a day
+const CHAR_VERSION = 10;   // bump when the model changes: browsers keep models cached for a day
 let charSrc = null;   // { scene, clips } once loaded; until then players use the box figure above
 const charWait = [];  // run once the model is in
 function loadCharacter() {
@@ -648,10 +648,12 @@ const preview = {
   hide() { pv.on = false; },
   thumbs,
 };
-// pictures of single outfit pieces for the inventory tiles: [{ slot, id }] -> Promise of { 'slot:id': data URL }
+// pictures of single outfit pieces for the inventory tiles: [{ slot, id }] -> Promise of { 'slot:id': data URL };
+// { slot: 'set', id, look } pictures a whole outfit
 // (look-at point and camera direction per area, in model units; the model faces +Z)
 const SHOT = { head: [0, 5.05, 0, 4.6, [0.5, 0.25, 1]], torso: [0, 3.0, 0, 7, [0.45, 0.2, 1]], legs: [0, 1.3, 0, 6.6, [0.45, 0.25, 1]],
-  feet: [0, 0.45, 0.2, 4, [0.7, 0.45, 1]], hands: [1.15, 2.4, 0, 2.7, [0.9, 0.25, 0.75]] };   // the left hand: it has the watch
+  feet: [0, 0.45, 0.2, 4, [0.7, 0.45, 1]], hands: [1.15, 2.4, 0, 2.7, [0.9, 0.25, 0.75]],   // the left hand: it has the vampire's ring
+  set: [0, 2.85, 0, 10.5, [0.45, 0.18, 1]] };                                                // a whole outfit, for the store
 function thumbs(list) {
   return new Promise(res => {
     const go = () => {
@@ -663,9 +665,12 @@ function thumbs(list) {
       const sun = new THREE.DirectionalLight('#ffffff', 2.2); sun.position.set(4, 6, 8); sc.add(sun);
       const fig = dressed({}, '#c68642', false); sc.add(fig.body);
       const head = fig.body.getObjectByName('DUBG_Body');
-      for (const { slot, id } of list) {
-        fig.body.traverse(o => { const m = PIECE.exec(o.name); if (m) o.visible = m[1] === slot && m[2] === id; });
-        if (head) head.visible = slot === 'head' && !hidesHead(id);   // hats and masks need a head under them
+      for (const { slot, id, look } of list) {
+        if (slot === 'set') setOutfit(fig.body, look);
+        else {
+          fig.body.traverse(o => { const m = PIECE.exec(o.name); if (m) o.visible = m[1] === slot && m[2] === id; });
+          if (head) head.visible = slot === 'head' && !hidesHead(id);   // hats and masks need a head under them
+        }
         const [x, y, z, d, dir] = SHOT[slot];
         tmpV.set(...dir).normalize().multiplyScalar(d);
         cam.position.set(x + tmpV.x, y + tmpV.y, z + tmpV.z); cam.lookAt(x, y, z);

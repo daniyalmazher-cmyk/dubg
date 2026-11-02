@@ -157,6 +157,26 @@ button:focus-visible{outline:3px solid var(--hazard);outline-offset:3px}
 .wallet b{font-family:var(--display);font-size:24px;color:#f6c94a}
 .prize{display:flex;align-items:center;justify-content:center;gap:10px;font-family:var(--display);font-size:26px;color:#f6c94a}
 .prize .tonnie{width:30px;height:30px;font-size:17px}
+button.store{background:linear-gradient(#f6c94a,#d99a14);color:#2a1a00;border:0;font-family:var(--body);font-weight:800;font-size:17px;text-transform:uppercase;letter-spacing:.08em;padding:12px 18px;box-shadow:0 4px 0 #8a5a06;display:flex;align-items:center;justify-content:center;gap:8px}
+.storeHead{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}
+.storeHead .wallet{margin:0}
+.storeGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.setCard{--rar:#a855f7;display:flex;flex-direction:column;background:#0c0d0e;border:2px solid var(--rar);text-align:left}
+.setCard.sel{box-shadow:0 0 0 1px var(--rar),0 0 18px -4px var(--rar);background:#1a1620}
+.setPick{display:flex;flex-direction:column;gap:3px;padding:8px 10px 6px;background:none;border:0;color:var(--text);font-family:var(--body);text-align:left;cursor:pointer}
+.setPick img,.setPick i{display:block;width:100%;aspect-ratio:1;object-fit:contain;background:radial-gradient(circle at 50% 60%,#2a2330,#141216 70%)}
+.setPick .rar{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--rar);font-weight:700}
+.setPick b{font-size:18px}
+.setBuy{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 10px 10px}
+.setBuy .cost{display:flex;align-items:center;gap:6px;font-family:var(--display);font-size:18px;color:#f6c94a}
+.setBuy .cost .tonnie{width:18px;height:18px;font-size:11px}
+.setBuy button{font-family:var(--body);font-weight:800;font-size:14px;text-transform:uppercase;letter-spacing:.06em;padding:7px 12px;border:0;background:#f6c94a;color:#2a1a00}
+.setBuy button.confirm{background:var(--orange)}
+.setBuy button.own{background:transparent;color:var(--text);border:1px solid var(--line)}
+.setBuy button:disabled{background:#2a2a2e;color:var(--muted)}
+.setBuy .owned{font-size:12px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:#7fe08a}
+.storeMsg{font-weight:700;color:#7fe08a}
+@media (max-height:560px){.storeGrid{grid-template-columns:repeat(auto-fill,minmax(118px,1fr))}.setPick b{font-size:15px}}
 #homeScreen .panel.wide{width:min(940px,100%)}
 #homeScreen .cols{grid-template-columns:190px 1fr 1fr}
 .avatarBox{position:relative;height:250px;background:radial-gradient(ellipse at 50% 85%,rgba(255,122,26,.18),transparent 60%),#0c0d0e;border:1px solid var(--line)}
@@ -431,6 +451,7 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
         <div class="col">
           <div class="avatarBox" id="homeAvatar"></div>
           <button id="invBtn" class="ghost" type="button">Inventory</button>
+          <button id="storeBtn" class="store" type="button"><i class="tonnie" aria-hidden="true"></i>Store</button>
         </div>
         <div class="col">
           <div>
@@ -501,6 +522,28 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
         </div>
       </div>
       <div class="row"><button id="invDone" type="button">Done</button></div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="storeScreen" hidden>
+  <div class="panel wide">
+    <div class="hazard"></div>
+    <div class="inner">
+      <div class="storeHead">
+        <div class="h2">Store</div>
+        <div class="wallet"><i class="tonnie" aria-hidden="true"></i><b id="storeBal">0</b><span>Tonnies</span></div>
+      </div>
+      <div class="invWrap">
+        <div class="avatarBox" id="storeAvatar"></div>
+        <div class="invSide">
+          <div class="storeGrid" id="storeGrid"></div>
+          <div class="storeMsg" id="storeMsg" role="status" hidden></div>
+          <div class="err" id="storeErr" role="alert" hidden></div>
+          <div class="note">Every set is all five pieces: head, torso, legs, feet and hands. Win Tonnies by finishing top 3 in public battle royale matches.</div>
+        </div>
+      </div>
+      <div class="row"><button id="storeDone" type="button">Back</button></div>
     </div>
   </div>
 </div>
@@ -1504,7 +1547,7 @@ $('pingChk').addEventListener('change', () => { S.ping = $('pingChk').checked; s
 $('fpsChk').addEventListener('change', () => { S.fps = $('fpsChk').checked; saveSettings(); });
 let settingsBack = null;
 function openSettings() {
-  settingsBack = ['authScreen', 'homeScreen', 'invScreen', 'queueScreen', 'roomScreen', 'endScreen'].find(id => !$(id).hidden) || null;
+  settingsBack = ['authScreen', 'homeScreen', 'invScreen', 'storeScreen', 'queueScreen', 'roomScreen', 'endScreen'].find(id => !$(id).hidden) || null;
   $('quitBtn').hidden = !inMatch();
   showScreen('settingsScreen');
 }
@@ -1513,7 +1556,7 @@ $('settingsBtn').addEventListener('click', openSettings);
 $('settingsDone').addEventListener('click', closeSettings);
 
 // ---------- screens ----------
-const SCREENS = ['authScreen', 'homeScreen', 'invScreen', 'queueScreen', 'roomScreen', 'settingsScreen', 'endScreen'];
+const SCREENS = ['authScreen', 'homeScreen', 'invScreen', 'storeScreen', 'queueScreen', 'roomScreen', 'settingsScreen', 'endScreen'];
 function showScreen(id) { for (const s of SCREENS) $(s).hidden = s !== id; syncAvatar(); }
 function showErr(msg) {
   const el = net.where === 'room' ? $('roomErr') : $('homeErr');
@@ -1625,6 +1668,8 @@ function connect(s) {
     else if (m.t === 'err') showErr(m.msg);
     else if (m.t === 'authed') signedIn(m);
     else if (m.t === 'tonnies') gotPrize(m);
+    else if (m.t === 'bought') bought(m);
+    else if (m.t === 'buyErr') { storeMsg(null, m.msg); renderStore(); }
     else if (m.t === 'authOut') signedOut();
     else if (m.t === 'authErr') { acct.busy = false; authErr(m.msg); renderServers(); }
     else if (m.t === 'pong') { net.ping = Math.max(1, Math.round(performance.now() - m.c)); if (net.where === 'home') renderServers(); }
@@ -1645,13 +1690,22 @@ const avatarCv = document.createElement('canvas'); avatarCv.className = 'avatarC
 let invSlot = 'torso', invStart = '', thumbs = null;
 const tryOn = {};   // locked items being looked at in the preview, by area; never saved
 const shownLook = () => ({ ...acct.look, ...tryOn });
-// the preview canvas moves to whichever of the two screens is showing
+// the preview canvas moves to whichever screen with a character is showing
 function syncAvatar() {
   if (!window.R3D) return;
-  const box = !$('invScreen').hidden ? $('invAvatar') : !$('homeScreen').hidden ? $('homeAvatar') : null;
+  const inv = !$('invScreen').hidden, store = !$('storeScreen').hidden;
+  const box = inv ? $('invAvatar') : store ? $('storeAvatar') : !$('homeScreen').hidden ? $('homeAvatar') : null;
   if (!box || !acct.look) { R3D.preview.hide(); return; }
   if (avatarCv.parentNode !== box) box.appendChild(avatarCv);
-  R3D.preview.show(avatarCv, $('invScreen').hidden ? acct.look : shownLook());
+  R3D.preview.show(avatarCv, inv ? shownLook() : store ? setLook(storePick) : acct.look);
+}
+// pictures of every item and every set, drawn once from the 3D model
+function loadThumbs() {
+  if (thumbs || !window.R3D) return;
+  thumbs = {};
+  const list = D.SLOTS.flatMap(slot => D.COSMETICS[slot].map(it => ({ slot, id: it.id })));
+  for (const id in D.SETS) list.push({ slot: 'set', id, look: setLook(id) });
+  R3D.preview.thumbs(list).then(t => { thumbs = t; renderInv(); renderStore(); });
 }
 addEventListener('r3d-ready', syncAvatar);
 function renderInv() {
@@ -1660,16 +1714,61 @@ function renderInv() {
     const on = acct.look[invSlot] === it.id, trying = tryOn[invSlot] === it.id, locked = !D.canWear(invSlot, it, acct.owned);
     const pic = thumbs && thumbs[invSlot + ':' + it.id];
     const rar = D.RARITY[it.r] || D.RARITY.common;
-    const tag = locked ? (trying ? '🔒 Locked · trying on' : '🔒 Locked · tap to try on') : on && !tryOn[invSlot] ? 'Wearing' : D.DEFAULT_LOOK[invSlot] === it.id ? 'Starter' : 'Wear';
+    const tag = locked ? (trying ? '🔒 In the Store · trying on' : '🔒 In the Store · tap to try on') : on && !tryOn[invSlot] ? 'Wearing' : D.DEFAULT_LOOK[invSlot] === it.id ? 'Starter' : 'Wear';
     return `<button type="button" class="itm ${on && !tryOn[invSlot] ? 'on' : ''} ${locked ? 'locked' : ''} ${trying ? 'trying' : ''}" data-id="${it.id}" aria-pressed="${on}" style="--rar:${rar.c}">`
-      + `${pic ? `<img src="${pic}" alt="">` : '<i></i>'}<span class="rar">${rar.name}</span>${esc(it.name)}${it.set ? `<span class="set">${esc(it.set)} set</span>` : ''}<small>${tag}</small></button>`;
+      + `${pic ? `<img src="${pic}" alt="">` : '<i></i>'}<span class="rar">${rar.name}</span>${esc(it.name)}${it.set ? `<span class="set">${esc(D.SETS[it.set].name)} set</span>` : ''}<small>${tag}</small></button>`;
   }).join('');
 }
 $('invBtn').addEventListener('click', () => {
   invStart = JSON.stringify(acct.look); renderInv(); showScreen('invScreen');
-  // a picture of every item, drawn once from the 3D model
-  if (!thumbs && window.R3D) { thumbs = {}; R3D.preview.thumbs(D.SLOTS.flatMap(slot => D.COSMETICS[slot].map(it => ({ slot, id: it.id })))).then(t => { thumbs = t; renderInv(); }); }
+  loadThumbs();
 });
+
+// ---------- store: whole sets for Tonnies ----------
+let storePick = Object.keys(D.SETS)[0], confirmSet = null;
+const setLook = id => Object.fromEntries(D.SLOTS.map(s => [s, id]));
+const ownsSet = id => D.setItems(id).every(i => acct.owned.includes(i));
+function storeMsg(ok, msg) {
+  $('storeMsg').hidden = !ok; $('storeErr').hidden = !!ok || !msg;
+  $(ok ? 'storeMsg' : 'storeErr').textContent = ok || msg || '';
+}
+function renderStore() {
+  $('storeBal').textContent = acct.tonnies.toLocaleString();
+  $('storeGrid').innerHTML = Object.entries(D.SETS).map(([id, set]) => {
+    const rar = D.RARITY[set.r], pic = thumbs && thumbs['set:' + id], own = ownsSet(id), worn = own && D.SLOTS.every(s => acct.look[s] === id);
+    const short = set.price - acct.tonnies;
+    const act = own ? (worn ? '<span class="owned">Wearing</span>' : `<button type="button" class="own" data-wear="${id}">Wear</button>`)
+      : confirmSet === id ? `<button type="button" class="confirm" data-buy="${id}">Confirm</button>`
+      : `<button type="button" data-buy="${id}" ${short > 0 ? 'disabled' : ''}>${short > 0 ? 'Need ' + short.toLocaleString() : 'Buy'}</button>`;
+    return `<div class="setCard ${storePick === id ? 'sel' : ''}" style="--rar:${rar.c}">`
+      + `<button type="button" class="setPick" data-pick="${id}">${pic ? `<img src="${pic}" alt="">` : '<i></i>'}<span class="rar">${rar.name} set</span><b>${esc(set.name)}</b></button>`
+      + `<div class="setBuy">${own ? '<span class="owned">Owned</span>' : `<span class="cost"><i class="tonnie" aria-hidden="true"></i>${set.price.toLocaleString()}</span>`}${act}</div></div>`;
+  }).join('');
+}
+$('storeBtn').addEventListener('click', () => { confirmSet = null; storeMsg(); renderStore(); showScreen('storeScreen'); loadThumbs(); track('store_open'); });
+$('storeDone').addEventListener('click', () => showScreen('homeScreen'));
+$('storeGrid').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  const { pick, buy, wear } = b.dataset;
+  if (pick) { storePick = pick; confirmSet = null; storeMsg(); renderStore(); syncAvatar(); }
+  else if (buy && confirmSet === buy) { confirmSet = null; b.disabled = true; b.textContent = '…'; send({ t: 'buy', set: buy }); }
+  else if (buy) {
+    // a second tap confirms, so a stray tap never spends Tonnies
+    confirmSet = buy; storePick = buy; storeMsg(); renderStore(); syncAvatar();
+    clearTimeout(renderStore.t); renderStore.t = setTimeout(() => { if (confirmSet === buy) { confirmSet = null; renderStore(); } }, 4000);
+  }
+  else if (wear) {
+    acct.look = setLook(wear); send({ t: 'look', look: acct.look }); track('outfit_change', { set: wear });
+    try { localStorage.setItem('dubg-look', JSON.stringify(acct.look)); } catch (e) {}
+    storeMsg(`You're wearing the ${D.SETS[wear].name} set.`); renderStore();
+  }
+});
+function bought(m) {
+  acct.owned = m.owned; setTonnies(m.balance);
+  storeMsg(`${D.SETS[m.set].name} set unlocked! Tap Wear to put it on.`);
+  track('buy_set', { set: m.set, price: D.SETS[m.set].price });
+  renderStore(); renderInv();
+}
 $('slotSeg').addEventListener('click', e => { const v = e.target.dataset && e.target.dataset.v; if (v) { invSlot = v; renderInv(); } });
 $('invGrid').addEventListener('click', e => {
   const b = e.target.closest('.itm'); if (!b) return;
@@ -1707,7 +1806,7 @@ function signedIn(m) {
   renderServers();
 }
 // ---------- Tonnies: the in-game currency ----------
-function setTonnies(n) { acct.tonnies = n; $('tonnieBal').textContent = n.toLocaleString(); }
+function setTonnies(n) { acct.tonnies = n; $('tonnieBal').textContent = n.toLocaleString(); if (!$('storeScreen').hidden) renderStore(); }
 // a battle royale prize, shown on the results screen (it can arrive after you were knocked out, when the match ends)
 function gotPrize(m) {
   setTonnies(m.balance);

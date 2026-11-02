@@ -131,34 +131,35 @@ const CREWS = [
 const SKINS = ['#8d5524', '#c68642', '#e0ac69', '#5c3a1e', '#f1c27d', '#3d2314', '#a86b3c'];
 // Cosmetics: one item per body area. Ids match the DUBG_<slot>_<id> pieces in public/models/dd_character.glb.
 // c is the item's main colour, used for corpses and the box figure shown while the model loads; r is its rarity;
-// set groups the pieces of a full outfit; locked items can be looked at and tried on but not worn until owned;
-// hidesHead headwear replaces the whole head.
-// Every account starts with these; more items get added here (and to the model) later.
+// set is the id of the full outfit (SETS) it belongs to; locked items can be tried on but not worn until owned;
+// hidesHead headwear replaces the whole head (its own face and neck).
+// Every account starts with the common items; sets are bought whole in the store.
 const RARITY = {
   common: { name: 'Common', c: '#e8e6e0' }, uncommon: { name: 'Uncommon', c: '#3d8bff' },
   rare: { name: 'Rare', c: '#a855f7' }, ultra: { name: 'Ultra rare', c: '#f2c230' },
 };
+// store sets: price in Tonnies; pieces names each item, in SLOTS order
+const SETS = {
+  skeleton: { name: 'Skeleton', r: 'rare', price: 1000, c: '#ece6d4', pieces: ['Skull', 'Ribcage', 'Leg bones', 'Bone feet', 'Bone hands'] },
+  franken: { name: 'Frankenstein', r: 'rare', price: 1000, c: '#7a9a5a', pieces: ['Monster head', 'Patched coat', 'Short trousers', 'Platform boots', 'Stitched hands'] },
+  vampire: { name: 'Vampire', r: 'rare', price: 1000, c: '#8e1420', pieces: ['Vampire face', 'Caped tailcoat', 'Evening trousers', 'Buckled shoes', 'Ringed hands'] },
+  mummy: { name: 'Mummy', r: 'rare', price: 1000, c: '#d8cdb0', pieces: ['Wrapped head', 'Wrapped torso', 'Wrapped legs', 'Wrapped feet', 'Wrapped hands'] },
+};
 const COSMETICS = {
-  head: [
-    { id: 'hair', name: 'No headwear', c: '#2a1a10', r: 'common' },
-  ],
-  torso: [
-    { id: 'tee', name: 'White tee', c: '#ecebe6', r: 'common' },
-  ],
-  legs: [
-    { id: 'trousers', name: 'Brown trousers', c: '#6b4a2e', r: 'common' },
-  ],
-  feet: [
-    { id: 'sandals', name: 'Sandals', c: '#6b4a2e', r: 'common' },
-  ],
-  hands: [
-    { id: 'bare', name: 'No gloves', c: '#c68642', r: 'common' },
-  ],
+  head: [{ id: 'hair', name: 'No headwear', c: '#2a1a10', r: 'common' }],
+  torso: [{ id: 'tee', name: 'White tee', c: '#ecebe6', r: 'common' }],
+  legs: [{ id: 'trousers', name: 'Brown trousers', c: '#6b4a2e', r: 'common' }],
+  feet: [{ id: 'sandals', name: 'Sandals', c: '#6b4a2e', r: 'common' }],
+  hands: [{ id: 'bare', name: 'No gloves', c: '#c68642', r: 'common' }],
 };
 const SLOTS = ['head', 'torso', 'legs', 'feet', 'hands'];
 const DEFAULT_LOOK = { head: 'hair', torso: 'tee', legs: 'trousers', feet: 'sandals', hands: 'bare' };
 const DEFAULT_SKIN = '#c68642';
 const cosmetic = (slot, id) => COSMETICS[slot].find(i => i.id === id);
+// every set adds one locked piece to each area
+for (const [id, set] of Object.entries(SETS)) SLOTS.forEach((slot, k) => COSMETICS[slot].push(
+  { id, name: set.pieces[k], c: set.c, r: set.r, set: id, locked: true, hidesHead: slot === 'head' }));
+const setItems = id => SLOTS.map(slot => slot + ':' + id);   // a set's pieces as 'slot:id', like an account's owned list
 // can this player wear the item? owned: the account's 'slot:id' list of items it has unlocked
 const canWear = (slot, it, owned) => !it.locked || (Array.isArray(owned) && owned.includes(slot + ':' + it.id));
 // anything unknown, or locked and not owned, falls back to the starter item for that area
@@ -1278,7 +1279,7 @@ function match() { return G; }
 return {
   TAU, COLS, ROWS, XL, YL, XN, YN, CITY, CX, CY, DUNE, WORLD, MAX_PLAYERS, LOCKDOWN, SPEED, SCHEME, BODY_R, CAR_L, CAR_W,
   WEAPONS, ITEMS, CREWS, SHOPS, PHASES, GRENADE, BLAST_CORE, DROPS, DROP_FALL, ZW, MALL, ZMAX, ZOMBIE, ZSPAWNS,
-  COSMETICS, RARITY, SLOTS, DEFAULT_LOOK, clamp, dist, angDiff, lerpAngle, darken, inRect, badName, cleanLook, canWear,
+  COSMETICS, RARITY, SETS, SLOTS, setItems, DEFAULT_LOOK, clamp, dist, angDiff, lerpAngle, darken, inRect, badName, cleanLook, canWear,
   buildWorld, setDoors, cellWalls, solidAt, blocksSight, pushOut,
   stepProj, createMatch, step, setInput, humanAction, humanLeft, roster, itemList, snapCommon, snapMe, match,
 };
