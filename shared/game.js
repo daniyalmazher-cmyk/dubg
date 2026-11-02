@@ -523,9 +523,9 @@ function snapLane(x, y) {
 let G = null;
 
 // players wear their account's outfit; bots get a random one
-function makePlayer(id, name, isBot, cell, outfit) {
+function makePlayer(id, name, isBot, cell, outfit, owned) {
   const crewIdx = Math.floor(Math.random() * CREWS.length);
-  const look = isBot ? {} : cleanLook(outfit);
+  const look = isBot ? {} : cleanLook(outfit, owned);
   if (isBot) for (const s of SLOTS) look[s] = pick(COSMETICS[s].filter(i => !i.locked).map(i => [i.id, 1]));
   look.skin = isBot ? pick(SKINS.map(c => [c, 1])) : DEFAULT_SKIN;
   // for the box figure and corpses
@@ -572,7 +572,7 @@ function createMatch(humans, seed, opts) {
   const cellOrder = shuffle(cells.slice());
   const taken = new Set(humans.map(h => h.name.toLowerCase()));
   const names = shuffle(NAMES.filter(n => !taken.has(n.toLowerCase())));
-  humans.slice(0, MAX_PLAYERS).forEach((h, i) => G.players.push(makePlayer(i, h.name, false, cellOrder[i], h.look)));
+  humans.slice(0, MAX_PLAYERS).forEach((h, i) => G.players.push(makePlayer(i, h.name, false, cellOrder[i], h.look, h.owned)));
   if (bots) for (let i = G.players.length, k = 0; i < MAX_PLAYERS; i++, k++) G.players.push(makePlayer(i, names[k % names.length], true, cellOrder[i]));
   G.alive = G.players.length;
   return G;
@@ -999,7 +999,7 @@ function createZombieMatch(humans, seed) {
   buildFlowGrid();
   for (const s of stores) for (let i = 0; i < 4; i++) storeItem(s);
   humans.slice(0, ZMAX).forEach((h, i) => {
-    const p = makePlayer(i, h.name, false, mallSpot(i), h.look);
+    const p = makePlayer(i, h.name, false, mallSpot(i), h.look, h.owned);
     arm(p); G.players.push(p);
   });
   G.alive = G.players.length;

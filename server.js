@@ -64,7 +64,7 @@ function uniqueNames(list) {
     let out = c.name, k = 2;
     while (used.has(out.toLowerCase())) out = `${c.name.slice(0, 12)}${k++}`;
     used.add(out.toLowerCase());
-    return { name: out, look: c.user ? c.user.look : null };
+    return { name: out, look: c.user ? c.user.look : null, owned: c.user ? c.user.owned : null };
   });
 }
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
