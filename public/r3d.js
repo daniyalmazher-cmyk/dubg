@@ -544,7 +544,7 @@ function muzzle(P) { return P.muzzle || { x: P.x + Math.cos(P.ang) * 22, y: P.y 
 // A 10-bone rig with idle / walk / punch / heal / die clips, a head, and every outfit piece as its own skinned mesh
 // (DUBG_<area>_<item>). A player shows one piece per area. Pieces are coloured per vertex; their bare-skin parts use a
 // second material, so a player is two materials: their clothes and their skin.
-const CHAR_VERSION = 12;   // bump when the model changes: browsers keep models cached for a day
+const CHAR_VERSION = 13;   // bump when the model changes: browsers keep models cached for a day
 let charSrc = null;   // { scene, clips } once loaded; until then players use the box figure above
 const charWait = [];  // run once the model is in
 function loadCharacter() {
