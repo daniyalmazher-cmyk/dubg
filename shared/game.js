@@ -131,32 +131,16 @@ const CREWS = [
 const SKINS = ['#8d5524', '#c68642', '#e0ac69', '#5c3a1e', '#f1c27d', '#3d2314', '#a86b3c'];
 // Cosmetics: one item per body area. Ids match the DUBG_<slot>_<id> pieces in public/models/dd_character.glb.
 // c is the item's main colour, used for corpses and the box figure shown while the model loads.
+// Every account starts with these; more items get added here (and to the model) later.
 const COSMETICS = {
-  head: [
-    { id: 'hair', name: 'Short hair', c: '#2a1a10' }, { id: 'cap', name: 'Baseball cap', c: '#1f2a3a' }, { id: 'beanie', name: 'Pom beanie', c: '#5e1d1d' },
-    { id: 'cowboy', name: 'Desert hat', c: '#7d5a38' }, { id: 'helmet', name: 'Moto helmet', c: '#c7372a' }, { id: 'gasmask', name: 'Gas mask', c: '#2d3029' },
-    { id: 'scarf', name: 'Dune scarf & goggles', c: '#d9c9a3' }, { id: 'bandit', name: 'Bandana & shades', c: '#b8322c' }, { id: 'phones', name: 'Headphones', c: '#26272b' },
-  ],
-  torso: [
-    { id: 'tee', name: 'White tee', c: '#ecebe6' }, { id: 'hoodie', name: 'Hoodie', c: '#55585c' }, { id: 'leather', name: 'Leather jacket', c: '#1f1d1c' },
-    { id: 'puffer', name: 'Puffer jacket', c: '#e07a2a' }, { id: 'duster', name: 'Duster coat', c: '#8a6a44' }, { id: 'poncho', name: 'Poncho', c: '#b8322c' },
-    { id: 'tank', name: 'Tank top & tags', c: '#5f6b3a' },
-  ],
-  legs: [
-    { id: 'trousers', name: 'Brown trousers', c: '#6b4a2e' }, { id: 'cargo', name: 'Tactical cargos', c: '#5f6b3a' }, { id: 'ripped', name: 'Ripped jeans', c: '#3a5378' },
-    { id: 'shorts', name: 'Shorts & tube socks', c: '#2f6b5e' }, { id: 'joggers', name: 'Joggers', c: '#8a8d92' },
-  ],
-  feet: [
-    { id: 'sneakers', name: 'White sneakers', c: '#ecebe6' }, { id: 'combat', name: 'Combat boots', c: '#2b2b2b' }, { id: 'hightops', name: 'High-tops', c: '#b8322c' },
-    { id: 'cowboy', name: 'Cowboy boots', c: '#7a4a28' }, { id: 'sandals', name: 'Sandals', c: '#6b4a2e' },
-  ],
-  hands: [
-    { id: 'bare', name: 'No gloves', c: '#c68642' }, { id: 'tactical', name: 'Tactical gloves', c: '#2f3326' }, { id: 'gauntlets', name: 'Work gauntlets', c: '#c8a874' },
-    { id: 'wraps', name: 'Fight wraps', c: '#ecebe6' }, { id: 'watch', name: 'Watch & bracelet', c: '#c9a24a' },
-  ],
+  head: [{ id: 'hair', name: 'No headwear', c: '#2a1a10' }],
+  torso: [{ id: 'tee', name: 'White tee', c: '#ecebe6' }],
+  legs: [{ id: 'trousers', name: 'Brown trousers', c: '#6b4a2e' }],
+  feet: [{ id: 'sandals', name: 'Sandals', c: '#6b4a2e' }],
+  hands: [{ id: 'bare', name: 'No gloves', c: '#c68642' }],
 };
 const SLOTS = ['head', 'torso', 'legs', 'feet', 'hands'];
-const DEFAULT_LOOK = { head: 'hair', torso: 'tee', legs: 'trousers', feet: 'sneakers', hands: 'bare' };
+const DEFAULT_LOOK = { head: 'hair', torso: 'tee', legs: 'trousers', feet: 'sandals', hands: 'bare' };
 const DEFAULT_SKIN = '#c68642';
 const cosmetic = (slot, id) => COSMETICS[slot].find(i => i.id === id);
 // anything unknown falls back to the starter item for that area
