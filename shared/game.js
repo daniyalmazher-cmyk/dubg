@@ -129,8 +129,41 @@ const CREWS = [
   { n: 'Wolves', c: '#a67bff' }, { n: 'Reapers', c: '#e6e2da' }, { n: 'Ghosts', c: '#36d6e7' },
 ];
 const SKINS = ['#8d5524', '#c68642', '#e0ac69', '#5c3a1e', '#f1c27d', '#3d2314', '#a86b3c'];
-const HOODIES = ['#1c1c1e', '#2b2f36', '#3a3a3a', '#4b3b2a', '#1f2a3a', '#55524c', '#5e1d1d', '#2f3d2a', '#d9d6cf', '#6b5a3e'];
-const BEANIES = ['#1b1b1b', '#5a2a2a', '#2a3a4a', '#d8d2c4', '#3d4a2a'];
+// Cosmetics: one item per body area. Ids match the DUBG_<slot>_<id> pieces in public/models/dd_character.glb.
+// c is the item's main colour, used for corpses and the box figure shown while the model loads.
+const COSMETICS = {
+  head: [
+    { id: 'hair', name: 'Short hair', c: '#2a1a10' }, { id: 'cap', name: 'Red cap', c: '#b8322c' }, { id: 'beanie', name: 'Grey beanie', c: '#6b6e73' },
+    { id: 'cowboy', name: 'Desert hat', c: '#7d5a38' }, { id: 'wrap', name: 'Head wrap', c: '#e6dcc4' }, { id: 'bucket', name: 'Bucket hat', c: '#6c7a42' },
+    { id: 'phones', name: 'Headphones', c: '#26272b' },
+  ],
+  torso: [
+    { id: 'tee', name: 'White tee', c: '#ecebe6' }, { id: 'teeblack', name: 'Black tee', c: '#23242a' }, { id: 'hoodie', name: 'Grey hoodie', c: '#6b6e73' },
+    { id: 'tank', name: 'Olive tank top', c: '#5f6b3a' }, { id: 'denim', name: 'Denim jacket', c: '#3f5f8a' }, { id: 'track', name: 'Track jacket', c: '#b8322c' },
+  ],
+  legs: [
+    { id: 'trousers', name: 'Brown trousers', c: '#6b4a2e' }, { id: 'jeans', name: 'Blue jeans', c: '#3a5378' }, { id: 'cargo', name: 'Cargo pants', c: '#a08a5c' },
+    { id: 'shorts', name: 'Black shorts', c: '#26272b' }, { id: 'joggers', name: 'Grey joggers', c: '#8a8d92' },
+  ],
+  feet: [
+    { id: 'sneakers', name: 'White sneakers', c: '#ecebe6' }, { id: 'boots', name: 'Work boots', c: '#5a3a22' }, { id: 'hightops', name: 'Red high-tops', c: '#b8322c' },
+    { id: 'sandals', name: 'Sandals', c: '#6b4a2e' }, { id: 'desert', name: 'Desert boots', c: '#c2a26a' },
+  ],
+  hands: [
+    { id: 'bare', name: 'No gloves', c: '#c68642' }, { id: 'black', name: 'Black gloves', c: '#1e1f22' }, { id: 'fingerless', name: 'Fingerless gloves', c: '#26272b' },
+    { id: 'work', name: 'Work gloves', c: '#c8a874' }, { id: 'wraps', name: 'Hand wraps', c: '#ecebe6' },
+  ],
+};
+const SLOTS = ['head', 'torso', 'legs', 'feet', 'hands'];
+const DEFAULT_LOOK = { head: 'hair', torso: 'tee', legs: 'trousers', feet: 'sneakers', hands: 'bare' };
+const DEFAULT_SKIN = '#c68642';
+const cosmetic = (slot, id) => COSMETICS[slot].find(i => i.id === id);
+// anything unknown falls back to the starter item for that area
+function cleanLook(l) {
+  const out = {};
+  for (const s of SLOTS) out[s] = l && typeof l[s] === 'string' && cosmetic(s, l[s]) ? l[s] : DEFAULT_LOOK[s];
+  return out;
+}
 const SHOPS = {
   gun:      { sign: 'ARMORY', color: '#ff5a3b', floor: '#8a6a52', extra: 1, loot: [['pistol', 20], ['smg', 16], ['shotgun', 14], ['rifle', 12], ['ammo', 28], ['vest1', 6], ['vest2', 4], ['gren', 9]] },
   pawn:     { sign: 'BAZAAR', color: '#f2c230', floor: '#9a7a58', extra: 0, loot: [['pistol', 12], ['smg', 6], ['shotgun', 6], ['rifle', 3], ['ammo', 20], ['band', 10], ['vest1', 14], ['vest2', 8], ['gren', 6]] },
@@ -481,11 +514,16 @@ function snapLane(x, y) {
 // ======================================================================
 let G = null;
 
-function makePlayer(id, name, isBot, cell) {
+// players wear their account's outfit; bots get a random one
+function makePlayer(id, name, isBot, cell, outfit) {
   const crewIdx = Math.floor(Math.random() * CREWS.length);
-  const hoodie = pick(HOODIES.map(c => [c, 1]));
-  const hat = pick([['cap', 3], ['capBack', 2], ['beanie', 2], ['durag', 2], ['dreads', 2], ['buzz', 2], ['bandana', 2]]);
-  const look = { skin: pick(SKINS.map(c => [c, 1])), hoodie, hat, beanie: pick(BEANIES.map(c => [c, 1])) };
+  const look = isBot ? {} : cleanLook(outfit);
+  if (isBot) for (const s of SLOTS) look[s] = pick(COSMETICS[s].map(i => [i.id, 1]));
+  look.skin = isBot ? pick(SKINS.map(c => [c, 1])) : DEFAULT_SKIN;
+  // for the box figure and corpses
+  look.hoodie = cosmetic('torso', look.torso).c;
+  look.hat = look.head === 'cap' || look.head === 'beanie' ? look.head : 'buzz';
+  look.beanie = cosmetic('head', look.head).c;
   return {
     id, name, isBot, crew: crewIdx, look, x: cell.x, y: cell.y, r: BODY_R, ang: cell.ang != null ? cell.ang : cell.top ? Math.PI / 2 : -Math.PI / 2,
     hp: 100, armor: 0, alive: true, slots: [null, null], cur: -1, ammo: 0, rockets: 0, gren: 0, band: 0, med: 0, kills: 0,
@@ -526,7 +564,7 @@ function createMatch(humans, seed, opts) {
   const cellOrder = shuffle(cells.slice());
   const taken = new Set(humans.map(h => h.name.toLowerCase()));
   const names = shuffle(NAMES.filter(n => !taken.has(n.toLowerCase())));
-  humans.slice(0, MAX_PLAYERS).forEach((h, i) => G.players.push(makePlayer(i, h.name, false, cellOrder[i])));
+  humans.slice(0, MAX_PLAYERS).forEach((h, i) => G.players.push(makePlayer(i, h.name, false, cellOrder[i], h.look)));
   if (bots) for (let i = G.players.length, k = 0; i < MAX_PLAYERS; i++, k++) G.players.push(makePlayer(i, names[k % names.length], true, cellOrder[i]));
   G.alive = G.players.length;
   return G;
@@ -953,7 +991,7 @@ function createZombieMatch(humans, seed) {
   buildFlowGrid();
   for (const s of stores) for (let i = 0; i < 4; i++) storeItem(s);
   humans.slice(0, ZMAX).forEach((h, i) => {
-    const p = makePlayer(i, h.name, false, mallSpot(i));
+    const p = makePlayer(i, h.name, false, mallSpot(i), h.look);
     arm(p); G.players.push(p);
   });
   G.alive = G.players.length;
@@ -1237,7 +1275,7 @@ function match() { return G; }
 return {
   TAU, COLS, ROWS, XL, YL, XN, YN, CITY, CX, CY, DUNE, WORLD, MAX_PLAYERS, LOCKDOWN, SPEED, SCHEME, BODY_R, CAR_L, CAR_W,
   WEAPONS, ITEMS, CREWS, SHOPS, PHASES, GRENADE, BLAST_CORE, DROPS, DROP_FALL, ZW, MALL, ZMAX, ZOMBIE, ZSPAWNS,
-  clamp, dist, angDiff, lerpAngle, darken, inRect, badName,
+  COSMETICS, SLOTS, DEFAULT_LOOK, clamp, dist, angDiff, lerpAngle, darken, inRect, badName, cleanLook,
   buildWorld, setDoors, cellWalls, solidAt, blocksSight, pushOut,
   stepProj, createMatch, step, setInput, humanAction, humanLeft, roster, itemList, snapCommon, snapMe, match,
 };

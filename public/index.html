@@ -151,6 +151,22 @@ button:focus-visible{outline:3px solid var(--hazard);outline-offset:3px}
 #authSeg{margin-top:18px}
 .who{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .who b{font-size:24px;letter-spacing:.03em}
+#homeScreen .panel.wide{width:min(940px,100%)}
+#homeScreen .cols{grid-template-columns:190px 1fr 1fr}
+.avatarBox{position:relative;height:250px;background:radial-gradient(ellipse at 50% 85%,rgba(255,122,26,.18),transparent 60%),#0c0d0e;border:1px solid var(--line)}
+.avatarCv{position:absolute;inset:0;width:100%;height:100%;touch-action:none;cursor:grab}
+.invWrap{display:grid;grid-template-columns:240px 1fr;gap:20px;align-items:start}
+.invWrap .avatarBox{height:340px}
+.invSide{display:flex;flex-direction:column;gap:14px;min-width:0}
+#slotSeg{flex-wrap:wrap}
+.invGrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px}
+.itm{display:flex;flex-direction:column;align-items:flex-start;gap:6px;text-align:left;padding:10px;background:#0c0d0e;color:var(--text);border:1px solid var(--line);font-family:var(--body);font-weight:700;font-size:15px}
+.itm i{display:block;width:100%;height:34px;border:1px solid rgba(255,255,255,.12)}
+.itm small{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.itm.on{border-color:var(--orange);box-shadow:inset 0 0 0 1px var(--orange)}
+.itm.on small{color:var(--orange)}
+@media (max-height:560px){.avatarBox{height:170px}.invWrap .avatarBox{height:200px}.invWrap{grid-template-columns:170px 1fr}.itm i{height:22px}.itm{padding:7px;font-size:13px}}
+@media (max-width:620px){#homeScreen .cols{grid-template-columns:1fr}.invWrap{grid-template-columns:1fr}.avatarBox{height:200px}}
 .homeTop{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
 .col{display:flex;flex-direction:column;gap:12px}
@@ -401,6 +417,10 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
       <div class="pitch" id="pitch">30 dawgs out on the dunes round a desert town. Run in, loot the houses, last dawg standing takes the dunes.</div>
       <div class="cols">
         <div class="col">
+          <div class="avatarBox" id="homeAvatar"></div>
+          <button id="invBtn" class="ghost" type="button">Inventory</button>
+        </div>
+        <div class="col">
           <div>
             <label class="lbl">Signed in as</label>
             <div class="who"><b id="whoName"></b><button id="logoutBtn" class="ghost" type="button">Log out</button></div>
@@ -450,6 +470,24 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
         <kbd>M</kbd><span>Mute</span>
         <kbd>Tab</kbd><span>Players</span>
       </div>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="invScreen" hidden>
+  <div class="panel wide">
+    <div class="hazard"></div>
+    <div class="inner">
+      <div class="h2">Inventory</div>
+      <div class="invWrap">
+        <div class="avatarBox" id="invAvatar"></div>
+        <div class="invSide">
+          <div class="seg" id="slotSeg"><button type="button" data-v="head">Head</button><button type="button" data-v="torso">Torso</button><button type="button" data-v="legs">Legs</button><button type="button" data-v="feet">Feet</button><button type="button" data-v="hands">Hands</button></div>
+          <div class="invGrid" id="invGrid"></div>
+          <div class="note">Drag your dawg to spin it. Your outfit is saved to your account and worn in every match.</div>
+        </div>
+      </div>
+      <div class="row"><button id="invDone" type="button">Done</button></div>
     </div>
   </div>
 </div>
@@ -1451,7 +1489,7 @@ $('pingChk').addEventListener('change', () => { S.ping = $('pingChk').checked; s
 $('fpsChk').addEventListener('change', () => { S.fps = $('fpsChk').checked; saveSettings(); });
 let settingsBack = null;
 function openSettings() {
-  settingsBack = ['authScreen', 'homeScreen', 'queueScreen', 'roomScreen', 'endScreen'].find(id => !$(id).hidden) || null;
+  settingsBack = ['authScreen', 'homeScreen', 'invScreen', 'queueScreen', 'roomScreen', 'endScreen'].find(id => !$(id).hidden) || null;
   $('quitBtn').hidden = !inMatch();
   showScreen('settingsScreen');
 }
@@ -1460,8 +1498,8 @@ $('settingsBtn').addEventListener('click', openSettings);
 $('settingsDone').addEventListener('click', closeSettings);
 
 // ---------- screens ----------
-const SCREENS = ['authScreen', 'homeScreen', 'queueScreen', 'roomScreen', 'settingsScreen', 'endScreen'];
-function showScreen(id) { for (const s of SCREENS) $(s).hidden = s !== id; }
+const SCREENS = ['authScreen', 'homeScreen', 'invScreen', 'queueScreen', 'roomScreen', 'settingsScreen', 'endScreen'];
+function showScreen(id) { for (const s of SCREENS) $(s).hidden = s !== id; syncAvatar(); }
 function showErr(msg) {
   const el = net.where === 'room' ? $('roomErr') : $('homeErr');
   el.textContent = msg; el.hidden = !msg;
@@ -1583,6 +1621,40 @@ setInterval(() => send({ t: 'ping', c: performance.now() }), 2000);
 const acct = { name: null, token: null, busy: false, tab: 'login' };
 try { acct.token = localStorage.getItem('dubg-token'); acct.name = acct.token && localStorage.getItem('dubg-acct'); } catch (e) {}
 const homeId = () => acct.name ? 'homeScreen' : 'authScreen';
+try { acct.look = acct.name && D.cleanLook(JSON.parse(localStorage.getItem('dubg-look'))); } catch (e) {}
+
+// ---------- outfit: the character on the home screen, and the inventory to change it ----------
+const avatarCv = document.createElement('canvas'); avatarCv.className = 'avatarCv';
+let invSlot = 'torso', invStart = '';
+// the preview canvas moves to whichever of the two screens is showing
+function syncAvatar() {
+  if (!window.R3D) return;
+  const box = !$('invScreen').hidden ? $('invAvatar') : !$('homeScreen').hidden ? $('homeAvatar') : null;
+  if (!box || !acct.look) { R3D.preview.hide(); return; }
+  if (avatarCv.parentNode !== box) box.appendChild(avatarCv);
+  R3D.preview.show(avatarCv, acct.look);
+}
+addEventListener('r3d-ready', syncAvatar);
+function renderInv() {
+  for (const b of $('slotSeg').children) b.classList.toggle('on', b.dataset.v === invSlot);
+  $('invGrid').innerHTML = D.COSMETICS[invSlot].map(it => {
+    const on = acct.look[invSlot] === it.id;
+    return `<button type="button" class="itm ${on ? 'on' : ''}" data-id="${it.id}" aria-pressed="${on}"><i style="background:${it.c}"></i>${esc(it.name)}<small>${on ? 'Wearing' : D.DEFAULT_LOOK[invSlot] === it.id ? 'Starter' : 'Wear'}</small></button>`;
+  }).join('');
+}
+$('invBtn').addEventListener('click', () => { invStart = JSON.stringify(acct.look); renderInv(); showScreen('invScreen'); });
+$('slotSeg').addEventListener('click', e => { const v = e.target.dataset && e.target.dataset.v; if (v) { invSlot = v; renderInv(); } });
+$('invGrid').addEventListener('click', e => {
+  const b = e.target.closest('.itm'); if (!b) return;
+  acct.look[invSlot] = b.dataset.id; renderInv(); syncAvatar();
+});
+$('invDone').addEventListener('click', () => {
+  if (JSON.stringify(acct.look) !== invStart) {
+    send({ t: 'look', look: acct.look }); track('outfit_change');
+    try { localStorage.setItem('dubg-look', JSON.stringify(acct.look)); } catch (e) {}
+  }
+  showScreen('homeScreen');
+});
 function authErr(msg) { $('authErr').textContent = msg; $('authErr').hidden = !msg; }
 function setAuthTab(v) {
   acct.tab = v;
@@ -1594,17 +1666,17 @@ function setAuthTab(v) {
 }
 function signedIn(m) {
   const fresh = !!m.token;
-  acct.name = m.name; acct.busy = false;
+  acct.name = m.name; acct.busy = false; acct.look = D.cleanLook(m.look);
   if (m.token) acct.token = m.token;
-  try { localStorage.setItem('dubg-token', acct.token); localStorage.setItem('dubg-acct', acct.name); } catch (e) {}
+  try { localStorage.setItem('dubg-token', acct.token); localStorage.setItem('dubg-acct', acct.name); localStorage.setItem('dubg-look', JSON.stringify(acct.look)); } catch (e) {}
   $('whoName').textContent = acct.name; $('authPass').value = $('authPass2').value = '';
   if (fresh) track(acct.tab === 'signup' ? 'sign_up' : 'login');
-  if (net.where === 'home') showScreen('homeScreen');
+  if (net.where === 'home' && $('invScreen').hidden) showScreen('homeScreen'); else syncAvatar();
   renderServers();
 }
 function signedOut() {
-  acct.name = acct.token = null; acct.busy = false;
-  try { localStorage.removeItem('dubg-token'); localStorage.removeItem('dubg-acct'); } catch (e) {}
+  acct.name = acct.token = acct.look = null; acct.busy = false;
+  try { localStorage.removeItem('dubg-token'); localStorage.removeItem('dubg-acct'); localStorage.removeItem('dubg-look'); } catch (e) {}
   if (net.where !== 'match') goHome();
   renderServers();
 }

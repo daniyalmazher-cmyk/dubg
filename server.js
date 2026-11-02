@@ -64,7 +64,7 @@ function uniqueNames(list) {
     let out = c.name, k = 2;
     while (used.has(out.toLowerCase())) out = `${c.name.slice(0, 12)}${k++}`;
     used.add(out.toLowerCase());
-    return { name: out };
+    return { name: out, look: c.user ? c.user.look : null };
   });
 }
 const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -108,14 +108,14 @@ setInterval(() => { const now = Date.now(); for (const [ip, t] of tries) if (t.u
 async function newSession(c, user) {
   const token = crypto.randomBytes(32).toString('base64url');
   await db.createSession(sha(token), user.id, Date.now() + SESSION_DAYS * 86400000);
-  c.user = { id: user.id, name: user.name };
-  send(c, { t: 'authed', name: user.name, token });
+  c.user = { id: user.id, name: user.name, look: D.cleanLook(user.look) };
+  send(c, { t: 'authed', name: user.name, look: c.user.look, token });
 }
 async function onAccount(c, m) {
   const fail = msg => send(c, { t: 'authErr', msg });
   if (m.t === 'auth') {
     const user = typeof m.token === 'string' && m.token.length < 100 ? await db.userBySession(sha(m.token)) : null;
-    if (user) { c.user = user; send(c, { t: 'authed', name: user.name }); } else send(c, { t: 'authOut' });
+    if (user) { c.user = { id: user.id, name: user.name, look: D.cleanLook(user.look) }; send(c, { t: 'authed', name: user.name, look: c.user.look }); } else send(c, { t: 'authOut' });
     return;
   }
   if (m.t === 'logout') {
@@ -230,6 +230,13 @@ wss.on('connection', (ws, req) => {
     if (!m || typeof m.t !== 'string') return;
     const me = c.match ? c.match.E.match().players[c.pid] : null;
     const free = !c.queued && !c.room && !c.match;
+    // the outfit picked in the inventory; worn from the next match on
+    if (m.t === 'look') {
+      if (!c.user) return;
+      c.user.look = D.cleanLook(m.look);
+      db.setLook(c.user.id, c.user.look).catch(e => console.error('look save error:', e.message));
+      return;
+    }
     if (m.t === 'signup' || m.t === 'login' || m.t === 'auth' || m.t === 'logout') {
       if (free) onAccount(c, m).catch(e => { console.error('account error:', e.message); send(c, { t: 'authErr', msg: 'Something went wrong on our side. Try again in a minute.' }); });
       return;

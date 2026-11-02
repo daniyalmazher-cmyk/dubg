@@ -541,13 +541,15 @@ const hurtMat = fogify(new THREE.MeshLambertMaterial({ color: '#ff5a4a', emissiv
 function muzzle(P) { return P.muzzle || { x: P.x + Math.cos(P.ang) * 22, y: P.y + Math.sin(P.ang) * 22, h: H.aim }; }
 
 // ---------- the Blender character (public/models/dd_character.glb) ----------
-// One skinned mesh with a 10-bone rig and idle / walk / punch / heal / die clips. Every body part samples one
-// pixel of a 16-pixel palette strip, so each player is one material with its own strip: their skin, hoodie,
-// crew colour and hat. Hats and the vest ride on bones and are shown or hidden.
+// A 10-bone rig with idle / walk / punch / heal / die clips, a head, and every outfit piece as its own skinned mesh
+// (DUBG_<area>_<item>). A player shows one piece per area. Pieces are coloured per vertex; their bare-skin parts use a
+// second material, so a player is two materials: their clothes and their skin.
+const CHAR_VERSION = 2;   // bump when the model changes: browsers keep models cached for a day
 let charSrc = null;   // { scene, clips } once loaded; until then players use the box figure above
-const SLOT = { skin: 0, hoodie: 1, hood: 2, pants: 3, shoe: 4, sole: 5, crew: 6, dark: 7, vest: 8, hat: 9, hatDark: 10, brim: 11, hair: 12, strap: 13 };
+const charWait = [];  // run once the model is in
 function loadCharacter() {
-  gltf.load('/models/dd_character.glb', g => {
+  if (charSrc || loadCharacter.busy) return; loadCharacter.busy = true;
+  gltf.load('/models/dd_character.glb?v=' + CHAR_VERSION, g => {
     const clips = {}; for (const c of g.animations) clips[c.name] = c;
     // split each clip into its leg tracks and its upper-body tracks
     const LO = /^(root|hips|legL|legR)\./, split = { lo: {}, hi: {} };
@@ -556,30 +558,28 @@ function loadCharacter() {
       split.hi[n] = new THREE.AnimationClip(n + ':hi', c.duration, c.tracks.filter(t => !LO.test(t.name)));
     }
     charSrc = { scene: g.scene, clips, split };
+    while (charWait.length) charWait.shift()();
   }, undefined, () => console.warn('DUBG: character model missing, keeping the box figures'));
 }
-function palette(P) {
-  const L = P.look, crew = P.crew.c, shoe = P.id % 3 === 0 ? crew : '#e9e6df';
-  const hat = L.hat === 'beanie' ? L.beanie : crew;
-  const cols = { skin: L.skin, hoodie: L.hoodie, hood: shade(L.hoodie, 0.7), pants: PANTS[P.id % PANTS.length], shoe, sole: shade(shoe, 0.8), crew,
-    dark: '#141414', vest: '#2c3340', hat, hatDark: shade(hat, 0.7), brim: shade(crew, 0.6), hair: '#1a120c', strap: shade('#2c3340', 0.6) };
-  const data = new Uint8Array(16 * 4);
-  for (const [k, i] of Object.entries(SLOT)) { tmpC.set(cols[k]); tmpC.convertLinearToSRGB(); data[i * 4] = tmpC.r * 255; data[i * 4 + 1] = tmpC.g * 255; data[i * 4 + 2] = tmpC.b * 255; data[i * 4 + 3] = 255; }
-  const tex = new THREE.DataTexture(data, 16, 1); tex.colorSpace = THREE.SRGBColorSpace;
-  tex.magFilter = tex.minFilter = THREE.NearestFilter; tex.needsUpdate = true;
-  return tex;
-}
-function makeCharacter(P, isMe) {
-  const holder = new THREE.Group(), body = cloneSkinned(charSrc.scene);
-  body.scale.setScalar(MODEL_SCALE * BODY); holder.add(body);
-  const mat = fogify(new THREE.MeshLambertMaterial({ map: palette(P) }));
-  const bones = {}, extras = [];
+// the loader may split a two-material piece into a group plus numbered parts; all of them follow the piece
+const PIECE = /^DUBG_(head|torso|legs|feet|hands)_([a-z]+)(_\d+)?$/;
+function setOutfit(body, look) { body.traverse(o => { const m = PIECE.exec(o.name); if (m) o.visible = look[m[1]] === m[2]; }); }
+// a fresh copy of the character in an outfit; fog: false for the menu preview, which has no fog of war
+function dressed(look, skin, fog) {
+  const body = cloneSkinned(charSrc.scene), bones = {};
+  const wrap = m => fog ? fogify(m) : m;
+  const cloth = wrap(new THREE.MeshLambertMaterial({ vertexColors: true })), flesh = wrap(new THREE.MeshLambertMaterial({ color: skin }));
   body.traverse(o => {
     if (o.isBone) bones[o.name.replace(/\W/g, '')] = o;   // the loader drops the dots: arm.R arrives as armR
-    if (o.isMesh) { o.material = mat; o.frustumCulled = false; }
-    if (o.name.startsWith('DUBG_hat_')) o.visible = o.name === 'DUBG_hat_' + P.look.hat;
-    if (o.name === 'DUBG_vest') extras.push(o);
+    if (o.isMesh) { o.material = o.material.name === 'DUBG_Skin' ? flesh : cloth; o.frustumCulled = false; }
   });
+  setOutfit(body, look);
+  const vest = body.getObjectByName('DUBG_vest'); if (vest) vest.visible = false;
+  return { body, bones, mats: [cloth, flesh], vest };
+}
+function makeCharacter(P, isMe) {
+  const holder = new THREE.Group(), { body, bones, mats, vest } = dressed(P.look, P.look.skin, true);
+  body.scale.setScalar(MODEL_SCALE * BODY); holder.add(body);
   // every clip runs as two layers: the legs (lo) and the upper body (hi), so you can punch, heal or aim while running
   const mixer = new THREE.AnimationMixer(body), acts = {};
   for (const [n, c] of Object.entries(charSrc.clips)) for (const part of ['lo', 'hi']) {
@@ -593,9 +593,55 @@ function makeCharacter(P, isMe) {
   ring.position.y = 0.8; holder.add(ring);
   scene.add(holder);
   const rest = {}; for (const n of ['armR', 'armL']) rest[n] = bones[n].quaternion.clone();
-  return { glb: true, holder, body, mat, bones, vest: extras[0], mixer, acts, lo: acts['idle:lo'], hi: acts['idle:hi'], gun, ring, rest,
+  return { glb: true, holder, body, mats, bones, vest, mixer, acts, lo: acts['idle:lo'], hi: acts['idle:hi'], gun, ring, rest,
     lx: P.x, ly: P.y, mvx: 0, mvy: 0, speed: 0, gunType: null, hurt: false, dead: false, punchT: 0 };
 }
+
+// ---------- outfit preview for the menus: its own small renderer, turning slowly; drag to spin it ----------
+const pv = { r: null, scene: null, cam: null, canvas: null, fig: null, mixer: null, look: null, on: false, yaw: 0.45, spin: 0, drag: null, t: 0 };
+function previewBuild() {
+  if (!charSrc || !pv.scene) return;
+  if (pv.fig) pv.scene.remove(pv.fig.body);
+  pv.fig = dressed(pv.look, '#c68642', false);
+  pv.scene.add(pv.fig.body);
+  pv.mixer = new THREE.AnimationMixer(pv.fig.body);
+  pv.mixer.clipAction(charSrc.clips.idle).play();
+}
+function previewFrame(now) {
+  if (!pv.on) return;
+  requestAnimationFrame(previewFrame);
+  const c = pv.canvas, w = c.clientWidth, h = c.clientHeight;
+  if (!w || !h) return;   // its screen is hidden
+  const dt = Math.min(0.05, (now - (pv.t || now)) / 1000); pv.t = now;
+  if (c.width !== Math.round(w * pv.dpr) || c.height !== Math.round(h * pv.dpr)) { pv.r.setSize(w, h, false); pv.cam.aspect = w / h; pv.cam.updateProjectionMatrix(); }
+  if (!pv.drag) pv.yaw += dt * 0.35;
+  if (pv.fig) { pv.fig.body.rotation.y = pv.yaw; pv.mixer.update(dt); }
+  pv.r.render(pv.scene, pv.cam);
+}
+const preview = {
+  // show the preview in this canvas wearing this outfit
+  show(canvas, look) {
+    pv.look = { ...look };
+    if (pv.canvas !== canvas) {
+      if (pv.r) pv.r.dispose();
+      try { pv.r = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true }); } catch (e) { pv.r = null; return; }
+      pv.dpr = Math.min(2, devicePixelRatio || 1);
+      pv.r.setPixelRatio(pv.dpr); pv.r.outputColorSpace = THREE.SRGBColorSpace;
+      pv.canvas = canvas; pv.fig = null;
+      pv.scene = new THREE.Scene();
+      pv.scene.add(new THREE.HemisphereLight('#fff4e0', '#6b5a45', 2.2));
+      const sun = new THREE.DirectionalLight('#ffffff', 2.2); sun.position.set(3, 6, 8); pv.scene.add(sun);
+      pv.cam = new THREE.PerspectiveCamera(28, 1, 0.1, 100); pv.cam.position.set(0, 3.6, 13.5); pv.cam.lookAt(0, 2.8, 0);
+      canvas.addEventListener('pointerdown', e => { pv.drag = { x: e.clientX, yaw: pv.yaw }; canvas.setPointerCapture(e.pointerId); });
+      canvas.addEventListener('pointermove', e => { if (pv.drag) pv.yaw = pv.drag.yaw + (e.clientX - pv.drag.x) * 0.012; });
+      const up = () => { pv.drag = null; };
+      canvas.addEventListener('pointerup', up); canvas.addEventListener('pointercancel', up);
+    }
+    if (pv.fig) setOutfit(pv.fig.body, pv.look); else if (charSrc) previewBuild(); else { charWait.push(previewBuild); loadCharacter(); }
+    if (!pv.on) { pv.on = true; pv.t = 0; requestAnimationFrame(previewFrame); }
+  },
+  hide() { pv.on = false; },
+};
 const qA = new THREE.Quaternion(), qB = new THREE.Quaternion(), eA = new THREE.Euler(), wp = new THREE.Vector3();
 // switch one layer ('lo' legs, 'hi' upper body) to a clip
 function play(v, part, name, fade = 0.15) {
@@ -653,7 +699,7 @@ function updateCharacter(P, v, dt, visible) {
     v.gun.position.copy(wp);
   }
   const hurt = P.hurt > 0;
-  if (hurt !== v.hurt) { v.hurt = hurt; v.mat.emissive.set(hurt ? '#a01810' : '#000000'); }
+  if (hurt !== v.hurt) { v.hurt = hurt; for (const m of v.mats) m.emissive.set(hurt ? '#a01810' : '#000000'); }
 }
 
 // ---------- zombies: the same block figures, rotten, arms out; the boss towers over the walls ----------
@@ -896,6 +942,6 @@ function toWorld(sx, sy) {
 // world units per screen pixel near a point, so overlay text can shrink with distance
 function pxScale(x, y, h) { const a = project(x, y, h), b = project(x + 100, y, h); return Math.hypot(b.x - a.x, b.y - a.y) / 100; }
 
-const api = { zoomMul: 1, BOSS_K, init, resize, setWorld, frame, project, toWorld, pxScale, get ok() { return !!renderer; }, get hasWorld() { return !!world; }, AIM_H: H.aim };
+const api = { zoomMul: 1, BOSS_K, preview, init, resize, setWorld, frame, project, toWorld, pxScale, get ok() { return !!renderer; }, get hasWorld() { return !!world; }, AIM_H: H.aim };
 window.R3D = api;
 window.dispatchEvent(new Event('r3d-ready'));
