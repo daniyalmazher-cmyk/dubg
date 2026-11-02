@@ -2,9 +2,12 @@
 // any number of matches at once over WebSockets.
 const http = require('http');
 const fs = require('fs');
+const crypto = require('crypto');
+const { promisify } = require('util');
 const path = require('path');
 const { WebSocketServer } = require('ws');
 const D = require('./shared/game.js');
+const db = require('./db.js');
 
 const PORT = process.env.PORT || 3000;
 const TICK = 1 / 30;                                         // simulation step
@@ -38,7 +41,7 @@ const server = http.createServer((req, res) => {
 });
 
 // ---------- state ----------
-// client: { cid, ws, name, queued, room, match, pid }
+// client: { cid, ws, ip, user, name, queued, room, match, pid }   user = { id, name } once signed in
 // room:   { code, owner, members: [client], match, bots, mode }
 // match:  { id, E, seed, tick, endAt, room, mode }
 const wss = new WebSocketServer({ server, maxPayload: 4096 });
@@ -70,6 +73,73 @@ function newCode() {
   // random letters can spell something rude; roll again if so
   do { code = ''; for (let i = 0; i < 5; i++) code += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)]; } while (rooms.has(code) || D.badName(code));
   return code;
+}
+
+// ---------- accounts ----------
+// Player names are account names. Passwords are hashed with scrypt; the browser keeps a random session token,
+// and the database only stores its SHA-256, so a leaked database can't be used to sign in.
+const scrypt = promisify(crypto.scrypt);
+const SESSION_DAYS = 60;
+const sha = s => crypto.createHash('sha256').update(s).digest('hex');
+async function hashPass(pass) {
+  const salt = crypto.randomBytes(16);
+  return `s1$${salt.toString('base64')}$${(await scrypt(pass, salt, 32)).toString('base64')}`;
+}
+async function checkPass(pass, stored) {
+  const [, salt, hash] = stored.split('$'), want = Buffer.from(hash, 'base64');
+  return crypto.timingSafeEqual(await scrypt(pass, Buffer.from(salt, 'base64'), want.length), want);
+}
+function nameProblem(n) {
+  if (n.length < 3 || n.length > 14) return 'Names are 3 to 14 characters.';
+  if (!/^[A-Za-z0-9_.-]+$/.test(n)) return 'Names can use letters, numbers and _ . - only.';
+  if (!/[A-Za-z]/.test(n)) return 'Names need at least one letter.';
+  if (D.badName(n)) return "That name isn't allowed. Pick another one.";
+  return null;
+}
+// slow down password guessing: a few tries per address, then a pause
+const tries = new Map();   // ip -> { n, until }
+const TRY_MAX = 12, TRY_WINDOW = 10 * 60 * 1000;
+function tooMany(ip) {
+  const now = Date.now(), t = tries.get(ip);
+  if (!t || t.until < now) { tries.set(ip, { n: 1, until: now + TRY_WINDOW }); return false; }
+  return ++t.n > TRY_MAX;
+}
+setInterval(() => { const now = Date.now(); for (const [ip, t] of tries) if (t.until < now) tries.delete(ip); }, 60000);
+async function newSession(c, user) {
+  const token = crypto.randomBytes(32).toString('base64url');
+  await db.createSession(sha(token), user.id, Date.now() + SESSION_DAYS * 86400000);
+  c.user = { id: user.id, name: user.name };
+  send(c, { t: 'authed', name: user.name, token });
+}
+async function onAccount(c, m) {
+  const fail = msg => send(c, { t: 'authErr', msg });
+  if (m.t === 'auth') {
+    const user = typeof m.token === 'string' && m.token.length < 100 ? await db.userBySession(sha(m.token)) : null;
+    if (user) { c.user = user; send(c, { t: 'authed', name: user.name }); } else send(c, { t: 'authOut' });
+    return;
+  }
+  if (m.t === 'logout') {
+    if (typeof m.token === 'string' && m.token.length < 100) await db.deleteSession(sha(m.token));
+    c.user = null; send(c, { t: 'authOut' });
+    return;
+  }
+  // signup and login
+  if (c.user) return;
+  const name = String(m.name || '').trim(), pass = String(m.pass || '');
+  if (tooMany(c.ip)) return fail('Too many tries. Wait a few minutes and try again.');
+  if (m.t === 'signup') {
+    const bad = nameProblem(name); if (bad) return fail(bad);
+    if (pass.length < 6) return fail('Passwords need at least 6 characters.');
+    if (pass.length > 72) return fail('That password is too long.');
+    const user = await db.createUser(name, name.toLowerCase(), await hashPass(pass));
+    if (!user) return fail('That name is taken. Try another one.');
+    console.log(`account created: ${user.name}`);
+    await newSession(c, user);
+  } else {
+    const user = name && pass.length <= 72 ? await db.userByName(name.toLowerCase()) : null;
+    if (!user || !(await checkPass(pass, user.pass))) return fail('Wrong name or password.');
+    await newSession(c, user);
+  }
 }
 
 // ---------- matches ----------
@@ -149,8 +219,9 @@ function leaveRoom(c) {
 }
 
 // ---------- connections ----------
-wss.on('connection', ws => {
-  const c = { cid: nextCid++, ws, name: null, queued: false, room: null, match: null, pid: null };
+wss.on('connection', (ws, req) => {
+  const ip = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || '').split(',')[0].trim();
+  const c = { cid: nextCid++, ws, ip, user: null, name: null, queued: false, room: null, match: null, pid: null };
   clients.set(ws, c);
   send(c, { t: 'hello', cid: c.cid });
   send(c, stats());
@@ -159,9 +230,14 @@ wss.on('connection', ws => {
     if (!m || typeof m.t !== 'string') return;
     const me = c.match ? c.match.E.match().players[c.pid] : null;
     const free = !c.queued && !c.room && !c.match;
-    // names are checked before anything that shows them to other players
-    if ((m.t === 'queue' || m.t === 'create' || m.t === 'join') && free && D.badName(cleanName(m.name))) {
-      send(c, { t: 'err', msg: "That name isn't allowed. Pick another one." }); return;
+    if (m.t === 'signup' || m.t === 'login' || m.t === 'auth' || m.t === 'logout') {
+      if (free) onAccount(c, m).catch(e => { console.error('account error:', e.message); send(c, { t: 'authErr', msg: 'Something went wrong on our side. Try again in a minute.' }); });
+      return;
+    }
+    // playing needs an account, and your name is your account name
+    if ((m.t === 'queue' || m.t === 'create' || m.t === 'join') && free) {
+      if (!c.user) { send(c, { t: 'authOut' }); return; }
+      m.name = c.user.name;
     }
     switch (m.t) {
       case 'queue': {
@@ -265,4 +341,8 @@ setInterval(() => {
   }
 }, 1000 * TICK);
 
-server.listen(PORT, () => console.log(`DUBG server on http://localhost:${PORT}`));
+db.init().then(() => {
+  console.log(`accounts: ${db.kind}`);
+  if (process.env.RENDER && !process.env.DATABASE_URL) console.warn('WARNING: no DATABASE_URL set. Accounts are kept on disk and will be lost on the next deploy.');
+  server.listen(PORT, () => console.log(`DUBG server on http://localhost:${PORT}`));
+}, e => { console.error('Could not open the accounts database:', e.message); process.exit(1); });

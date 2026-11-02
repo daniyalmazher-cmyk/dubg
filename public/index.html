@@ -134,8 +134,8 @@ body.v3d #game{background:transparent}
 .keys span{color:var(--muted)}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
 label.lbl{display:block;font-weight:700;letter-spacing:.12em;text-transform:uppercase;font-size:13px;color:var(--muted);margin-bottom:6px}
-input[type=text]{font-family:var(--body);font-size:22px;font-weight:700;background:#0c0d0e;color:var(--text);border:1px solid var(--line);padding:10px 12px;width:min(260px,100%);letter-spacing:.03em}
-input[type=text]:focus-visible{outline:3px solid var(--hazard);outline-offset:2px}
+input[type=text],input[type=password]{font-family:var(--body);font-size:22px;font-weight:700;background:#0c0d0e;color:var(--text);border:1px solid var(--line);padding:10px 12px;width:min(260px,100%);letter-spacing:.03em}
+input[type=text]:focus-visible,input[type=password]:focus-visible{outline:3px solid var(--hazard);outline-offset:2px}
 button{font-family:var(--display);font-size:22px;background:var(--orange);color:#111;border:0;padding:12px 26px;cursor:pointer;letter-spacing:.03em}
 button:disabled{opacity:.45;cursor:default}
 button.ghost{background:transparent;color:var(--text);border:1px solid var(--line);font-family:var(--body);font-weight:700;font-size:17px;text-transform:uppercase;letter-spacing:.08em;padding:12px 18px}
@@ -146,6 +146,11 @@ button:focus-visible{outline:3px solid var(--hazard);outline-offset:3px}
 .status.on{color:var(--good)} .status.off{color:var(--danger)}
 .h2{font-family:var(--display);font-size:34px;line-height:1}
 .panel.wide{width:min(780px,100%)}
+.authForm{display:grid;gap:14px;margin-top:18px}
+.authForm input{width:100%}
+#authSeg{margin-top:18px}
+.who{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.who b{font-size:24px;letter-spacing:.03em}
 .homeTop{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
 .cols{display:grid;grid-template-columns:1fr 1fr;gap:22px;align-items:start}
 .col{display:flex;flex-direction:column;gap:12px}
@@ -295,7 +300,7 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
   .cols{gap:16px}
   .col{gap:8px}
   label.lbl{margin-bottom:4px;font-size:11px}
-  input[type=text]{font-size:18px;padding:8px 10px}
+  input[type=text],input[type=password]{font-size:18px;padding:8px 10px}
   button.play{font-size:26px;padding:12px 20px}
   button.ghost{padding:9px 14px;font-size:15px}
   .srv{padding:7px 10px}
@@ -362,7 +367,26 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
   <button id="menuBtn" type="button">Menu</button>
 </div>
 
-<div class="overlay" id="homeScreen">
+<div class="overlay" id="authScreen" hidden>
+  <div class="panel">
+    <div class="hazard"></div>
+    <div class="inner">
+      <div class="logo">DUBG</div>
+      <div class="sub">Dawg Unknown Battle Ground</div>
+      <div class="seg" id="authSeg"><button type="button" data-v="login">Log in</button><button type="button" data-v="signup">Create account</button></div>
+      <form id="authForm" class="authForm">
+        <div><label class="lbl" for="authName">Player name</label><input type="text" id="authName" maxlength="14" autocomplete="username" autocapitalize="off" spellcheck="false" placeholder="e.g. BigDawg"></div>
+        <div><label class="lbl" for="authPass">Password</label><input type="password" id="authPass" maxlength="72" autocomplete="current-password"></div>
+        <div id="authPass2Row" hidden><label class="lbl" for="authPass2">Password again</label><input type="password" id="authPass2" maxlength="72" autocomplete="new-password"></div>
+        <div class="note" id="authNote"></div>
+        <div class="err" id="authErr" role="alert" hidden></div>
+        <div><button id="authBtn" class="play" type="submit" disabled>Log in</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="homeScreen" hidden>
   <div class="panel wide">
     <div class="hazard"></div>
     <div class="inner">
@@ -378,8 +402,8 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
       <div class="cols">
         <div class="col">
           <div>
-            <label class="lbl" for="nameInput">Your street name</label>
-            <input type="text" id="nameInput" maxlength="14" autocomplete="nickname" placeholder="e.g. BigDawg" spellcheck="false">
+            <label class="lbl">Signed in as</label>
+            <div class="who"><b id="whoName"></b><button id="logoutBtn" class="ghost" type="button">Log out</button></div>
           </div>
           <div>
             <label class="lbl">Server</label>
@@ -1427,7 +1451,7 @@ $('pingChk').addEventListener('change', () => { S.ping = $('pingChk').checked; s
 $('fpsChk').addEventListener('change', () => { S.fps = $('fpsChk').checked; saveSettings(); });
 let settingsBack = null;
 function openSettings() {
-  settingsBack = ['homeScreen', 'queueScreen', 'roomScreen', 'endScreen'].find(id => !$(id).hidden) || null;
+  settingsBack = ['authScreen', 'homeScreen', 'queueScreen', 'roomScreen', 'endScreen'].find(id => !$(id).hidden) || null;
   $('quitBtn').hidden = !inMatch();
   showScreen('settingsScreen');
 }
@@ -1436,7 +1460,7 @@ $('settingsBtn').addEventListener('click', openSettings);
 $('settingsDone').addEventListener('click', closeSettings);
 
 // ---------- screens ----------
-const SCREENS = ['homeScreen', 'queueScreen', 'roomScreen', 'settingsScreen', 'endScreen'];
+const SCREENS = ['authScreen', 'homeScreen', 'queueScreen', 'roomScreen', 'settingsScreen', 'endScreen'];
 function showScreen(id) { for (const s of SCREENS) $(s).hidden = s !== id; }
 function showErr(msg) {
   const el = net.where === 'room' ? $('roomErr') : $('homeErr');
@@ -1447,9 +1471,9 @@ function showErr(msg) {
 function exitMatch() {
   showBoard(false); resetSticks();
   if (M && M.state !== 'menu') { menuState(); $('hud').hidden = true; }
-  if (net.where === 'match') { net.where = net.room ? 'room' : 'home'; showScreen(net.room ? 'roomScreen' : 'homeScreen'); }
+  if (net.where === 'match') { net.where = net.room ? 'room' : 'home'; showScreen(net.room ? 'roomScreen' : homeId()); }
 }
-function goHome() { net.room = null; net.where = 'home'; if (M && M.state !== 'menu') { menuState(); $('hud').hidden = true; } showScreen('homeScreen'); }
+function goHome() { net.room = null; net.where = 'home'; if (M && M.state !== 'menu') { menuState(); $('hud').hidden = true; } showScreen(homeId()); }
 
 function renderQueue(q) {
   $('qN').textContent = q.n; $('qMax').textContent = q.max;
@@ -1498,6 +1522,8 @@ function renderServers() {
   const st = net.stats, ok = net.ws && net.ws.readyState === 1;
   $('srvStats').textContent = ok && st ? `${st.online} online · ${st.live} ${st.live === 1 ? 'match' : 'matches'} live · ${st.queued} in queue` : ok ? '' : "Can't reach this server right now. Retrying…";
   for (const b of ['findBtn', 'createBtn', 'joinBtn']) $(b).disabled = !ok;
+  $('authBtn').disabled = !ok || acct.busy;
+  $('authNote').textContent = ok ? '' : 'Connecting to the server…';
 }
 $('serverList').addEventListener('click', e => {
   const b = e.target.closest('.srv'); if (!b || net.where !== 'home') return;
@@ -1523,7 +1549,7 @@ function connect(s) {
   const ws = new WebSocket(wsUrl(s));
   net.ws = ws;
   renderServers();
-  ws.onopen = () => { send({ t: 'ping', c: performance.now() }); renderServers(); };
+  ws.onopen = () => { send({ t: 'ping', c: performance.now() }); if (acct.token) send({ t: 'auth', token: acct.token }); renderServers(); };
   ws.onclose = () => {
     if (ws !== net.ws) return;
     renderServers();
@@ -1544,18 +1570,75 @@ function connect(s) {
     else if (m.t === 'ended') exitMatch();
     else if (m.t === 'home') { if (net.where !== 'match') goHome(); }
     else if (m.t === 'err') showErr(m.msg);
+    else if (m.t === 'authed') signedIn(m);
+    else if (m.t === 'authOut') signedOut();
+    else if (m.t === 'authErr') { acct.busy = false; authErr(m.msg); renderServers(); }
     else if (m.t === 'pong') { net.ping = Math.max(1, Math.round(performance.now() - m.c)); if (net.where === 'home') renderServers(); }
   };
 }
 setInterval(() => send({ t: 'ping', c: performance.now() }), 2000);
 
+// ---------- account ----------
+// The server keeps the account; this browser keeps a session token so players stay signed in.
+const acct = { name: null, token: null, busy: false, tab: 'login' };
+try { acct.token = localStorage.getItem('dubg-token'); acct.name = acct.token && localStorage.getItem('dubg-acct'); } catch (e) {}
+const homeId = () => acct.name ? 'homeScreen' : 'authScreen';
+function authErr(msg) { $('authErr').textContent = msg; $('authErr').hidden = !msg; }
+function setAuthTab(v) {
+  acct.tab = v;
+  for (const b of $('authSeg').children) b.classList.toggle('on', b.dataset.v === v);
+  $('authPass2Row').hidden = v !== 'signup';
+  $('authPass').autocomplete = v === 'signup' ? 'new-password' : 'current-password';
+  $('authBtn').textContent = v === 'signup' ? 'Create account' : 'Log in';
+  authErr('');
+}
+function signedIn(m) {
+  const fresh = !!m.token;
+  acct.name = m.name; acct.busy = false;
+  if (m.token) acct.token = m.token;
+  try { localStorage.setItem('dubg-token', acct.token); localStorage.setItem('dubg-acct', acct.name); } catch (e) {}
+  $('whoName').textContent = acct.name; $('authPass').value = $('authPass2').value = '';
+  if (fresh) track(acct.tab === 'signup' ? 'sign_up' : 'login');
+  if (net.where === 'home') showScreen('homeScreen');
+  renderServers();
+}
+function signedOut() {
+  acct.name = acct.token = null; acct.busy = false;
+  try { localStorage.removeItem('dubg-token'); localStorage.removeItem('dubg-acct'); } catch (e) {}
+  if (net.where !== 'match') goHome();
+  renderServers();
+}
+$('authSeg').addEventListener('click', e => { const v = e.target.dataset && e.target.dataset.v; if (v) { setAuthTab(v); $('authName').focus(); } });
+$('authForm').addEventListener('submit', e => {
+  e.preventDefault();
+  const name = $('authName').value.trim(), pass = $('authPass').value, signup = acct.tab === 'signup';
+  if (!name) { authErr('Enter your player name.'); $('authName').focus(); return; }
+  if (!pass) { authErr('Enter your password.'); $('authPass').focus(); return; }
+  if (signup) {
+    if (name.length < 3) { authErr('Names are 3 to 14 characters.'); $('authName').focus(); return; }
+    if (!/^[A-Za-z0-9_.-]+$/.test(name)) { authErr('Names can use letters, numbers and _ . - only.'); $('authName').focus(); return; }
+    if (D.badName(name)) { authErr("That name isn't allowed. Pick another one."); $('authName').focus(); return; }
+    if (pass.length < 6) { authErr('Passwords need at least 6 characters.'); $('authPass').focus(); return; }
+    if (pass !== $('authPass2').value) { authErr("The two passwords don't match."); $('authPass2').focus(); return; }
+  }
+  authErr(''); acct.busy = true; renderServers();
+  send({ t: signup ? 'signup' : 'login', name, pass });
+});
+$('logoutBtn').addEventListener('click', () => { send({ t: 'logout', token: acct.token }); signedOut(); });
+{
+  let old = null; try { old = localStorage.getItem('dubg-name'); } catch (e) {}
+  if (old) $('authName').value = old;
+  // first visit: start on Create account
+  let seen = null; try { seen = localStorage.getItem('dubg-acct') || localStorage.getItem('dubg-seen'); localStorage.setItem('dubg-seen', '1'); } catch (e) {}
+  setAuthTab(seen ? 'login' : 'signup');
+  if (acct.name) $('whoName').textContent = acct.name;
+  showScreen(homeId());
+}
+
 function playerName() {
-  const n = $('nameInput').value.trim();
-  if (!n) { showErr('Pick a street name first.'); $('nameInput').focus(); return null; }
-  if (D.badName(n)) { showErr("That name isn't allowed. Pick another one."); $('nameInput').focus(); return null; }
-  try { localStorage.setItem('dubg-name', n); } catch (e) {}
+  if (!acct.name) { goHome(); return null; }
   initAudio(); showErr(''); goFull();
-  return n;
+  return acct.name;
 }
 // which game the home screen buttons start
 let MODE = 'br';
@@ -1592,7 +1675,7 @@ $('leaveHud').addEventListener('click', leaveMatch);
 $('quitBtn').addEventListener('click', () => { settingsBack = null; leaveMatch(); });
 $('againBtn').addEventListener('click', () => {
   const mode = M && M.mode || MODE;
-  send({ t: 'leave' }); send({ t: 'queue', name: $('nameInput').value.trim(), mode }); track('play_again', { game: mode });
+  send({ t: 'leave' }); send({ t: 'queue', mode }); track('play_again', { game: mode });
   if (M && M.state !== 'menu') { menuState(); $('hud').hidden = true; }
   net.where = 'queue'; showScreen('queueScreen');
 });
@@ -1603,7 +1686,6 @@ function copy(btn, text, label) {
 }
 $('copyCodeBtn').addEventListener('click', () => net.room && copy($('copyCodeBtn'), net.room.code, 'Copy code'));
 $('copyLinkBtn').addEventListener('click', () => net.room && copy($('copyLinkBtn'), `${location.origin}/?room=${net.room.code}`, 'Copy invite link'));
-try { const n = localStorage.getItem('dubg-name'); if (n) $('nameInput').value = n; } catch (e) {}
 { const code = new URLSearchParams(location.search).get('room'); if (code) $('codeInput').value = code.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 5); }
 
 // ---------- audio ----------
