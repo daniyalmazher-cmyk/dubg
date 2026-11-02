@@ -166,6 +166,11 @@ button:focus-visible{outline:3px solid var(--hazard);outline-offset:3px}
 .itm small{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
 .itm.on{background:#1d1a16;box-shadow:inset 0 0 0 1px var(--rar),0 0 14px -4px var(--rar)}
 .itm.on small{color:var(--text)}
+.itm .set{font-size:11px;color:var(--muted);font-weight:600}
+.itm.locked img{filter:saturate(.75) brightness(.8)}
+.itm.locked small{color:var(--rar)}
+.itm.trying{background:#1d1a16;box-shadow:inset 0 0 0 1px var(--rar)}
+.itm.trying img{filter:none}
 @media (max-height:560px){.avatarBox{height:170px}.invWrap .avatarBox{height:200px}.invWrap{grid-template-columns:170px 1fr}.invGrid{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}.itm{padding:6px;font-size:12px}}
 @media (max-width:620px){#homeScreen .cols{grid-template-columns:1fr}.invWrap{grid-template-columns:1fr}.avatarBox{height:200px}}
 .homeTop{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
@@ -1627,22 +1632,26 @@ try { acct.look = acct.name && D.cleanLook(JSON.parse(localStorage.getItem('dubg
 // ---------- outfit: the character on the home screen, and the inventory to change it ----------
 const avatarCv = document.createElement('canvas'); avatarCv.className = 'avatarCv';
 let invSlot = 'torso', invStart = '', thumbs = null;
+const tryOn = {};   // locked items being looked at in the preview, by area; never saved
+const shownLook = () => ({ ...acct.look, ...tryOn });
 // the preview canvas moves to whichever of the two screens is showing
 function syncAvatar() {
   if (!window.R3D) return;
   const box = !$('invScreen').hidden ? $('invAvatar') : !$('homeScreen').hidden ? $('homeAvatar') : null;
   if (!box || !acct.look) { R3D.preview.hide(); return; }
   if (avatarCv.parentNode !== box) box.appendChild(avatarCv);
-  R3D.preview.show(avatarCv, acct.look);
+  R3D.preview.show(avatarCv, $('invScreen').hidden ? acct.look : shownLook());
 }
 addEventListener('r3d-ready', syncAvatar);
 function renderInv() {
   for (const b of $('slotSeg').children) b.classList.toggle('on', b.dataset.v === invSlot);
   $('invGrid').innerHTML = D.COSMETICS[invSlot].map(it => {
-    const on = acct.look[invSlot] === it.id;
+    const on = acct.look[invSlot] === it.id, trying = tryOn[invSlot] === it.id;
     const pic = thumbs && thumbs[invSlot + ':' + it.id];
     const rar = D.RARITY[it.r] || D.RARITY.common;
-    return `<button type="button" class="itm ${on ? 'on' : ''}" data-id="${it.id}" aria-pressed="${on}" style="--rar:${rar.c}">${pic ? `<img src="${pic}" alt="">` : '<i></i>'}<span class="rar">${rar.name}</span>${esc(it.name)}<small>${on ? 'Wearing' : D.DEFAULT_LOOK[invSlot] === it.id ? 'Starter' : 'Wear'}</small></button>`;
+    const tag = it.locked ? (trying ? '🔒 Locked · trying on' : '🔒 Locked · tap to try on') : on && !tryOn[invSlot] ? 'Wearing' : D.DEFAULT_LOOK[invSlot] === it.id ? 'Starter' : 'Wear';
+    return `<button type="button" class="itm ${on && !tryOn[invSlot] ? 'on' : ''} ${it.locked ? 'locked' : ''} ${trying ? 'trying' : ''}" data-id="${it.id}" aria-pressed="${on}" style="--rar:${rar.c}">`
+      + `${pic ? `<img src="${pic}" alt="">` : '<i></i>'}<span class="rar">${rar.name}</span>${esc(it.name)}${it.set ? `<span class="set">${esc(it.set)} set</span>` : ''}<small>${tag}</small></button>`;
   }).join('');
 }
 $('invBtn').addEventListener('click', () => {
@@ -1653,9 +1662,14 @@ $('invBtn').addEventListener('click', () => {
 $('slotSeg').addEventListener('click', e => { const v = e.target.dataset && e.target.dataset.v; if (v) { invSlot = v; renderInv(); } });
 $('invGrid').addEventListener('click', e => {
   const b = e.target.closest('.itm'); if (!b) return;
-  acct.look[invSlot] = b.dataset.id; renderInv(); syncAvatar();
+  const it = D.COSMETICS[invSlot].find(x => x.id === b.dataset.id);
+  // locked: only a look in the preview (tap again to take it off); otherwise wear it
+  if (it.locked) { if (tryOn[invSlot] === it.id) delete tryOn[invSlot]; else tryOn[invSlot] = it.id; }
+  else { acct.look[invSlot] = it.id; delete tryOn[invSlot]; }
+  renderInv(); syncAvatar();
 });
 $('invDone').addEventListener('click', () => {
+  for (const k in tryOn) delete tryOn[k];
   if (JSON.stringify(acct.look) !== invStart) {
     send({ t: 'look', look: acct.look }); track('outfit_change');
     try { localStorage.setItem('dubg-look', JSON.stringify(acct.look)); } catch (e) {}

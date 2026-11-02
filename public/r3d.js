@@ -544,7 +544,7 @@ function muzzle(P) { return P.muzzle || { x: P.x + Math.cos(P.ang) * 22, y: P.y 
 // A 10-bone rig with idle / walk / punch / heal / die clips, a head, and every outfit piece as its own skinned mesh
 // (DUBG_<area>_<item>). A player shows one piece per area. Pieces are coloured per vertex; their bare-skin parts use a
 // second material, so a player is two materials: their clothes and their skin.
-const CHAR_VERSION = 4;   // bump when the model changes: browsers keep models cached for a day
+const CHAR_VERSION = 6;   // bump when the model changes: browsers keep models cached for a day
 let charSrc = null;   // { scene, clips } once loaded; until then players use the box figure above
 const charWait = [];  // run once the model is in
 function loadCharacter() {
@@ -564,6 +564,31 @@ function loadCharacter() {
 // the loader may split a two-material piece into a group plus numbered parts; all of them follow the piece
 const PIECE = /^DUBG_(head|torso|legs|feet|hands)_([a-z]+)(_\d+)?$/;
 function setOutfit(body, look) { body.traverse(o => { const m = PIECE.exec(o.name); if (m) o.visible = look[m[1]] === m[2]; }); }
+// flames on outfit pieces: unlit, coloured per vertex (yellow core, orange, red tips) and licking upwards;
+// the redder a vertex, the more it sways. One material for the game (with fog of war) and one for the menus.
+const fireT = { value: 0 };
+function fireMat(fog) {
+  const m = new THREE.MeshBasicMaterial({ vertexColors: true });
+  if (fog) fogify(m);
+  const fogHook = m.onBeforeCompile;
+  m.onBeforeCompile = (sh, r) => {
+    fogHook.call(m, sh, r);
+    sh.uniforms.dubgT = fireT;
+    sh.vertexShader = 'uniform float dubgT;\n' + sh.vertexShader.replace('#include <begin_vertex>', `#include <begin_vertex>
+      float dubgK = (1.0 - color.g) * 0.16;
+      transformed.x += sin(dubgT * 9.0 + position.y * 7.0 + position.z * 3.0) * dubgK;
+      transformed.z += cos(dubgT * 7.0 + position.y * 6.0 + position.x * 4.0) * dubgK;
+      transformed.y += (sin(dubgT * 11.0 + position.x * 9.0 + position.z * 5.0) * 0.5 + 0.5) * dubgK * 1.4;`);
+    sh.fragmentShader = 'uniform float dubgT;\n' + sh.fragmentShader.replace('#include <color_fragment>', `#include <color_fragment>
+      diffuseColor.rgb *= 0.9 + 0.2 * sin(dubgT * 23.0 + vColor.r * 7.0 + vColor.g * 5.0);`);
+  };
+  m.customProgramCacheKey = () => fog ? 'dubgfire-fog' : 'dubgfire';
+  return m;
+}
+const FIRE = {}, EMBER = {};
+const fire = fog => FIRE[fog] || (FIRE[fog] = fireMat(fog));
+// glowing trims and eyes: unlit like the flames, but they stay put
+const ember = fog => EMBER[fog] || (EMBER[fog] = fog ? fogify(new THREE.MeshBasicMaterial({ vertexColors: true })) : new THREE.MeshBasicMaterial({ vertexColors: true }));
 // a fresh copy of the character in an outfit; fog: false for the menu preview, which has no fog of war
 function dressed(look, skin, fog) {
   const body = cloneSkinned(charSrc.scene), bones = {};
@@ -571,7 +596,7 @@ function dressed(look, skin, fog) {
   const cloth = wrap(new THREE.MeshLambertMaterial({ vertexColors: true })), flesh = wrap(new THREE.MeshLambertMaterial({ color: skin }));
   body.traverse(o => {
     if (o.isBone) bones[o.name.replace(/\W/g, '')] = o;   // the loader drops the dots: arm.R arrives as armR
-    if (o.isMesh) { o.material = o.material.name === 'DUBG_Skin' ? flesh : cloth; o.frustumCulled = false; }
+    if (o.isMesh) { const n = o.material.name; o.material = n === 'DUBG_Skin' ? flesh : n === 'DUBG_Fire' ? fire(fog) : n === 'DUBG_Ember' ? ember(fog) : cloth; o.frustumCulled = false; }
   });
   setOutfit(body, look);
   const vest = body.getObjectByName('DUBG_vest'); if (vest) vest.visible = false;
@@ -615,6 +640,7 @@ function previewFrame(now) {
   const dt = Math.min(0.05, (now - (pv.t || now)) / 1000); pv.t = now;
   if (c.width !== Math.round(w * pv.dpr) || c.height !== Math.round(h * pv.dpr)) { pv.r.setSize(w, h, false); pv.cam.aspect = w / h; pv.cam.updateProjectionMatrix(); }
   if (!pv.drag) pv.yaw += dt * 0.35;
+  fireT.value = now / 1000;
   if (pv.fig) { pv.fig.body.rotation.y = pv.yaw; pv.mixer.update(dt); }
   pv.r.render(pv.scene, pv.cam);
 }
@@ -631,7 +657,7 @@ const preview = {
       pv.scene = new THREE.Scene();
       pv.scene.add(new THREE.HemisphereLight('#fff4e0', '#6b5a45', 2.2));
       const sun = new THREE.DirectionalLight('#ffffff', 2.2); sun.position.set(3, 6, 8); pv.scene.add(sun);
-      pv.cam = new THREE.PerspectiveCamera(28, 1, 0.1, 100); pv.cam.position.set(0, 3.6, 13.5); pv.cam.lookAt(0, 2.8, 0);
+      pv.cam = new THREE.PerspectiveCamera(28, 1, 0.1, 100); pv.cam.position.set(0, 4, 16); pv.cam.lookAt(0, 3.2, 0);
       canvas.addEventListener('pointerdown', e => { pv.drag = { x: e.clientX, yaw: pv.yaw }; canvas.setPointerCapture(e.pointerId); });
       canvas.addEventListener('pointermove', e => { if (pv.drag) pv.yaw = pv.drag.yaw + (e.clientX - pv.drag.x) * 0.012; });
       const up = () => { pv.drag = null; };
@@ -865,6 +891,7 @@ function makeItem(it, ITEMS) {
 function frame(F) {
   if (!renderer || !world) return;
   const { M, dt } = F, t = M.time;
+  fireT.value = performance.now() / 1000;
   // camera: tilted, looking north, framing about as much ground as the 2D view
   const vh = renderer.domElement.clientHeight || innerHeight;
   const L = (vh / F.zoom) * 0.62 / api.zoomMul / (2 * Math.tan(THREE.MathUtils.degToRad(FOV / 2)));

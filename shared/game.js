@@ -130,27 +130,43 @@ const CREWS = [
 ];
 const SKINS = ['#8d5524', '#c68642', '#e0ac69', '#5c3a1e', '#f1c27d', '#3d2314', '#a86b3c'];
 // Cosmetics: one item per body area. Ids match the DUBG_<slot>_<id> pieces in public/models/dd_character.glb.
-// c is the item's main colour, used for corpses and the box figure shown while the model loads; r is its rarity.
+// c is the item's main colour, used for corpses and the box figure shown while the model loads; r is its rarity;
+// set groups the pieces of a full outfit; locked items can be looked at and tried on but not worn yet.
 // Every account starts with these; more items get added here (and to the model) later.
 const RARITY = {
   common: { name: 'Common', c: '#e8e6e0' }, uncommon: { name: 'Uncommon', c: '#3d8bff' },
   rare: { name: 'Rare', c: '#a855f7' }, ultra: { name: 'Ultra rare', c: '#f2c230' },
 };
 const COSMETICS = {
-  head: [{ id: 'hair', name: 'No headwear', c: '#2a1a10', r: 'common' }],
-  torso: [{ id: 'tee', name: 'White tee', c: '#ecebe6', r: 'common' }],
-  legs: [{ id: 'trousers', name: 'Brown trousers', c: '#6b4a2e', r: 'common' }],
-  feet: [{ id: 'sandals', name: 'Sandals', c: '#6b4a2e', r: 'common' }],
-  hands: [{ id: 'bare', name: 'No gloves', c: '#c68642', r: 'common' }],
+  head: [
+    { id: 'hair', name: 'No headwear', c: '#2a1a10', r: 'common' },
+    { id: 'inferno', name: 'Inferno Skull', c: '#e8e2cf', r: 'ultra', set: 'Inferno Rider', locked: true },
+  ],
+  torso: [
+    { id: 'tee', name: 'White tee', c: '#ecebe6', r: 'common' },
+    { id: 'inferno', name: 'Inferno Jacket', c: '#141313', r: 'ultra', set: 'Inferno Rider', locked: true },
+  ],
+  legs: [
+    { id: 'trousers', name: 'Brown trousers', c: '#6b4a2e', r: 'common' },
+    { id: 'inferno', name: 'Inferno Jeans', c: '#1a1a1d', r: 'ultra', set: 'Inferno Rider', locked: true },
+  ],
+  feet: [
+    { id: 'sandals', name: 'Sandals', c: '#6b4a2e', r: 'common' },
+    { id: 'inferno', name: 'Inferno Kicks', c: '#151515', r: 'ultra', set: 'Inferno Rider', locked: true },
+  ],
+  hands: [
+    { id: 'bare', name: 'No gloves', c: '#c68642', r: 'common' },
+    { id: 'inferno', name: 'Inferno Gloves', c: '#141313', r: 'ultra', set: 'Inferno Rider', locked: true },
+  ],
 };
 const SLOTS = ['head', 'torso', 'legs', 'feet', 'hands'];
 const DEFAULT_LOOK = { head: 'hair', torso: 'tee', legs: 'trousers', feet: 'sandals', hands: 'bare' };
 const DEFAULT_SKIN = '#c68642';
 const cosmetic = (slot, id) => COSMETICS[slot].find(i => i.id === id);
-// anything unknown falls back to the starter item for that area
+// anything unknown or still locked falls back to the starter item for that area
 function cleanLook(l) {
   const out = {};
-  for (const s of SLOTS) out[s] = l && typeof l[s] === 'string' && cosmetic(s, l[s]) ? l[s] : DEFAULT_LOOK[s];
+  for (const s of SLOTS) { const it = l && typeof l[s] === 'string' && cosmetic(s, l[s]); out[s] = it && !it.locked ? it.id : DEFAULT_LOOK[s]; }
   return out;
 }
 const SHOPS = {
@@ -507,7 +523,7 @@ let G = null;
 function makePlayer(id, name, isBot, cell, outfit) {
   const crewIdx = Math.floor(Math.random() * CREWS.length);
   const look = isBot ? {} : cleanLook(outfit);
-  if (isBot) for (const s of SLOTS) look[s] = pick(COSMETICS[s].map(i => [i.id, 1]));
+  if (isBot) for (const s of SLOTS) look[s] = pick(COSMETICS[s].filter(i => !i.locked).map(i => [i.id, 1]));
   look.skin = isBot ? pick(SKINS.map(c => [c, 1])) : DEFAULT_SKIN;
   // for the box figure and corpses
   look.hoodie = cosmetic('torso', look.torso).c;
