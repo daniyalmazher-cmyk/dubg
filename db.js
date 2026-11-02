@@ -2,6 +2,8 @@
 // for local play. Render's disk is wiped on every deploy, so the live site needs DATABASE_URL.
 const fs = require('fs');
 const path = require('path');
+// local runs read DATABASE_URL from .env (git-ignored); on Render it comes from the service's environment
+for (const f of ['.env.local', '.env']) try { process.loadEnvFile(path.join(__dirname, f)); } catch (e) { if (e.code !== 'ENOENT') throw e; }
 
 const SQL = `
 create table if not exists users (
