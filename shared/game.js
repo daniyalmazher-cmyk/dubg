@@ -130,14 +130,18 @@ const CREWS = [
 ];
 const SKINS = ['#8d5524', '#c68642', '#e0ac69', '#5c3a1e', '#f1c27d', '#3d2314', '#a86b3c'];
 // Cosmetics: one item per body area. Ids match the DUBG_<slot>_<id> pieces in public/models/dd_character.glb.
-// c is the item's main colour, used for corpses and the box figure shown while the model loads.
+// c is the item's main colour, used for corpses and the box figure shown while the model loads; r is its rarity.
 // Every account starts with these; more items get added here (and to the model) later.
+const RARITY = {
+  common: { name: 'Common', c: '#e8e6e0' }, uncommon: { name: 'Uncommon', c: '#3d8bff' },
+  rare: { name: 'Rare', c: '#a855f7' }, ultra: { name: 'Ultra rare', c: '#f2c230' },
+};
 const COSMETICS = {
-  head: [{ id: 'hair', name: 'No headwear', c: '#2a1a10' }],
-  torso: [{ id: 'tee', name: 'White tee', c: '#ecebe6' }],
-  legs: [{ id: 'trousers', name: 'Brown trousers', c: '#6b4a2e' }],
-  feet: [{ id: 'sandals', name: 'Sandals', c: '#6b4a2e' }],
-  hands: [{ id: 'bare', name: 'No gloves', c: '#c68642' }],
+  head: [{ id: 'hair', name: 'No headwear', c: '#2a1a10', r: 'common' }],
+  torso: [{ id: 'tee', name: 'White tee', c: '#ecebe6', r: 'common' }],
+  legs: [{ id: 'trousers', name: 'Brown trousers', c: '#6b4a2e', r: 'common' }],
+  feet: [{ id: 'sandals', name: 'Sandals', c: '#6b4a2e', r: 'common' }],
+  hands: [{ id: 'bare', name: 'No gloves', c: '#c68642', r: 'common' }],
 };
 const SLOTS = ['head', 'torso', 'legs', 'feet', 'hands'];
 const DEFAULT_LOOK = { head: 'hair', torso: 'tee', legs: 'trousers', feet: 'sandals', hands: 'bare' };
@@ -1260,7 +1264,7 @@ function match() { return G; }
 return {
   TAU, COLS, ROWS, XL, YL, XN, YN, CITY, CX, CY, DUNE, WORLD, MAX_PLAYERS, LOCKDOWN, SPEED, SCHEME, BODY_R, CAR_L, CAR_W,
   WEAPONS, ITEMS, CREWS, SHOPS, PHASES, GRENADE, BLAST_CORE, DROPS, DROP_FALL, ZW, MALL, ZMAX, ZOMBIE, ZSPAWNS,
-  COSMETICS, SLOTS, DEFAULT_LOOK, clamp, dist, angDiff, lerpAngle, darken, inRect, badName, cleanLook,
+  COSMETICS, RARITY, SLOTS, DEFAULT_LOOK, clamp, dist, angDiff, lerpAngle, darken, inRect, badName, cleanLook,
   buildWorld, setDoors, cellWalls, solidAt, blocksSight, pushOut,
   stepProj, createMatch, step, setInput, humanAction, humanLeft, roster, itemList, snapCommon, snapMe, match,
 };
