@@ -164,10 +164,12 @@ const SLOTS = ['head', 'torso', 'legs', 'feet', 'hands'];
 const DEFAULT_LOOK = { head: 'hair', torso: 'tee', legs: 'trousers', feet: 'sandals', hands: 'bare' };
 const DEFAULT_SKIN = '#c68642';
 const cosmetic = (slot, id) => COSMETICS[slot].find(i => i.id === id);
-// anything unknown or still locked falls back to the starter item for that area
-function cleanLook(l) {
+// can this player wear the item? owned: the account's 'slot:id' list of items it has unlocked
+const canWear = (slot, it, owned) => !it.locked || (Array.isArray(owned) && owned.includes(slot + ':' + it.id));
+// anything unknown, or locked and not owned, falls back to the starter item for that area
+function cleanLook(l, owned) {
   const out = {};
-  for (const s of SLOTS) { const it = l && typeof l[s] === 'string' && cosmetic(s, l[s]); out[s] = it && !it.locked ? it.id : DEFAULT_LOOK[s]; }
+  for (const s of SLOTS) { const it = l && typeof l[s] === 'string' && cosmetic(s, l[s]); out[s] = it && canWear(s, it, owned) ? it.id : DEFAULT_LOOK[s]; }
   return out;
 }
 const SHOPS = {
@@ -1281,7 +1283,7 @@ function match() { return G; }
 return {
   TAU, COLS, ROWS, XL, YL, XN, YN, CITY, CX, CY, DUNE, WORLD, MAX_PLAYERS, LOCKDOWN, SPEED, SCHEME, BODY_R, CAR_L, CAR_W,
   WEAPONS, ITEMS, CREWS, SHOPS, PHASES, GRENADE, BLAST_CORE, DROPS, DROP_FALL, ZW, MALL, ZMAX, ZOMBIE, ZSPAWNS,
-  COSMETICS, RARITY, SLOTS, DEFAULT_LOOK, clamp, dist, angDiff, lerpAngle, darken, inRect, badName, cleanLook,
+  COSMETICS, RARITY, SLOTS, DEFAULT_LOOK, clamp, dist, angDiff, lerpAngle, darken, inRect, badName, cleanLook, canWear,
   buildWorld, setDoors, cellWalls, solidAt, blocksSight, pushOut,
   stepProj, createMatch, step, setInput, humanAction, humanLeft, roster, itemList, snapCommon, snapMe, match,
 };

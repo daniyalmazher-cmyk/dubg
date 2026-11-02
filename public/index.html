@@ -1624,10 +1624,11 @@ setInterval(() => send({ t: 'ping', c: performance.now() }), 2000);
 
 // ---------- account ----------
 // The server keeps the account; this browser keeps a session token so players stay signed in.
-const acct = { name: null, token: null, busy: false, tab: 'login' };
+const acct = { name: null, token: null, busy: false, tab: 'login', owned: [] };
 try { acct.token = localStorage.getItem('dubg-token'); acct.name = acct.token && localStorage.getItem('dubg-acct'); } catch (e) {}
 const homeId = () => acct.name ? 'homeScreen' : 'authScreen';
-try { acct.look = acct.name && D.cleanLook(JSON.parse(localStorage.getItem('dubg-look'))); } catch (e) {}
+// shown until the server answers; it re-checks the outfit against what the account owns
+try { acct.look = acct.name && JSON.parse(localStorage.getItem('dubg-look')); acct.look = acct.look && D.cleanLook(acct.look, D.SLOTS.map(s => s + ':' + acct.look[s])); } catch (e) {}
 
 // ---------- outfit: the character on the home screen, and the inventory to change it ----------
 const avatarCv = document.createElement('canvas'); avatarCv.className = 'avatarCv';
@@ -1646,11 +1647,11 @@ addEventListener('r3d-ready', syncAvatar);
 function renderInv() {
   for (const b of $('slotSeg').children) b.classList.toggle('on', b.dataset.v === invSlot);
   $('invGrid').innerHTML = D.COSMETICS[invSlot].map(it => {
-    const on = acct.look[invSlot] === it.id, trying = tryOn[invSlot] === it.id;
+    const on = acct.look[invSlot] === it.id, trying = tryOn[invSlot] === it.id, locked = !D.canWear(invSlot, it, acct.owned);
     const pic = thumbs && thumbs[invSlot + ':' + it.id];
     const rar = D.RARITY[it.r] || D.RARITY.common;
-    const tag = it.locked ? (trying ? '🔒 Locked · trying on' : '🔒 Locked · tap to try on') : on && !tryOn[invSlot] ? 'Wearing' : D.DEFAULT_LOOK[invSlot] === it.id ? 'Starter' : 'Wear';
-    return `<button type="button" class="itm ${on && !tryOn[invSlot] ? 'on' : ''} ${it.locked ? 'locked' : ''} ${trying ? 'trying' : ''}" data-id="${it.id}" aria-pressed="${on}" style="--rar:${rar.c}">`
+    const tag = locked ? (trying ? '🔒 Locked · trying on' : '🔒 Locked · tap to try on') : on && !tryOn[invSlot] ? 'Wearing' : D.DEFAULT_LOOK[invSlot] === it.id ? 'Starter' : 'Wear';
+    return `<button type="button" class="itm ${on && !tryOn[invSlot] ? 'on' : ''} ${locked ? 'locked' : ''} ${trying ? 'trying' : ''}" data-id="${it.id}" aria-pressed="${on}" style="--rar:${rar.c}">`
       + `${pic ? `<img src="${pic}" alt="">` : '<i></i>'}<span class="rar">${rar.name}</span>${esc(it.name)}${it.set ? `<span class="set">${esc(it.set)} set</span>` : ''}<small>${tag}</small></button>`;
   }).join('');
 }
@@ -1664,7 +1665,7 @@ $('invGrid').addEventListener('click', e => {
   const b = e.target.closest('.itm'); if (!b) return;
   const it = D.COSMETICS[invSlot].find(x => x.id === b.dataset.id);
   // locked: only a look in the preview (tap again to take it off); otherwise wear it
-  if (it.locked) { if (tryOn[invSlot] === it.id) delete tryOn[invSlot]; else tryOn[invSlot] = it.id; }
+  if (!D.canWear(invSlot, it, acct.owned)) { if (tryOn[invSlot] === it.id) delete tryOn[invSlot]; else tryOn[invSlot] = it.id; }
   else { acct.look[invSlot] = it.id; delete tryOn[invSlot]; }
   renderInv(); syncAvatar();
 });
@@ -1687,7 +1688,7 @@ function setAuthTab(v) {
 }
 function signedIn(m) {
   const fresh = !!m.token;
-  acct.name = m.name; acct.busy = false; acct.look = D.cleanLook(m.look);
+  acct.name = m.name; acct.busy = false; acct.owned = m.owned || []; acct.look = D.cleanLook(m.look, acct.owned);
   if (m.token) acct.token = m.token;
   try { localStorage.setItem('dubg-token', acct.token); localStorage.setItem('dubg-acct', acct.name); localStorage.setItem('dubg-look', JSON.stringify(acct.look)); } catch (e) {}
   $('whoName').textContent = acct.name; $('authPass').value = $('authPass2').value = '';

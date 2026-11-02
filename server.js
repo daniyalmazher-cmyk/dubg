@@ -108,14 +108,18 @@ setInterval(() => { const now = Date.now(); for (const [ip, t] of tries) if (t.u
 async function newSession(c, user) {
   const token = crypto.randomBytes(32).toString('base64url');
   await db.createSession(sha(token), user.id, Date.now() + SESSION_DAYS * 86400000);
-  c.user = { id: user.id, name: user.name, look: D.cleanLook(user.look) };
-  send(c, { t: 'authed', name: user.name, look: c.user.look, token });
+  signIn(c, user, token);
+}
+function signIn(c, user, token) {
+  const owned = Array.isArray(user.owned) ? user.owned : [];
+  c.user = { id: user.id, name: user.name, owned, look: D.cleanLook(user.look, owned) };
+  send(c, { t: 'authed', name: user.name, look: c.user.look, owned, token });
 }
 async function onAccount(c, m) {
   const fail = msg => send(c, { t: 'authErr', msg });
   if (m.t === 'auth') {
     const user = typeof m.token === 'string' && m.token.length < 100 ? await db.userBySession(sha(m.token)) : null;
-    if (user) { c.user = { id: user.id, name: user.name, look: D.cleanLook(user.look) }; send(c, { t: 'authed', name: user.name, look: c.user.look }); } else send(c, { t: 'authOut' });
+    if (user) signIn(c, user); else send(c, { t: 'authOut' });
     return;
   }
   if (m.t === 'logout') {
@@ -233,7 +237,7 @@ wss.on('connection', (ws, req) => {
     // the outfit picked in the inventory; worn from the next match on
     if (m.t === 'look') {
       if (!c.user) return;
-      c.user.look = D.cleanLook(m.look);
+      c.user.look = D.cleanLook(m.look, c.user.owned);
       db.setLook(c.user.id, c.user.look).catch(e => console.error('look save error:', e.message));
       return;
     }
