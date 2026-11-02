@@ -140,6 +140,10 @@ const RARITY = {
 };
 // store sets: price in Tonnies; pieces names each item, in SLOTS order
 const SETS = {
+  warden: { name: 'Night Warden', r: 'uncommon', price: 500, c: '#2b2d33', pieces: ['Warden cowl', 'Caped suit', 'Warden leggings', 'Warden boots', 'Finned gauntlets'] },
+  titan: { name: 'Sky Titan', r: 'uncommon', price: 500, c: '#1f4fc9', pieces: ['Titan hair', 'Star suit & cape', 'Titan tights', 'Red boots', 'Titan cuffs'] },
+  webrunner: { name: 'Web Runner', r: 'uncommon', price: 500, c: '#c81e28', pieces: ['Web mask', 'Web suit', 'Web leggings', 'Web boots', 'Web gloves'] },
+  vanguard: { name: 'Steel Vanguard', r: 'uncommon', price: 500, c: '#8a929e', pieces: ['Vanguard helmet', 'Core chestplate', 'Leg armour', 'Thruster boots', 'Gauntlets'] },
   skeleton: { name: 'Skeleton', r: 'rare', price: 1000, c: '#ece6d4', pieces: ['Skull', 'Ribcage', 'Leg bones', 'Bone feet', 'Bone hands'] },
   franken: { name: 'Frankenstein', r: 'rare', price: 1000, c: '#7a9a5a', pieces: ['Monster head', 'Patched coat', 'Short trousers', 'Platform boots', 'Stitched hands'] },
   vampire: { name: 'Vampire', r: 'rare', price: 1000, c: '#8e1420', pieces: ['Vampire face', 'Caped tailcoat', 'Evening trousers', 'Buckled shoes', 'Ringed hands'] },
