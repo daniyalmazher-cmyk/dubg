@@ -18,6 +18,7 @@ const QUEUE_WAIT = (+process.env.QUEUE_WAIT || 20) * 1000;   // start with whoev
 const MAX_MATCHES = +process.env.MAX_MATCHES || 12;          // keep a small server from being overloaded
 const MODES = { br: { size: QUEUE_SIZE, max: D.MAX_PLAYERS }, zombie: { size: D.ZMAX, max: D.ZMAX } };
 const modeOf = m => m === 'zombie' ? 'zombie' : 'br';
+const PRIZES = { 1: 10, 2: 5, 3: 3 };                       // Tonnies for the top three of a battle royale
 
 // ---------- static files ----------
 const FILES = {
@@ -113,7 +114,8 @@ async function newSession(c, user) {
 function signIn(c, user, token) {
   const owned = Array.isArray(user.owned) ? user.owned : [];
   c.user = { id: user.id, name: user.name, owned, look: D.cleanLook(user.look, owned) };
-  send(c, { t: 'authed', name: user.name, look: c.user.look, owned, token });
+  c.user.tonnies = user.tonnies || 0;
+  send(c, { t: 'authed', name: user.name, look: c.user.look, owned, tonnies: c.user.tonnies, token });
 }
 async function onAccount(c, m) {
   const fail = msg => send(c, { t: 'authErr', msg });
@@ -148,7 +150,8 @@ async function onAccount(c, m) {
 
 // ---------- matches ----------
 function startMatch(humans, room, mode) {
-  const m = { id: nextMatch++, E: D.instance(), seed: Math.floor(Math.random() * 1e9), tick: 0, endAt: 0, room, mode };
+  const m = { id: nextMatch++, E: D.instance(), seed: Math.floor(Math.random() * 1e9), tick: 0, endAt: 0, room, mode,
+    accounts: humans.map(c => c.user ? c.user.id : null) };   // account of each human player, by player id
   m.E.createMatch(uniqueNames(humans), m.seed, { bots: room ? room.bots : true, mode });
   matches.add(m);
   const roster = m.E.roster(), items = m.E.itemList(), st = m.E.match().state;
@@ -167,6 +170,18 @@ function leaveMatch(c) {
   c.match = null; c.pid = null;
   send(c, { t: 'ended' });
   if (m.room) roomUpdate(m.room);
+}
+// battle royale prizes: the top three real players get Tonnies, even if they've already left the match
+function payPrizes(m) {
+  if (m.mode !== 'br') return;
+  for (const p of m.E.match().players) {
+    const prize = PRIZES[p.place], id = m.accounts[p.id];
+    if (p.isBot || !prize || id == null) continue;
+    db.addTonnies(id, prize).then(balance => {
+      for (const c of clients.values()) if (c.user && c.user.id === id) { c.user.tonnies = balance; send(c, { t: 'tonnies', balance, earned: prize, place: p.place }); }
+      console.log(`match ${m.id}: ${p.name} placed #${p.place}, +${prize} Tonnies`);
+    }, e => console.error('prize error:', e.message));
+  }
 }
 function endMatch(m) {
   matches.delete(m);
@@ -347,7 +362,7 @@ setInterval(() => {
         for (const c of who) send(c, `${common},"me":${JSON.stringify(E.snapMe(G.players[c.pid]))}}`);
       }
     }
-    if (G.state === 'over' && !m.endAt) m.endAt = now + END_DELAY;
+    if (G.state === 'over' && !m.endAt) { m.endAt = now + END_DELAY; payPrizes(m); }
     if (m.endAt && now > m.endAt) endMatch(m);
   }
 }, 1000 * TICK);

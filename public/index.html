@@ -151,6 +151,12 @@ button:focus-visible{outline:3px solid var(--hazard);outline-offset:3px}
 #authSeg{margin-top:18px}
 .who{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .who b{font-size:24px;letter-spacing:.03em}
+.tonnie{display:inline-grid;place-items:center;flex:none;width:22px;height:22px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#ffe58a,#f2b01e 60%,#a86c06);color:#5a3800;font:800 13px/1 var(--display);box-shadow:inset 0 -2px 0 rgba(0,0,0,.25),0 0 0 1px #6b4504}
+.tonnie::before{content:'T'}
+.wallet{display:flex;align-items:center;gap:8px;font-weight:700;font-size:18px;margin-top:8px}
+.wallet b{font-family:var(--display);font-size:24px;color:#f6c94a}
+.prize{display:flex;align-items:center;justify-content:center;gap:10px;font-family:var(--display);font-size:26px;color:#f6c94a}
+.prize .tonnie{width:30px;height:30px;font-size:17px}
 #homeScreen .panel.wide{width:min(940px,100%)}
 #homeScreen .cols{grid-template-columns:190px 1fr 1fr}
 .avatarBox{position:relative;height:250px;background:radial-gradient(ellipse at 50% 85%,rgba(255,122,26,.18),transparent 60%),#0c0d0e;border:1px solid var(--line)}
@@ -430,6 +436,7 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
           <div>
             <label class="lbl">Signed in as</label>
             <div class="who"><b id="whoName"></b><button id="logoutBtn" class="ghost" type="button">Log out</button></div>
+            <div class="wallet" title="Tonnies: win them by finishing top 3 in battle royale"><i class="tonnie" aria-hidden="true"></i><b id="tonnieBal">0</b><span>Tonnies</span></div>
           </div>
           <div>
             <label class="lbl">Server</label>
@@ -460,7 +467,7 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
         <div>On the dunes<span>Everyone starts out in the sand</span></div>
         <div>Run for town<span>The countdown ends, go</span></div>
         <div>Loot the houses<span>Open doors have loot. Barred gates are sealed.</span></div>
-        <div>Survive<span>Stay inside the circle</span></div>
+        <div>Survive<span>Stay in the circle. Top 3 win Tonnies</span></div>
       </div>
       <div class="note touchHelp">Left thumb moves. Right thumb aims, and pushing it all the way out shoots (or switch to fire buttons in Settings). Tap a gun at the bottom to hold it, tap it again to put it away. The red cross heals. Hold the grenade and drag to aim, let go to throw. In Zombies, hold the board-up prompt at a doorway. Tap the alive counter to see every player.</div>
       <div class="keys">
@@ -570,6 +577,7 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
         <div><b id="endKills">0</b><span>Kills</span></div>
         <div><b id="endTime">0:00</b><span>Survived</span></div>
       </div>
+      <div class="prize" id="endPrize" hidden><i class="tonnie" aria-hidden="true"></i><span id="endPrizeTxt"></span></div>
       <div class="note" id="endNote"></div>
       <div class="row">
         <button id="againBtn" type="button">Find another match</button>
@@ -653,6 +661,7 @@ function onMatch(m) {
   M.alive = M.list.length;
   for (const [id, type, x, y] of m.items) M.items.set(id, { id, type, x, y });
   showScreen(null);
+  $('endPrize').hidden = true;
   $('hud').hidden = false;
   $('meHud').hidden = M.me == null;
   cv.focus();
@@ -1615,6 +1624,7 @@ function connect(s) {
     else if (m.t === 'home') { if (net.where !== 'match') goHome(); }
     else if (m.t === 'err') showErr(m.msg);
     else if (m.t === 'authed') signedIn(m);
+    else if (m.t === 'tonnies') gotPrize(m);
     else if (m.t === 'authOut') signedOut();
     else if (m.t === 'authErr') { acct.busy = false; authErr(m.msg); renderServers(); }
     else if (m.t === 'pong') { net.ping = Math.max(1, Math.round(performance.now() - m.c)); if (net.where === 'home') renderServers(); }
@@ -1624,7 +1634,7 @@ setInterval(() => send({ t: 'ping', c: performance.now() }), 2000);
 
 // ---------- account ----------
 // The server keeps the account; this browser keeps a session token so players stay signed in.
-const acct = { name: null, token: null, busy: false, tab: 'login', owned: [] };
+const acct = { name: null, token: null, busy: false, tab: 'login', owned: [], tonnies: 0 };
 try { acct.token = localStorage.getItem('dubg-token'); acct.name = acct.token && localStorage.getItem('dubg-acct'); } catch (e) {}
 const homeId = () => acct.name ? 'homeScreen' : 'authScreen';
 // shown until the server answers; it re-checks the outfit against what the account owns
@@ -1688,13 +1698,22 @@ function setAuthTab(v) {
 }
 function signedIn(m) {
   const fresh = !!m.token;
-  acct.name = m.name; acct.busy = false; acct.owned = m.owned || []; acct.look = D.cleanLook(m.look, acct.owned);
+  acct.name = m.name; acct.busy = false; acct.owned = m.owned || []; setTonnies(m.tonnies || 0); acct.look = D.cleanLook(m.look, acct.owned);
   if (m.token) acct.token = m.token;
   try { localStorage.setItem('dubg-token', acct.token); localStorage.setItem('dubg-acct', acct.name); localStorage.setItem('dubg-look', JSON.stringify(acct.look)); } catch (e) {}
   $('whoName').textContent = acct.name; $('authPass').value = $('authPass2').value = '';
   if (fresh) track(acct.tab === 'signup' ? 'sign_up' : 'login');
   if (net.where === 'home' && $('invScreen').hidden) showScreen('homeScreen'); else syncAvatar();
   renderServers();
+}
+// ---------- Tonnies: the in-game currency ----------
+function setTonnies(n) { acct.tonnies = n; $('tonnieBal').textContent = n.toLocaleString(); }
+// a battle royale prize, shown on the results screen (it can arrive after you were knocked out, when the match ends)
+function gotPrize(m) {
+  setTonnies(m.balance);
+  $('endPrizeTxt').textContent = `+${m.earned} Tonnies for #${m.place}`;
+  $('endPrize').hidden = false;
+  track('earn_tonnies', { place: m.place, amount: m.earned });
 }
 function signedOut() {
   acct.name = acct.token = acct.look = null; acct.busy = false;
