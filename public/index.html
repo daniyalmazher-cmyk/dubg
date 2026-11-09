@@ -516,7 +516,7 @@ body.touch #leaveHud{bottom:auto;top:calc(64px + env(safe-area-inset-top,0px))}
       <div class="invWrap">
         <div class="avatarBox" id="invAvatar"></div>
         <div class="invSide">
-          <div class="seg" id="slotSeg"><button type="button" data-v="head">Head</button><button type="button" data-v="torso">Torso</button><button type="button" data-v="legs">Legs</button><button type="button" data-v="feet">Feet</button><button type="button" data-v="hands">Hands</button></div>
+          <div class="seg" id="slotSeg"><button type="button" data-v="head">Head</button><button type="button" data-v="torso">Torso</button><button type="button" data-v="legs">Legs</button><button type="button" data-v="feet">Feet</button><button type="button" data-v="hands">Hands</button><button type="button" data-v="rifle">Rifle</button><button type="button" data-v="smg">SMG</button><button type="button" data-v="pistol">Pistol</button><button type="button" data-v="vest">Vest</button></div>
           <div class="invGrid" id="invGrid"></div>
           <div class="note">Drag your dawg to spin it. Your outfit is saved to your account and worn in every match.</div>
         </div>
@@ -1683,13 +1683,14 @@ const acct = { name: null, token: null, busy: false, tab: 'login', owned: [], to
 try { acct.token = localStorage.getItem('dubg-token'); acct.name = acct.token && localStorage.getItem('dubg-acct'); } catch (e) {}
 const homeId = () => acct.name ? 'homeScreen' : 'authScreen';
 // shown until the server answers; it re-checks the outfit against what the account owns
-try { acct.look = acct.name && JSON.parse(localStorage.getItem('dubg-look')); acct.look = acct.look && D.cleanLook(acct.look, D.SLOTS.map(s => s + ':' + acct.look[s])); } catch (e) {}
+try { acct.look = acct.name && JSON.parse(localStorage.getItem('dubg-look')); acct.look = acct.look && D.cleanLook(acct.look, D.LOOK_SLOTS.map(s => s + ':' + acct.look[s])); } catch (e) {}
 
 // ---------- outfit: the character on the home screen, and the inventory to change it ----------
 const avatarCv = document.createElement('canvas'); avatarCv.className = 'avatarCv';
 let invSlot = 'torso', invStart = '', thumbs = null;
 const tryOn = {};   // locked items being looked at in the preview, by area; never saved
-const shownLook = () => ({ ...acct.look, ...tryOn });
+// on the Vest tab the preview wears the vest, which otherwise only shows in a match when you have armour
+const shownLook = () => ({ ...acct.look, ...tryOn, showVest: invSlot === 'vest' });
 // the preview canvas moves to whichever screen with a character is showing
 function syncAvatar() {
   if (!window.R3D) return;
@@ -1703,7 +1704,7 @@ function syncAvatar() {
 function loadThumbs() {
   if (thumbs || !window.R3D) return;
   thumbs = {};
-  const list = D.SLOTS.flatMap(slot => D.COSMETICS[slot].map(it => ({ slot, id: it.id })));
+  const list = D.LOOK_SLOTS.flatMap(slot => D.COSMETICS[slot].map(it => ({ slot, id: it.id })));
   for (const id in D.SETS) list.push({ slot: 'set', id, look: setLook(id) });
   R3D.preview.thumbs(list).then(t => { thumbs = t; renderInv(); renderStore(); });
 }
@@ -1726,7 +1727,8 @@ $('invBtn').addEventListener('click', () => {
 
 // ---------- store: whole sets for Tonnies ----------
 let storePick = Object.keys(D.SETS)[0], confirmSet = null;
-const setLook = id => Object.fromEntries(D.SLOTS.map(s => [s, id]));
+// a set's outfit, plus its gear skins when it has them
+const setLook = id => ({ ...acct.look, ...Object.fromEntries((D.SETS[id].gear ? D.LOOK_SLOTS : D.SLOTS).map(s => [s, id])) });
 const ownsSet = id => D.setItems(id).every(i => acct.owned.includes(i));
 function storeMsg(ok, msg) {
   $('storeMsg').hidden = !ok; $('storeErr').hidden = !!ok || !msg;
@@ -1769,7 +1771,7 @@ function bought(m) {
   track('buy_set', { set: m.set, price: D.SETS[m.set].price });
   renderStore(); renderInv();
 }
-$('slotSeg').addEventListener('click', e => { const v = e.target.dataset && e.target.dataset.v; if (v) { invSlot = v; renderInv(); } });
+$('slotSeg').addEventListener('click', e => { const v = e.target.dataset && e.target.dataset.v; if (v) { invSlot = v; renderInv(); syncAvatar(); } });
 $('invGrid').addEventListener('click', e => {
   const b = e.target.closest('.itm'); if (!b) return;
   const it = D.COSMETICS[invSlot].find(x => x.id === b.dataset.id);

@@ -133,12 +133,13 @@ const SKINS = ['#8d5524', '#c68642', '#e0ac69', '#5c3a1e', '#f1c27d', '#3d2314',
 // c is the item's main colour, used for corpses and the box figure shown while the model loads; r is its rarity;
 // set is the id of the full outfit (SETS) it belongs to; locked items can be tried on but not worn until owned;
 // hidesHead headwear replaces the whole head (its own face and neck).
+// Gear skins (GEAR) restyle the rifle, SMG, pistol and worn vest: DUBG_gun_<gun>_<id> in dd_items.glb, DUBG_vest_<id> in the character.
 // Every account starts with the common items; sets are bought whole in the store.
 const RARITY = {
   common: { name: 'Common', c: '#e8e6e0' }, uncommon: { name: 'Uncommon', c: '#3d8bff' },
   rare: { name: 'Rare', c: '#a855f7' }, ultra: { name: 'Ultra rare', c: '#f2c230' },
 };
-// store sets: price in Tonnies; pieces names each item, in SLOTS order
+// store sets: price in Tonnies; pieces names each item, in SLOTS order; gear (optional) names its gear skins, in GEAR order
 const SETS = {
   warden: { name: 'Night Warden', r: 'uncommon', price: 500, c: '#2b2d33', pieces: ['Warden cowl', 'Caped suit', 'Warden leggings', 'Warden boots', 'Finned gauntlets'] },
   titan: { name: 'Sky Titan', r: 'uncommon', price: 500, c: '#1f4fc9', pieces: ['Titan hair', 'Star suit & cape', 'Titan tights', 'Red boots', 'Titan cuffs'] },
@@ -149,7 +150,8 @@ const SETS = {
   kungfu: { name: 'Kung Fu Master', r: 'uncommon', price: 500, c: '#ece4d0', pieces: ['Kung fu hair', 'Silk jacket & sash', 'Kung fu trousers', 'Kung fu slippers', 'Wrist wraps'] },
   tiger: { name: 'Tiger Fist', r: 'uncommon', price: 500, c: '#e8822a', pieces: ['Tiger head', 'Training top', 'Trousers & tail', 'Tiger paws', 'Wrapped paws'] },
   panda: { name: 'Panda Brawler', r: 'uncommon', price: 500, c: '#f2f0ea', pieces: ['Panda head', 'Belly & vest', 'Cropped trousers', 'Panda feet', 'Panda paws'] },
-  skeleton: { name: 'Skeleton', r: 'rare', price: 1000, c: '#ece6d4', pieces: ['Skull', 'Ribcage', 'Leg bones', 'Bone feet', 'Bone hands'] },
+  skeleton: { name: 'Skeleton', r: 'rare', price: 1000, c: '#ece6d4', pieces: ['Skull', 'Ribcage', 'Leg bones', 'Bone feet', 'Bone hands'],
+    gear: ['Bone rifle', 'Bone SMG', 'Bone pistol', 'Ribcage vest'] },
   franken: { name: 'Frankenstein', r: 'rare', price: 1000, c: '#7a9a5a', pieces: ['Monster head', 'Patched coat', 'Short trousers', 'Platform boots', 'Stitched hands'] },
   vampire: { name: 'Vampire', r: 'rare', price: 1000, c: '#8e1420', pieces: ['Vampire face', 'Caped tailcoat', 'Evening trousers', 'Buckled shoes', 'Ringed hands'] },
   mummy: { name: 'Mummy', r: 'rare', price: 1000, c: '#d8cdb0', pieces: ['Wrapped head', 'Wrapped torso', 'Wrapped legs', 'Wrapped feet', 'Wrapped hands'] },
@@ -160,21 +162,31 @@ const COSMETICS = {
   legs: [{ id: 'trousers', name: 'Brown trousers', c: '#6b4a2e', r: 'common' }],
   feet: [{ id: 'sandals', name: 'Sandals', c: '#6b4a2e', r: 'common' }],
   hands: [{ id: 'bare', name: 'No gloves', c: '#c68642', r: 'common' }],
+  rifle: [{ id: 'base', name: 'Standard rifle', c: '#1c1e21', r: 'common' }],
+  smg: [{ id: 'base', name: 'Standard SMG', c: '#1c1e21', r: 'common' }],
+  pistol: [{ id: 'base', name: 'Standard pistol', c: '#3a3f46', r: 'common' }],
+  vest: [{ id: 'base', name: 'Standard vest', c: '#2c3340', r: 'common' }],
 };
 const SLOTS = ['head', 'torso', 'legs', 'feet', 'hands'];
-const DEFAULT_LOOK = { head: 'hair', torso: 'tee', legs: 'trousers', feet: 'sandals', hands: 'bare' };
+const GEAR = ['rifle', 'smg', 'pistol', 'vest'];
+const LOOK_SLOTS = SLOTS.concat(GEAR);
+const DEFAULT_LOOK = { head: 'hair', torso: 'tee', legs: 'trousers', feet: 'sandals', hands: 'bare', rifle: 'base', smg: 'base', pistol: 'base', vest: 'base' };
 const DEFAULT_SKIN = '#c68642';
 const cosmetic = (slot, id) => COSMETICS[slot].find(i => i.id === id);
 // every set adds one locked piece to each area
 for (const [id, set] of Object.entries(SETS)) SLOTS.forEach((slot, k) => COSMETICS[slot].push(
   { id, name: set.pieces[k], c: set.c, r: set.r, set: id, locked: true, hidesHead: slot === 'head' }));
+// and a gear skin for each gun and the vest, when the set has them
+for (const [id, set] of Object.entries(SETS)) if (set.gear) GEAR.forEach((slot, k) => COSMETICS[slot].push(
+  { id, name: set.gear[k], c: set.c, r: set.r, set: id, locked: true, gear: true }));
 const setItems = id => SLOTS.map(slot => slot + ':' + id);   // a set's pieces as 'slot:id', like an account's owned list
 // can this player wear the item? owned: the account's 'slot:id' list of items it has unlocked
-const canWear = (slot, it, owned) => !it.locked || (Array.isArray(owned) && owned.includes(slot + ':' + it.id));
+// gear skins come with their set, so owning the set's pieces unlocks them (sets bought before they had gear included)
+const canWear = (slot, it, owned) => !it.locked || (Array.isArray(owned) && (owned.includes(slot + ':' + it.id) || (!!it.gear && owned.includes('head:' + it.set))));
 // anything unknown, or locked and not owned, falls back to the starter item for that area
 function cleanLook(l, owned) {
   const out = {};
-  for (const s of SLOTS) { const it = l && typeof l[s] === 'string' && cosmetic(s, l[s]); out[s] = it && canWear(s, it, owned) ? it.id : DEFAULT_LOOK[s]; }
+  for (const s of LOOK_SLOTS) { const it = l && typeof l[s] === 'string' && cosmetic(s, l[s]); out[s] = it && canWear(s, it, owned) ? it.id : DEFAULT_LOOK[s]; }
   return out;
 }
 const SHOPS = {
@@ -531,7 +543,7 @@ let G = null;
 function makePlayer(id, name, isBot, cell, outfit, owned) {
   const crewIdx = Math.floor(Math.random() * CREWS.length);
   const look = isBot ? {} : cleanLook(outfit, owned);
-  if (isBot) for (const s of SLOTS) look[s] = pick(COSMETICS[s].filter(i => !i.locked).map(i => [i.id, 1]));
+  if (isBot) for (const s of LOOK_SLOTS) look[s] = pick(COSMETICS[s].filter(i => !i.locked).map(i => [i.id, 1]));
   look.skin = isBot ? pick(SKINS.map(c => [c, 1])) : DEFAULT_SKIN;
   // for the box figure and corpses
   look.hoodie = cosmetic('torso', look.torso).c;
@@ -1288,7 +1300,7 @@ function match() { return G; }
 return {
   TAU, COLS, ROWS, XL, YL, XN, YN, CITY, CX, CY, DUNE, WORLD, MAX_PLAYERS, LOCKDOWN, SPEED, SCHEME, BODY_R, CAR_L, CAR_W,
   WEAPONS, ITEMS, CREWS, SHOPS, PHASES, GRENADE, BLAST_CORE, DROPS, DROP_FALL, ZW, MALL, ZMAX, ZOMBIE, ZSPAWNS,
-  COSMETICS, RARITY, SETS, SLOTS, setItems, DEFAULT_LOOK, clamp, dist, angDiff, lerpAngle, darken, inRect, badName, cleanLook, canWear,
+  COSMETICS, RARITY, SETS, SLOTS, GEAR, LOOK_SLOTS, setItems, DEFAULT_LOOK, clamp, dist, angDiff, lerpAngle, darken, inRect, badName, cleanLook, canWear,
   buildWorld, setDoors, cellWalls, solidAt, blocksSight, pushOut,
   stepProj, createMatch, step, setInput, humanAction, humanLeft, roster, itemList, snapCommon, snapMe, match,
 };

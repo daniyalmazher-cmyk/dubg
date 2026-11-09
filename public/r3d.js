@@ -68,7 +68,7 @@ function init(canvas) {
   api.pool = Array.from({ length: LIGHTS }, () => { const l = new THREE.PointLight('#ffd28c', 0, 200, 0); scene.add(l); return l; });
   fogCv = document.createElement('canvas'); fogCv.width = fogCv.height = FOG_PX; fogCtx = fogCv.getContext('2d');
   fogU.tex.value = new THREE.CanvasTexture(fogCv);
-  loadCharacter();
+  loadCharacter(); loadItems();
   return true;
 }
 
@@ -459,11 +459,32 @@ const GUN_BUILD = {
     box(g, unitBox, STEEL, 1.6, 3, 4, 1.8, 9, 6);                                         // sight
   },
 };
+// Guns and pickups come from dd_items.glb (built in Blender, one mesh and one material each, in game units);
+// until it loads, the box builds above stand in. Gun skins are DUBG_gun_<type>_<skin>, base when there is none.
+const ITEMS_VERSION = 1;   // bump when dd_items.glb changes
+let itemsSrc = null;       // mesh name -> geometry
+const itemMat = fogify(new THREE.MeshLambertMaterial({ vertexColors: true })), itemMatPlain = new THREE.MeshLambertMaterial({ vertexColors: true });
+function loadItems() {
+  if (!loadItems.p) loadItems.p = new Promise(res => gltf.load('/models/dd_items.glb?v=' + ITEMS_VERSION, g => {
+    itemsSrc = {}; g.scene.traverse(o => { if (o.isMesh) itemsSrc[o.name] = o.geometry; });
+    for (const k in gunProto) delete gunProto[k];
+    for (const k in itemProto) delete itemProto[k];
+    res();
+  }, undefined, () => { console.warn('DUBG: items model missing, keeping the box guns'); res(); }));
+  return loadItems.p;
+}
+const itemMesh = (name, m = itemMat) => itemsSrc && itemsSrc[name] ? new THREE.Mesh(itemsSrc[name], m) : null;
+// which skin a player's gun wears (only the rifle, SMG and pistol have skins)
+const gunSkin = P => (P.look && P.look[P.gun]) || 'base';
 const gunProto = {};
-function gunModel(type) {
-  if (!GUN_BUILD[type]) return new THREE.Group();
-  if (!gunProto[type]) { const g = new THREE.Group(); GUN_BUILD[type](g); gunProto[type] = g; }
-  return gunProto[type].clone();
+function gunModel(type, skin = 'base') {
+  const key = type + ':' + skin;
+  if (!gunProto[key]) {
+    const g = new THREE.Group(), m = itemMesh('DUBG_gun_' + type + '_' + skin) || itemMesh('DUBG_gun_' + type + '_base');
+    if (m) g.add(m); else if (GUN_BUILD[type]) GUN_BUILD[type](g);
+    gunProto[key] = g;
+  }
+  return gunProto[key].clone();
 }
 function updatePlayer(P, v, dt, visible) {
   const x = P.x, y = P.y, k = Math.min(1, dt * 10);
@@ -475,11 +496,12 @@ function updatePlayer(P, v, dt, visible) {
   v.holder.visible = visible;
   v.vest.visible = P.armor > 0;
   // swap the gun model when they change weapons
-  if (v.gunType !== P.gun) {
-    v.gunType = P.gun; v.gun.clear(); v.tip = null;
+  const gunKey = P.gun && P.gun + ':' + gunSkin(P) + ':' + !!itemsSrc;
+  if (v.gunType !== gunKey) {
+    v.gunType = gunKey; v.gun.clear(); v.tip = null;
     if (P.gun) {
       // a marker at the end of the barrel, so shots can start from the gun instead of the body
-      const gm = gunModel(P.gun), box = new THREE.Box3().setFromObject(gm);
+      const gm = gunModel(P.gun, gunSkin(P)), box = new THREE.Box3().setFromObject(gm);
       v.tip = new THREE.Object3D(); v.tip.position.set(0, (box.min.y + box.max.y) / 2, box.max.z); gm.add(v.tip);
       v.gun.add(gm);
     }
@@ -544,7 +566,7 @@ function muzzle(P) { return P.muzzle || { x: P.x + Math.cos(P.ang) * 22, y: P.y 
 // A 10-bone rig with idle / walk / punch / heal / die clips, a head, and every outfit piece as its own skinned mesh
 // (DUBG_<area>_<item>). A player shows one piece per area. Pieces are coloured per vertex; their bare-skin parts use a
 // second material, so a player is two materials: their clothes and their skin.
-const CHAR_VERSION = 13;   // bump when the model changes: browsers keep models cached for a day
+const CHAR_VERSION = 14;   // bump when the model changes: browsers keep models cached for a day
 let charSrc = null;   // { scene, clips } once loaded; until then players use the box figure above
 const charWait = [];  // run once the model is in
 function loadCharacter() {
@@ -565,8 +587,10 @@ function loadCharacter() {
 const PIECE = /^DUBG_(head|torso|legs|feet|hands)_([a-z]+)(_\d+)?$/;
 // headwear that replaces the whole head (a skull) hides the face under it
 const hidesHead = id => { const it = window.DUBG && DUBG.COSMETICS.head.find(i => i.id === id); return !!(it && it.hidesHead); };
+const VEST = /^DUBG_vest_([a-z]+)$/;
 function setOutfit(body, look) {
-  body.traverse(o => { const m = PIECE.exec(o.name); if (m) o.visible = look[m[1]] === m[2]; });
+  // the vest only shows in the menu preview while picking one (look.showVest); in a match it shows with armour
+  body.traverse(o => { const m = PIECE.exec(o.name); if (m) o.visible = look[m[1]] === m[2]; const v = VEST.exec(o.name); if (v) o.visible = !!look.showVest && v[1] === (look.vest || 'base'); });
   const face = body.getObjectByName('DUBG_Body'); if (face) face.visible = !hidesHead(look.head);
 }
 // a fresh copy of the character in an outfit; fog: false for the menu preview, which has no fog of war
@@ -579,7 +603,8 @@ function dressed(look, skin, fog) {
     if (o.isMesh) { const n = o.material.name; o.material = n === 'DUBG_Skin' ? flesh : cloth; o.frustumCulled = false; }
   });
   setOutfit(body, look);
-  const vest = body.getObjectByName('DUBG_vest'); if (vest) vest.visible = false;
+  const vest = body.getObjectByName('DUBG_vest_' + (look.vest || 'base')) || body.getObjectByName('DUBG_vest_base');
+  if (vest) vest.visible = false;
   return { body, bones, mats: [cloth, flesh], vest };
 }
 function makeCharacter(P, isMe) {
@@ -654,9 +679,11 @@ const preview = {
 const SHOT = { head: [0, 5.05, 0, 4.6, [0.5, 0.25, 1]], torso: [0, 3.0, 0, 7, [0.45, 0.2, 1]], legs: [0, 1.3, 0, 6.6, [0.45, 0.25, 1]],
   feet: [0, 0.45, 0.2, 4, [0.7, 0.45, 1]], hands: [1.15, 2.4, 0, 2.7, [0.9, 0.25, 0.75]],   // the left hand: it has the vampire's ring
   set: [0, 2.85, 0, 10.5, [0.45, 0.18, 1]] };                                                // a whole outfit, for the store
+const GUN_THUMB = { rifle: 1, smg: 1, pistol: 1 };
 function thumbs(list) {
   return new Promise(res => {
-    const go = () => {
+    const go = () => loadItems().then(draw);
+    const draw = () => {
       const cv = document.createElement('canvas'), out = {};
       let r; try { r = new THREE.WebGLRenderer({ canvas: cv, alpha: true, antialias: true }); } catch (e) { res(out); return; }
       r.setSize(160, 160, false); r.outputColorSpace = THREE.SRGBColorSpace;
@@ -665,13 +692,29 @@ function thumbs(list) {
       const sun = new THREE.DirectionalLight('#ffffff', 2.2); sun.position.set(4, 6, 8); sc.add(sun);
       const fig = dressed({}, '#c68642', false); sc.add(fig.body);
       const head = fig.body.getObjectByName('DUBG_Body');
+      const gunSc = new THREE.Scene(), gb = new THREE.Box3(), gc = new THREE.Vector3(), gs = new THREE.Vector3();
+      gunSc.add(new THREE.HemisphereLight('#fff4e0', '#6b5a45', 2.2));
+      const gsun = new THREE.DirectionalLight('#ffffff', 2.2); gsun.position.set(8, 6, 4); gunSc.add(gsun);
       for (const { slot, id, look } of list) {
-        if (slot === 'set') setOutfit(fig.body, look);
+        if (GUN_THUMB[slot]) {
+          // the gun side on, filling the tile
+          const m = itemMesh('DUBG_gun_' + slot + '_' + id, itemMatPlain); if (!m) continue;
+          gunSc.add(m); gb.setFromObject(m).getCenter(gc); gb.getSize(gs);
+          const d = Math.max(gs.z, gs.y) * 1.75;
+          cam.position.set(gc.x + d, gc.y + d * 0.28, gc.z - d * 0.12); cam.lookAt(gc);
+          r.render(gunSc, cam); gunSc.remove(m);
+          out[slot + ':' + id] = cv.toDataURL('image/png');
+          continue;
+        }
+        if (slot === 'vest') {
+          fig.body.traverse(o => { if (PIECE.test(o.name)) o.visible = false; const v = VEST.exec(o.name); if (v) o.visible = v[1] === id; });
+          if (head) head.visible = false;
+        } else if (slot === 'set') setOutfit(fig.body, look);
         else {
           fig.body.traverse(o => { const m = PIECE.exec(o.name); if (m) o.visible = m[1] === slot && m[2] === id; });
           if (head) head.visible = slot === 'head' && !hidesHead(id);   // hats and masks need a head under them
         }
-        const [x, y, z, d, dir] = SHOT[slot];
+        const [x, y, z, d, dir] = SHOT[slot === 'vest' ? 'torso' : slot];
         tmpV.set(...dir).normalize().multiplyScalar(d);
         cam.position.set(x + tmpV.x, y + tmpV.y, z + tmpV.z); cam.lookAt(x, y, z);
         r.render(sc, cam);
@@ -698,11 +741,12 @@ function updateCharacter(P, v, dt, visible) {
   v.speed = Math.min(400, Math.hypot(v.mvx, v.mvy)); v.lx = x; v.ly = y;
   v.holder.position.set(x, 0, y); v.holder.rotation.y = Math.PI / 2 - P.ang; v.holder.visible = visible;
   if (v.vest) v.vest.visible = P.armor > 0;
-  if (v.gunType !== P.gun) {
-    v.gunType = P.gun; v.gun.clear(); v.tip = null;
+  const gunKey = P.gun && P.gun + ':' + gunSkin(P) + ':' + !!itemsSrc;
+  if (v.gunType !== gunKey) {
+    v.gunType = gunKey; v.gun.clear(); v.tip = null;
     if (P.gun) {
       // a marker at the end of the barrel, for bullet trails and the muzzle flash
-      const gm = gunModel(P.gun), box = new THREE.Box3().setFromObject(gm);
+      const gm = gunModel(P.gun, gunSkin(P)), box = new THREE.Box3().setFromObject(gm);
       v.tip = new THREE.Object3D(); v.tip.position.set(0, (box.min.y + box.max.y) / 2, box.max.z); gm.add(v.tip);
       v.gun.add(gm);
     }
@@ -848,7 +892,9 @@ const itemProto = {};
 function itemModel(type, d) {
   if (!itemProto[type]) {
     const g = new THREE.Group();
+    const m = d.kind !== 'gun' && itemMesh('DUBG_item_' + type);
     if (d.kind === 'gun') { const gm = gunModel(type); gm.rotation.y = Math.PI / 2; gm.scale.setScalar(1.25); g.add(gm); }
+    else if (m) g.add(m);
     else if (ITEM_BUILD[type]) ITEM_BUILD[type](g);
     else box(g, unitBox, d.color, 10, 8, 10, 0, 0, 0);
     itemProto[type] = g;
