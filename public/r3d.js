@@ -461,7 +461,7 @@ const GUN_BUILD = {
 };
 // Guns and pickups come from dd_items.glb (built in Blender, one mesh and one material each, in game units);
 // until it loads, the box builds above stand in. Gun skins are DUBG_gun_<type>_<skin>, base when there is none.
-const ITEMS_VERSION = 2;   // bump when dd_items.glb changes
+const ITEMS_VERSION = 3;   // bump when dd_items.glb changes
 let itemsSrc = null;       // mesh name -> geometry
 const itemMat = fogify(new THREE.MeshLambertMaterial({ vertexColors: true })), itemMatPlain = new THREE.MeshLambertMaterial({ vertexColors: true });
 function loadItems() {
@@ -566,7 +566,7 @@ function muzzle(P) { return P.muzzle || { x: P.x + Math.cos(P.ang) * 22, y: P.y 
 // A 10-bone rig with idle / walk / punch / heal / die clips, a head, and every outfit piece as its own skinned mesh
 // (DUBG_<area>_<item>). A player shows one piece per area. Pieces are coloured per vertex; their bare-skin parts use a
 // second material, so a player is two materials: their clothes and their skin.
-const CHAR_VERSION = 14;   // bump when the model changes: browsers keep models cached for a day
+const CHAR_VERSION = 15;   // bump when the model changes: browsers keep models cached for a day
 let charSrc = null;   // { scene, clips } once loaded; until then players use the box figure above
 const charWait = [];  // run once the model is in
 function loadCharacter() {
