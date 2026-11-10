@@ -461,7 +461,7 @@ const GUN_BUILD = {
 };
 // Guns and pickups come from dd_items.glb (built in Blender, one mesh and one material each, in game units);
 // until it loads, the box builds above stand in. Gun skins are DUBG_gun_<type>_<skin>, base when there is none.
-const ITEMS_VERSION = 1;   // bump when dd_items.glb changes
+const ITEMS_VERSION = 2;   // bump when dd_items.glb changes
 let itemsSrc = null;       // mesh name -> geometry
 const itemMat = fogify(new THREE.MeshLambertMaterial({ vertexColors: true })), itemMatPlain = new THREE.MeshLambertMaterial({ vertexColors: true });
 function loadItems() {
@@ -474,7 +474,7 @@ function loadItems() {
   return loadItems.p;
 }
 const itemMesh = (name, m = itemMat) => itemsSrc && itemsSrc[name] ? new THREE.Mesh(itemsSrc[name], m) : null;
-// which skin a player's gun wears (only the rifle, SMG and pistol have skins)
+// which skin a player's gun wears (the rocket launcher has none)
 const gunSkin = P => (P.look && P.look[P.gun]) || 'base';
 const gunProto = {};
 function gunModel(type, skin = 'base') {
@@ -679,7 +679,7 @@ const preview = {
 const SHOT = { head: [0, 5.05, 0, 4.6, [0.5, 0.25, 1]], torso: [0, 3.0, 0, 7, [0.45, 0.2, 1]], legs: [0, 1.3, 0, 6.6, [0.45, 0.25, 1]],
   feet: [0, 0.45, 0.2, 4, [0.7, 0.45, 1]], hands: [1.15, 2.4, 0, 2.7, [0.9, 0.25, 0.75]],   // the left hand: it has the vampire's ring
   set: [0, 2.85, 0, 10.5, [0.45, 0.18, 1]] };                                                // a whole outfit, for the store
-const GUN_THUMB = { rifle: 1, smg: 1, pistol: 1 };
+const GUN_THUMB = { rifle: 1, smg: 1, shotgun: 1, pistol: 1 };
 function thumbs(list) {
   return new Promise(res => {
     const go = () => loadItems().then(draw);

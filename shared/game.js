@@ -133,7 +133,7 @@ const SKINS = ['#8d5524', '#c68642', '#e0ac69', '#5c3a1e', '#f1c27d', '#3d2314',
 // c is the item's main colour, used for corpses and the box figure shown while the model loads; r is its rarity;
 // set is the id of the full outfit (SETS) it belongs to; locked items can be tried on but not worn until owned;
 // hidesHead headwear replaces the whole head (its own face and neck).
-// Gear skins (GEAR) restyle the rifle, SMG, pistol and worn vest: DUBG_gun_<gun>_<id> in dd_items.glb, DUBG_vest_<id> in the character.
+// Gear skins (GEAR) restyle the rifle, SMG, shotgun, pistol and worn vest: DUBG_gun_<gun>_<id> in dd_items.glb, DUBG_vest_<id> in the character.
 // Every account starts with the common items; sets are bought whole in the store.
 const RARITY = {
   common: { name: 'Common', c: '#e8e6e0' }, uncommon: { name: 'Uncommon', c: '#3d8bff' },
@@ -151,7 +151,7 @@ const SETS = {
   tiger: { name: 'Tiger Fist', r: 'uncommon', price: 500, c: '#e8822a', pieces: ['Tiger head', 'Training top', 'Trousers & tail', 'Tiger paws', 'Wrapped paws'] },
   panda: { name: 'Panda Brawler', r: 'uncommon', price: 500, c: '#f2f0ea', pieces: ['Panda head', 'Belly & vest', 'Cropped trousers', 'Panda feet', 'Panda paws'] },
   skeleton: { name: 'Skeleton', r: 'rare', price: 1000, c: '#ece6d4', pieces: ['Skull', 'Ribcage', 'Leg bones', 'Bone feet', 'Bone hands'],
-    gear: ['Bone rifle', 'Bone SMG', 'Bone pistol', 'Ribcage vest'] },
+    gear: ['Bone rifle', 'Bone SMG', 'Bone shotgun', 'Bone pistol', 'Ribcage vest'] },
   franken: { name: 'Frankenstein', r: 'rare', price: 1000, c: '#7a9a5a', pieces: ['Monster head', 'Patched coat', 'Short trousers', 'Platform boots', 'Stitched hands'] },
   vampire: { name: 'Vampire', r: 'rare', price: 1000, c: '#8e1420', pieces: ['Vampire face', 'Caped tailcoat', 'Evening trousers', 'Buckled shoes', 'Ringed hands'] },
   mummy: { name: 'Mummy', r: 'rare', price: 1000, c: '#d8cdb0', pieces: ['Wrapped head', 'Wrapped torso', 'Wrapped legs', 'Wrapped feet', 'Wrapped hands'] },
@@ -164,13 +164,14 @@ const COSMETICS = {
   hands: [{ id: 'bare', name: 'No gloves', c: '#c68642', r: 'common' }],
   rifle: [{ id: 'base', name: 'Standard rifle', c: '#1c1e21', r: 'common' }],
   smg: [{ id: 'base', name: 'Standard SMG', c: '#1c1e21', r: 'common' }],
+  shotgun: [{ id: 'base', name: 'Standard shotgun', c: '#6b4426', r: 'common' }],
   pistol: [{ id: 'base', name: 'Standard pistol', c: '#3a3f46', r: 'common' }],
   vest: [{ id: 'base', name: 'Standard vest', c: '#2c3340', r: 'common' }],
 };
 const SLOTS = ['head', 'torso', 'legs', 'feet', 'hands'];
-const GEAR = ['rifle', 'smg', 'pistol', 'vest'];
+const GEAR = ['rifle', 'smg', 'shotgun', 'pistol', 'vest'];
 const LOOK_SLOTS = SLOTS.concat(GEAR);
-const DEFAULT_LOOK = { head: 'hair', torso: 'tee', legs: 'trousers', feet: 'sandals', hands: 'bare', rifle: 'base', smg: 'base', pistol: 'base', vest: 'base' };
+const DEFAULT_LOOK = { head: 'hair', torso: 'tee', legs: 'trousers', feet: 'sandals', hands: 'bare', rifle: 'base', smg: 'base', shotgun: 'base', pistol: 'base', vest: 'base' };
 const DEFAULT_SKIN = '#c68642';
 const cosmetic = (slot, id) => COSMETICS[slot].find(i => i.id === id);
 // every set adds one locked piece to each area
