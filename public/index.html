@@ -1698,14 +1698,15 @@ function syncAvatar() {
   const box = inv ? $('invAvatar') : store ? $('storeAvatar') : !$('homeScreen').hidden ? $('homeAvatar') : null;
   if (!box || !acct.look) { R3D.preview.hide(); return; }
   if (avatarCv.parentNode !== box) box.appendChild(avatarCv);
-  R3D.preview.show(avatarCv, inv ? shownLook() : store ? setLook(storePick) : acct.look);
+  R3D.preview.show(avatarCv, inv ? shownLook() : store ? { ...setLook(storePick), showVest: !!D.SETS[storePick].gear } : acct.look);
 }
 // pictures of every item and every set, drawn once from the 3D model
 function loadThumbs() {
   if (thumbs || !window.R3D) return;
   thumbs = {};
   const list = D.LOOK_SLOTS.flatMap(slot => D.COSMETICS[slot].map(it => ({ slot, id: it.id })));
-  for (const id in D.SETS) list.push({ slot: 'set', id, look: setLook(id) });
+  // sets with gear are pictured in their vest with their guns beside them
+  for (const id in D.SETS) list.push({ slot: 'set', id, look: { ...setLook(id), showVest: !!D.SETS[id].gear }, gear: !!D.SETS[id].gear });
   R3D.preview.thumbs(list).then(t => { thumbs = t; renderInv(); renderStore(); });
 }
 addEventListener('r3d-ready', syncAvatar);

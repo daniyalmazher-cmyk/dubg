@@ -678,7 +678,10 @@ const preview = {
 // (look-at point and camera direction per area, in model units; the model faces +Z)
 const SHOT = { head: [0, 5.05, 0, 4.6, [0.5, 0.25, 1]], torso: [0, 3.0, 0, 7, [0.45, 0.2, 1]], legs: [0, 1.3, 0, 6.6, [0.45, 0.25, 1]],
   feet: [0, 0.45, 0.2, 4, [0.7, 0.45, 1]], hands: [1.15, 2.4, 0, 2.7, [0.9, 0.25, 0.75]],   // the left hand: it has the vampire's ring
-  set: [0, 2.85, 0, 10.5, [0.45, 0.18, 1]] };                                                // a whole outfit, for the store
+  set: [0, 2.85, 0, 10.5, [0.45, 0.18, 1]],                                                 // a whole outfit, for the store
+  gearSet: [0.3, 2.85, 0, 12.6, [0.22, 0.14, 1]] };                                         // ... with its guns stacked beside it
+// where a set's guns go in its store picture: model-unit height of each, right of the figure (which moves left)
+const GEAR_SPOT = [['rifle', 4.75], ['shotgun', 3.6], ['smg', 2.45], ['pistol', 1.35]], GEAR_K = 0.078;
 const GUN_THUMB = { rifle: 1, smg: 1, shotgun: 1, pistol: 1 };
 function thumbs(list) {
   return new Promise(res => {
@@ -695,7 +698,8 @@ function thumbs(list) {
       const gunSc = new THREE.Scene(), gb = new THREE.Box3(), gc = new THREE.Vector3(), gs = new THREE.Vector3();
       gunSc.add(new THREE.HemisphereLight('#fff4e0', '#6b5a45', 2.2));
       const gsun = new THREE.DirectionalLight('#ffffff', 2.2); gsun.position.set(8, 6, 4); gunSc.add(gsun);
-      for (const { slot, id, look } of list) {
+      const gearG = new THREE.Group(); sc.add(gearG);
+      for (const { slot, id, look, gear } of list) {
         if (GUN_THUMB[slot]) {
           // the gun side on, filling the tile
           const m = itemMesh('DUBG_gun_' + slot + '_' + id, itemMatPlain); if (!m) continue;
@@ -709,12 +713,20 @@ function thumbs(list) {
         if (slot === 'vest') {
           fig.body.traverse(o => { if (PIECE.test(o.name)) o.visible = false; const v = VEST.exec(o.name); if (v) o.visible = v[1] === id; });
           if (head) head.visible = false;
-        } else if (slot === 'set') setOutfit(fig.body, look);
+        } else if (slot === 'set') {
+          setOutfit(fig.body, look);
+          gearG.clear(); fig.body.position.x = gear ? -1.35 : 0;
+          if (gear) for (const [g, y] of GEAR_SPOT) {
+            const m = itemMesh('DUBG_gun_' + g + '_' + id, itemMatPlain); if (!m) continue;
+            m.rotation.y = Math.PI / 2; m.scale.setScalar(GEAR_K); gearG.add(m);
+            gb.setFromObject(m).getCenter(gc); m.position.set(1.75 - gc.x, y - gc.y, 0.5 - gc.z);
+          }
+        }
         else {
           fig.body.traverse(o => { const m = PIECE.exec(o.name); if (m) o.visible = m[1] === slot && m[2] === id; });
           if (head) head.visible = slot === 'head' && !hidesHead(id);   // hats and masks need a head under them
         }
-        const [x, y, z, d, dir] = SHOT[slot === 'vest' ? 'torso' : slot];
+        const [x, y, z, d, dir] = SHOT[slot === 'vest' ? 'torso' : slot === 'set' && gear ? 'gearSet' : slot];
         tmpV.set(...dir).normalize().multiplyScalar(d);
         cam.position.set(x + tmpV.x, y + tmpV.y, z + tmpV.z); cam.lookAt(x, y, z);
         r.render(sc, cam);
